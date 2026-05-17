@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 'use client';
 import { useEffect, useState } from 'react';
 
@@ -18,7 +16,7 @@ export default function Home() {
     <div style={{minHeight:'100vh',background:'white',color:'black',fontFamily:'sans-serif'}}>
       <header style={{background:'white',borderBottom:'3px solid #16a34a',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <h1 style={{color:'#16a34a',fontWeight:'900',fontSize:'20px',margin:0}}>⚽ MakeGoal</h1>
+          <h1 style={{color:'#16a34a',fontWeight:'900',fontSize:'20px',margin:0}}>MakeGoal</h1>
           <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Jouez intelligemment !</p>
         </div>
         <nav style={{display:'flex',gap:'16px',fontSize:'14px',fontWeight:'600'}}>
@@ -46,10 +44,4 @@ export default function Home() {
       </section>
     </div>
   );
-            }
-=======
-use client
->>>>>>> Stashed changes
-=======
-use client
->>>>>>> Stashed changes
+}
