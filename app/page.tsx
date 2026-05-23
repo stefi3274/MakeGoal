@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 type Match = {
   idEvent: string;
@@ -12,6 +13,9 @@ const VIOLET = '#bf00ff';
 
 export default function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetch('/api/ligue1')
@@ -24,6 +28,28 @@ export default function Home() {
   const scrollToMatchs = () => {
     const el = document.getElementById('matchs');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleSubscribe = async () => {
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!valid) {
+      setMessage('Adresse email invalide.');
+      return;
+    }
+    setLoading(true);
+    setMessage('');
+    const { error } = await supabase.from('newsletter').insert({ email: email });
+    setLoading(false);
+    if (error) {
+      if (error.code === '23505') {
+        setMessage('Cet email est déjà inscrit.');
+      } else {
+        setMessage('Une erreur est survenue. Réessayez.');
+      }
+    } else {
+      setMessage('Merci ! Vous êtes inscrit.');
+      setEmail('');
+    }
   };
 
   return (
@@ -68,6 +94,28 @@ export default function Home() {
             </div>
           </div>
         ))}
+      </section><section style={{background:'#f9fafb',padding:'48px 16px',textAlign:'center'}}>
+        <h3 style={{fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>Newsletter MakeGoal</h3>
+        <p style={{color:'#6b7280',marginBottom:'24px'}}>Recevez les pronostics et les matchs à venir.</p>
+        <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',maxWidth:'420px',margin:'0 auto'}}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Votre email"
+            style={{flex:1,minWidth:'200px',padding:'12px 16px',borderRadius:'999px',border:'1px solid #d1d5db',fontSize:'14px'}}
+          />
+          <button
+            onClick={handleSubscribe}
+            disabled={loading}
+            style={{background:VIOLET,color:'#ffffff',fontWeight:900,padding:'12px 28px',borderRadius:'999px',border:'none',cursor:'pointer'}}
+          >
+            {loading ? '...' : "S'inscrire"}
+          </button>
+        </div>
+        {message && (
+          <p style={{marginTop:'16px',fontWeight:600,color:VIOLET}}>{message}</p>
+        )}
       </section>
     </div>
   );
