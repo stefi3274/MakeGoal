@@ -22,12 +22,13 @@ export default function Home() {
   }, []);
 
   const scrollToMatchs = () => {
-    document.getElementById('matchs')?.scrollIntoView({ behavior: 'smooth' });
+    const el = document.getElementById('matchs');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
-      <header style={{background:'#ffffff',borderBottom:3px solid ${VIOLET},padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:10}}>
+      <header style={{background:'#ffffff',borderBottom:'3px solid ' + VIOLET,padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:10}}>
         <div>
           <h1 style={{color:VIOLET,fontWeight:900,fontSize:'20px',margin:0}}>MakeGoal</h1>
           <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Jouez intelligemment !</p>
@@ -43,9 +44,7 @@ export default function Home() {
         <h2 style={{fontSize:'40px',fontWeight:900,marginBottom:'16px'}}>Jouez intelligemment.</h2>
         <button
           onClick={scrollToMatchs}
-          onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
-          onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-          style={{background:'#ffffff',color:VIOLET,fontWeight:900,padding:'12px 40px',borderRadius:'999px',border:'none',cursor:'pointer',transition:'transform 0.2s'}}
+          style={{background:'#ffffff',color:VIOLET,fontWeight:900,padding:'12px 40px',borderRadius:'999px',border:'none',cursor:'pointer'}}
         >
           Voir les matchs
         </button>
@@ -59,9 +58,7 @@ export default function Home() {
         {matches.map((match) => (
           <div
             key={match.idEvent}
-            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(191,0,255,0.15)'; }}
-            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-            style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'16px',marginBottom:'12px',transition:'all 0.2s',cursor:'pointer'}}
+            style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'16px',marginBottom:'12px',cursor:'pointer'}}
           >
             <p style={{color:'#9ca3af',fontSize:'12px',marginBottom:'8px'}}>{match.dateEvent}</p>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
