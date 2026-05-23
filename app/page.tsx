@@ -1,8 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 
+type Match = {
+  idEvent: string;
+  dateEvent: string;
+  strHomeTeam: string;
+  strAwayTeam: string;
+};
+
 export default function Home() {
-  const [matches, setMatches] = useState([]);
+  const [matches, setMatches] = useState<Match[]>([]);
 
   useEffect(() => {
     fetch('/api/ligue1')
@@ -14,20 +21,20 @@ export default function Home() {
 
   return (
     <div style={{minHeight:'100vh',background:'white',color:'black',fontFamily:'sans-serif'}}>
-      <header style={{background:'white',borderBottom:'3px solid #16a34a',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <header style={{background:'white',borderBottom:'3px solid #7c3aed',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <h1 style={{color:'#16a34a',fontWeight:'900',fontSize:'20px',margin:0}}>MakeGoal</h1>
+          <h1 style={{color:'#7c3aed',fontWeight:'900',fontSize:'20px',margin:0}}>MakeGoal</h1>
           <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Jouez intelligemment !</p>
         </div>
         <nav style={{display:'flex',gap:'16px',fontSize:'14px',fontWeight:'600'}}>
-          <a href="#" style={{color:'#16a34a'}}>Matchs</a>
+          <a href="#" style={{color:'#7c3aed'}}>Matchs</a>
           <a href="#" style={{color:'#6b7280'}}>Pronostics</a>
           <a href="#" style={{color:'#6b7280'}}>Stats</a>
         </nav>
       </header>
-      <section style={{background:'#16a34a',color:'white',textAlign:'center',padding:'64px 16px'}}>
+      <section style={{background:'#7c3aed',color:'white',textAlign:'center',padding:'64px 16px'}}>
         <h2 style={{fontSize:'40px',fontWeight:'900',marginBottom:'16px'}}>Jouez intelligemment.</h2>
-        <button style={{background:'white',color:'#16a34a',fontWeight:'900',padding:'12px 40px',borderRadius:'999px',border:'none',cursor:'pointer'}}>Voir les matchs</button>
+        <button style={{background:'white',color:'#7c3aed',fontWeight:'900',padding:'12px 40px',borderRadius:'999px',border:'none',cursor:'pointer'}}>Voir les matchs</button>
       </section>
       <section style={{padding:'32px 16px'}}>
         <h3 style={{fontWeight:'900',marginBottom:'16px'}}>Ligue 1 — Prochains matchs</h3>
@@ -36,11 +43,11 @@ export default function Home() {
             <p style={{color:'#9ca3af',fontSize:'12px',marginBottom:'8px'}}>{match.dateEvent}</p>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <p style={{fontWeight:'700'}}>{match.strHomeTeam}</p>
-              <p style={{color:'#16a34a',fontWeight:'900'}}>VS</p>
+              <p style={{color:'#7c3aed',fontWeight:'900'}}>VS</p>
               <p style={{fontWeight:'700'}}>{match.strAwayTeam}</p>
             </div>
           </div>
-        ))}
+        ))}git 
       </section>
     </div>
   );
