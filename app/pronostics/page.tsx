@@ -23,7 +23,7 @@ type Pronostic = {
   lieu: string | null;
   contexte: string | null;
   confiance_globale: number;
-  paris: Pari[];
+  pronostics_paris: Pari[];
 };
 
 const VIOLET = '#bf00ff';
@@ -35,44 +35,24 @@ export default function Pronostics() {
 
   useEffect(() => {
     const charger = async () => {
-      const { data: matchs } = await supabase
+      const { data, error } = await supabase
         .from('pronostics')
-        .select('*')
+        .select('*, pronostics_paris(*)')
         .eq('publie', true)
         .order('date_match', { ascending: true });
-
-      if (matchs) {
-        const avecParis = await Promise.all(
-          matchs.map(async (m) => {
-            const { data: paris } = await supabase
-              .from('pronostics_paris')
-              .select('*')
-              .eq('pronostic_id', m.id)
-              .order('ordre', { ascending: true });
-            return { ...m, paris: paris || [] };
-          })
-        );
-        setPronostics(avecParis);
-      }
+      if (!error && data) setPronostics(data as Pronostic[]);
       setLoading(false);
     };
     charger();
   }, []);
 
-  const formatDate = (d: string) => {
-    return new Date(d).toLocaleString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  };
+  const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
 
   const etoiles = (n: number | null) => n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '';
-
-  const couleurNiveau = (niv: string) => {
-    if (niv === 'Simple') return '#10b981';
-    if (niv === 'Complexe') return '#f59e0b';
-    return VIOLET;
-  };
+  const couleurNiveau = (niv: string) => niv === 'Simple' ? '#10b981' : niv === 'Complexe' ? '#f59e0b' : VIOLET;
 
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
@@ -92,9 +72,10 @@ export default function Pronostics() {
         )}
 
         {!loading && pronostics.map((p) => {
-          const parisDuNiveau = p.paris.filter(x => x.niveau === niveauActif);
+          const paris = (p.pronostics_paris || []).sort((a, b) => a.ordre - b.ordre);
+          const parisDuNiveau = paris.filter(x => x.niveau === niveauActif);
           return (
-            <article key={p.id} style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'24px',marginBottom:'24px',background:'#ffffff'}}>
+            <article key={p.id} style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'24px',marginBottom:'24px'}}>
               {p.competition && (
                 <p style={{fontSize:'12px',color:'#9ca3af',margin:0,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>{p.competition}</p>
               )}
@@ -111,20 +92,13 @@ export default function Pronostics() {
 
               <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
                 {(['Simple', 'Complexe', 'Divin'] as const).map((niv) => (
-                  <button
-                    key={niv}
-                    onClick={() => setNiveauActif(niv)}
-                    style={{
-                      padding:'8px 20px',
-                      borderRadius:'999px',
-                      border:'2px solid ' + couleurNiveau(niv),
-                      background: niveauActif === niv ? couleurNiveau(niv) : '#ffffff',
-                      color: niveauActif === niv ? '#ffffff' : couleurNiveau(niv),
-                      fontWeight:700,
-                      fontSize:'14px',
-                      cursor:'pointer'
-                    }}
-                  >
+                  <button key={niv} onClick={() => setNiveauActif(niv)} style={{
+                    padding:'8px 20px', borderRadius:'999px',
+                    border:'2px solid ' + couleurNiveau(niv),
+                    background: niveauActif === niv ? couleurNiveau(niv) : '#ffffff',
+                    color: niveauActif === niv ? '#ffffff' : couleurNiveau(niv),
+                    fontWeight:700, fontSize:'14px', cursor:'pointer'
+                  }}>
                     {niv}
                   </button>
                 ))}
@@ -133,7 +107,7 @@ export default function Pronostics() {
               <p style={{fontSize:'12px',color:'#6b7280',marginBottom:'12px',fontStyle:'italic'}}>
                 {niveauActif === 'Simple' && '🟢 Paris accessibles : résultats et double chance.'}
                 {niveauActif === 'Complexe' && '🟠 Paris d\'analyse : statistiques détaillées du match.'}
-                {niveauActif === 'Divin' && '🟣 Paris premium : buteurs et scores exacts, cotes élevées, risque plus grand.'}
+                {niveauActif === 'Divin' && '🟣 Paris premium : buteurs et scores exacts, cotes élevées.'}
               </p>
 
               {parisDuNiveau.length === 0 ? (
@@ -168,11 +142,11 @@ export default function Pronostics() {
 
         <div style={{marginTop:'32px',padding:'20px',background:'#fef2f2',borderRadius:'12px',borderLeft:'4px solid #dc2626'}}>
           <p style={{fontSize:'13px',color:'#374151',margin:0,lineHeight:'1.6'}}>
-            <strong>Rappel :</strong> Ces pronostics sont fournis à titre purement indicatif. Les cotes peuvent varier selon les opérateurs. Aucune garantie de gain. Réservé aux personnes majeures (18+). Jouez avec modération. <a href="/jeu-responsable" style={{color:VIOLET}}>En savoir plus</a>.
+            <strong>Rappel :</strong> Ces pronostics sont fournis à titre purement indicatif. Aucune garantie de gain. Réservé aux personnes majeures (18+). <a href="/jeu-responsable" style={{color:VIOLET}}>Jeu responsable</a>.
           </p>
         </div>
       </main>
       <Footer />
     </div>
   );
-      }
+}
