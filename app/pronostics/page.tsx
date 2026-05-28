@@ -1,15 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 
 type Pari = {
   id: string;
-  pronostic_id: string;
   niveau: 'Simple' | 'Complexe' | 'Divin';
   categorie: string;
-  type_pari: string;
   valeur: string;
   cote: number | null;
   confiance: number | null;
@@ -35,41 +32,13 @@ export default function Pronostics() {
   const [niveauActif, setNiveauActif] = useState<'Simple' | 'Complexe' | 'Divin'>('Simple');
 
   useEffect(() => {
-    const charger = async () => {
-      const { data: matchs, error: e1 } = await supabase
-        .from('pronostics')
-        .select('id, match, competition, date_match, lieu, contexte, confiance_globale')
-        .eq('publie', true)
-        .order('date_match', { ascending: true });
-
-      if (e1 || !matchs || matchs.length === 0) {
+    fetch('/api/pronostics')
+      .then(res => res.json())
+      .then(data => {
+        setPronostics(data.pronostics || []);
         setLoading(false);
-        return;
-      }
-
-      const ids = matchs.map(m => m.id);
-
-      const { data: tousLesParis, error: e2 } = await supabase
-        .from('pronostics_paris')
-        .select('*')
-        .in('pronostic_id', ids)
-        .order('ordre', { ascending: true });
-
-      if (e2 || !tousLesParis) {
-        setPronostics(matchs.map(m => ({ ...m, paris: [] })));
-        setLoading(false);
-        return;
-      }
-
-      const resultat = matchs.map(m => ({
-        ...m,
-        paris: tousLesParis.filter(p => p.pronostic_id === m.id)
-      }));
-
-      setPronostics(resultat);
-      setLoading(false);
-    };
-    charger();
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', {
@@ -185,4 +154,4 @@ export default function Pronostics() {
       <Footer />
     </div>
   );
-                                                                                                                                                               }
+          }
