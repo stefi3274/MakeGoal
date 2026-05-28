@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import Footer from '../components/Footer';
 
 type Match = {
   idEvent: string;
@@ -59,7 +60,8 @@ export default function Home() {
           <h1 style={{color:VIOLET,fontWeight:900,fontSize:'20px',margin:0}}>MakeGoal</h1>
           <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Jouez intelligemment !</p>
         </div>
-        <nav style={{display:'flex',gap:'16px',fontSize:'14px',fontWeight:600}}>
+        <nav style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'14px',fontWeight:600}}>
+          <span style={{color:VIOLET,fontWeight:900,fontSize:'11px',border:'1px solid ' + VIOLET,padding:'2px 8px',borderRadius:'999px'}}>18+</span>
           <button onClick={scrollToMatchs} style={{color:VIOLET,background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Matchs</button>
           <button onClick={() => alert('Pronostics — bientôt disponible !')} style={{color:'#6b7280',background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Pronostics</button>
           <button onClick={() => alert('Stats — bientôt disponible !')} style={{color:'#6b7280',background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Stats</button>
@@ -76,7 +78,7 @@ export default function Home() {
         </button>
       </section>
 
-      <section id="matchs" style={{padding:'32px 16px'}}>
+      <section id="matchs" style={{padding:'32px 16px',maxWidth:'960px',margin:'0 auto'}}>
         <h3 style={{fontWeight:900,marginBottom:'16px'}}>Ligue 1 — Prochains matchs</h3>
         {matches.length === 0 && (
           <p style={{color:'#9ca3af'}}>Chargement des matchs…</p>
@@ -94,7 +96,9 @@ export default function Home() {
             </div>
           </div>
         ))}
-      </section><section style={{background:'#f9fafb',padding:'48px 16px',textAlign:'center'}}>
+      </section>
+
+      <section style={{background:'#f9fafb',padding:'48px 16px',textAlign:'center'}}>
         <h3 style={{fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>Newsletter MakeGoal</h3>
         <p style={{color:'#6b7280',marginBottom:'24px'}}>Recevez les pronostics et les matchs à venir.</p>
         <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',maxWidth:'420px',margin:'0 auto'}}>
@@ -116,7 +120,12 @@ export default function Home() {
         {message && (
           <p style={{marginTop:'16px',fontWeight:600,color:VIOLET}}>{message}</p>
         )}
+        <p style={{marginTop:'16px',fontSize:'12px',color:'#9ca3af'}}>
+          En vous inscrivant, vous acceptez notre <a href="/confidentialite" style={{color:VIOLET}}>politique de confidentialité</a>.
+        </p>
       </section>
+
+      <Footer />
     </div>
   );
-}
+          }
