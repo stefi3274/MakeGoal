@@ -6,6 +6,7 @@ import Footer from '../../components/Footer';
 
 type Pari = {
   id: string;
+  pronostic_id: string;
   niveau: 'Simple' | 'Complexe' | 'Divin';
   categorie: string;
   type_pari: string;
@@ -23,7 +24,7 @@ type Pronostic = {
   lieu: string | null;
   contexte: string | null;
   confiance_globale: number;
-  pronostics_paris: Pari[];
+  paris: Pari[];
 };
 
 const VIOLET = '#bf00ff';
@@ -35,30 +36,58 @@ export default function Pronostics() {
 
   useEffect(() => {
     const charger = async () => {
-      const { data, error } = await supabase
+      const { data: matchs, error: e1 } = await supabase
         .from('pronostics')
-        .select('*, pronostics_paris(*)')
+        .select('id, match, competition, date_match, lieu, contexte, confiance_globale')
         .eq('publie', true)
         .order('date_match', { ascending: true });
-      if (!error && data) setPronostics(data as Pronostic[]);
+
+      if (e1 || !matchs || matchs.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      const ids = matchs.map(m => m.id);
+
+      const { data: tousLesParis, error: e2 } = await supabase
+        .from('pronostics_paris')
+        .select('*')
+        .in('pronostic_id', ids)
+        .order('ordre', { ascending: true });
+
+      if (e2 || !tousLesParis) {
+        setPronostics(matchs.map(m => ({ ...m, paris: [] })));
+        setLoading(false);
+        return;
+      }
+
+      const resultat = matchs.map(m => ({
+        ...m,
+        paris: tousLesParis.filter(p => p.pronostic_id === m.id)
+      }));
+
+      setPronostics(resultat);
       setLoading(false);
     };
     charger();
   }, []);
 
   const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
+    weekday: 'long', day: 'numeric', month: 'long',
+    year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
   const etoiles = (n: number | null) => n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '';
-  const couleurNiveau = (niv: string) => niv === 'Simple' ? '#10b981' : niv === 'Complexe' ? '#f59e0b' : VIOLET;
+  const couleurNiveau = (niv: string) =>
+    niv === 'Simple' ? '#10b981' : niv === 'Complexe' ? '#f59e0b' : VIOLET;
 
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
       <Header />
       <main style={{maxWidth:'960px',margin:'0 auto',padding:'48px 24px'}}>
-        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'36px',marginBottom:'8px'}}>Pronostics MakeGoal</h1>
+        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'36px',marginBottom:'8px'}}>
+          Pronostics MakeGoal
+        </h1>
         <p style={{color:'#6b7280',fontSize:'16px',marginBottom:'32px'}}>
           Analyses raisonnées sur 3 niveaux. À titre indicatif — pariez avec modération.
         </p>
@@ -72,17 +101,20 @@ export default function Pronostics() {
         )}
 
         {!loading && pronostics.map((p) => {
-          const paris = (p.pronostics_paris || []).sort((a, b) => a.ordre - b.ordre);
-          const parisDuNiveau = paris.filter(x => x.niveau === niveauActif);
+          const parisDuNiveau = p.paris.filter(x => x.niveau === niveauActif);
           return (
             <article key={p.id} style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'24px',marginBottom:'24px'}}>
               {p.competition && (
-                <p style={{fontSize:'12px',color:'#9ca3af',margin:0,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>{p.competition}</p>
+                <p style={{fontSize:'12px',color:'#9ca3af',margin:0,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>
+                  {p.competition}
+                </p>
               )}
               <h2 style={{fontWeight:900,fontSize:'26px',marginBottom:'8px'}}>{p.match}</h2>
               <p style={{fontSize:'14px',color:'#6b7280',margin:0,marginBottom:'4px'}}>{formatDate(p.date_match)}</p>
               {p.lieu && <p style={{fontSize:'13px',color:'#9ca3af',margin:0,marginBottom:'8px'}}>{p.lieu}</p>}
-              <p style={{fontSize:'13px',color:VIOLET,fontWeight:700,marginBottom:'16px'}}>Confiance globale : {etoiles(p.confiance_globale)}</p>
+              <p style={{fontSize:'13px',color:VIOLET,fontWeight:700,marginBottom:'16px'}}>
+                Confiance globale : {etoiles(p.confiance_globale)}
+              </p>
 
               {p.contexte && (
                 <div style={{background:'#faf5ff',border:'1px solid ' + VIOLET,borderRadius:'12px',padding:'16px',marginBottom:'20px'}}>
@@ -90,7 +122,7 @@ export default function Pronostics() {
                 </div>
               )}
 
-              <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
+              <div style={{display:'flex',gap:'8px',marginBottom:'12px',flexWrap:'wrap'}}>
                 {(['Simple', 'Complexe', 'Divin'] as const).map((niv) => (
                   <button key={niv} onClick={() => setNiveauActif(niv)} style={{
                     padding:'8px 20px', borderRadius:'999px',
@@ -106,8 +138,8 @@ export default function Pronostics() {
 
               <p style={{fontSize:'12px',color:'#6b7280',marginBottom:'12px',fontStyle:'italic'}}>
                 {niveauActif === 'Simple' && '🟢 Paris accessibles : résultats et double chance.'}
-                {niveauActif === 'Complexe' && '🟠 Paris d\'analyse : statistiques détaillées du match.'}
-                {niveauActif === 'Divin' && '🟣 Paris premium : buteurs et scores exacts, cotes élevées.'}
+                {niveauActif === 'Complexe' && '🟠 Paris d\'analyse : statistiques détaillées.'}
+                {niveauActif === 'Divin' && '🟣 Paris premium : buteurs et scores exacts.'}
               </p>
 
               {parisDuNiveau.length === 0 ? (
@@ -128,8 +160,12 @@ export default function Pronostics() {
                         <tr key={pari.id} style={{borderBottom:'1px solid #f3f4f6'}}>
                           <td style={{padding:'10px 8px',color:'#6b7280',fontSize:'13px'}}>{pari.categorie}</td>
                           <td style={{padding:'10px 8px',fontWeight:600}}>{pari.valeur}</td>
-                          <td style={{padding:'10px 8px',textAlign:'center',color:VIOLET,fontWeight:700}}>{pari.cote ? pari.cote.toFixed(2) : '-'}</td>
-                          <td style={{padding:'10px 8px',textAlign:'center',color:'#f59e0b',fontSize:'13px'}}>{etoiles(pari.confiance)}</td>
+                          <td style={{padding:'10px 8px',textAlign:'center',color:VIOLET,fontWeight:700}}>
+                            {pari.cote ? pari.cote.toFixed(2) : '-'}
+                          </td>
+                          <td style={{padding:'10px 8px',textAlign:'center',color:'#f59e0b',fontSize:'13px'}}>
+                            {etoiles(pari.confiance)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -149,4 +185,4 @@ export default function Pronostics() {
       <Footer />
     </div>
   );
-}
+                                                                                                                                                               }
