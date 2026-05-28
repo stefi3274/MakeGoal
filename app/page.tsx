@@ -63,8 +63,8 @@ export default function Home() {
         <nav style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'14px',fontWeight:600}}>
           <span style={{color:VIOLET,fontWeight:900,fontSize:'11px',border:'1px solid ' + VIOLET,padding:'2px 8px',borderRadius:'999px'}}>18+</span>
           <button onClick={scrollToMatchs} style={{color:VIOLET,background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Matchs</button>
-          <button onClick={() => alert('Pronostics — bientôt disponible !')} style={{color:'#6b7280',background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Pronostics</button>
-          <button onClick={() => alert('Stats — bientôt disponible !')} style={{color:'#6b7280',background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Stats</button>
+          <a href="/pronostics" style={{color:'#6b7280',textDecoration:'none',fontSize:'14px',fontWeight:600}}>Pronostics</a>
+          <a href="/stats" style={{color:'#6b7280',textDecoration:'none',fontSize:'14px',fontWeight:600}}>Stats</a>
         </nav>
       </header>
 
@@ -128,4 +128,4 @@ export default function Home() {
       <Footer />
     </div>
   );
-          }
+            }
