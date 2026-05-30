@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
+import Header from '../../components/Header';
+import Footer from '../../components/Footer';
 type Pari = {
   id: string;
   niveau: 'Classique' | 'Simple' | 'Complexe' | 'Divin';
@@ -134,4 +134,4 @@ export default function Pronostics() {
       <Footer />
     </div>
   );
-                                                                                                }
+    }
