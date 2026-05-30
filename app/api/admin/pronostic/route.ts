@@ -1,9 +1,12 @@
-import { createAdminClient } from '../../../../lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY as string
+);
 
 export async function POST(request: Request) {
-  const supabase = createAdminClient();
   const body = await request.json();
-
   const { match, competition, date_match, lieu, contexte, confiance_globale, paris } = body;
 
   if (!match || !date_match || !confiance_globale) {
@@ -46,7 +49,6 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = createAdminClient();
   const body = await request.json();
   const { id, publie } = body;
 
