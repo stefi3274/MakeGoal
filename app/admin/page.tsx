@@ -13,14 +13,14 @@ const NIVEAUX = [
 ];
 
 const CATEGORIES: Record<string, string[]> = {
-  'Kiyès k ap bat ?': ['Rezilta', 'Double chans', 'Trophée'],
-  'Bèl ti stat': ['Tir', 'Tir kadre', 'Kòne', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche'],
-  'Kiyès k ap fè Gòl ?': ['Buts total', 'Buts Ekip 1', 'Buts Ekip 2', 'BTTS'],
-  'Divinò': ['Buteur', 'Premye buteur', 'Sko egzak'],
-  'Bèl Mirak': ['Viktwa sipriz', 'Buts ADS'],
+  'Kiyès k ap bat ?': ['Résultat', 'Double Chance', 'Trophée'],
+  'Bèl ti stat': ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche'],
+  'Kiyès k ap fè Gòl ?': ['Buts total', 'Buts Équipe 1', 'Buts Équipe 2', 'BTTS'],
+  'Divinò': ['Buteur', 'Premier Buteur', 'Score exact'],
+  'Bèl Mirak': ['Victoire Surprise', 'Buts Outsider'],
 };
 
-const STATS_CATS = ['Tir', 'Tir kadre', 'Kòne', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Ekip 1', 'Buts Ekip 2', 'Buts ADS'];
+const STATS_CATS = ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Équipe 1', 'Buts Équipe 2', 'Buts Outsider'];
 
 type Pari = {
   niveau: string;
