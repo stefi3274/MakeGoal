@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { MATCHES, FLAGS, GROUP_COLORS, Match } from '../data/matches';
-import Header from './components/Header';
-import Footer from './components/Footer';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 const VIOLET = '#bf00ff';
 
