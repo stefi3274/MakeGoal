@@ -40,7 +40,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    setNewsletterMsg('Mèsi ! Ou enskriri ak siksè.');
+    setNewsletterMsg('Merci ! Vous êtes inscrit avec succès.');
     setEmail('');
   };
 
@@ -48,13 +48,15 @@ export default function Home() {
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
       <style>{
         @keyframes rainbow {
-          0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%}
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
         .haiti-badge {
-          background: linear-gradient(270deg,#003087,#D21034);
+          background: linear-gradient(270deg, #003087, #D21034);
           color: white;
-          animation: rainbow 4s ease infinite;
           background-size: 400% 400%;
+          animation: rainbow 4s ease infinite;
         }
       }</style>
 
@@ -65,11 +67,11 @@ export default function Home() {
           🏆 MakeGoal
         </h1>
         <p style={{color:'rgba(255,255,255,0.85)',fontSize:'18px',margin:'0 0 24px'}}>
-          Bon analiz. Bon chif. Pou paryè entèlijan.
+          Bonne analyse. Bons chiffres. Pour parier intelligemment.
         </p>
         <div style={{display:'flex',gap:'12px',justifyContent:'center',flexWrap:'wrap'}}>
           <a href="/pronostics" style={{background:'#fff',color:VIOLET,padding:'12px 28px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none'}}>
-            ⚽ Pwonostic yo
+            ⚽ Pronostics
           </a>
           <a href="/stats" style={{background:'rgba(255,255,255,0.15)',color:'#fff',padding:'12px 28px',borderRadius:'999px',fontWeight:700,fontSize:'16px',textDecoration:'none',border:'2px solid rgba(255,255,255,0.4)'}}>
             📊 Stats & Cotes
@@ -79,7 +81,7 @@ export default function Home() {
 
       <div style={{background:'#003087',padding:'16px 24px',textAlign:'center'}}>
         <p style={{color:'#fff',margin:0,fontSize:'15px',fontWeight:700}}>
-          🇭🇹 <span style={{color:'#D21034'}}>AYITI</span> nan Mondyal 2026 — Gwoup C — Boston · Philadelphie · Atlanta
+          🇭🇹 <span style={{color:'#D21034'}}>HAÏTI</span> au Mondial 2026 — Groupe C — Boston · Philadelphie · Atlanta
         </p>
       </div>
 
@@ -122,7 +124,7 @@ export default function Home() {
                     )}
                     {estHaiti && (
                       <span className="haiti-badge" style={{fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>
-                        🇭🇹 AYITI
+                        🇭🇹 HAÏTI
                       </span>
                     )}
                   </div>
@@ -155,11 +157,11 @@ export default function Home() {
                         fontSize:'13px', textDecoration:'none',
                         boxShadow:'0 2px 8px rgba(191,0,255,0.3)'
                       }}>
-                        ⚽ Pwonostic →
+                        ⚽ Pronostic →
                       </a>
                     ) : (
                       <span style={{fontSize:'12px',color:'#9ca3af',fontStyle:'italic'}}>
-                        Pwonostic ap vini
+                        Pronostic à venir
                       </span>
                     )}
                   </div>
@@ -170,10 +172,10 @@ export default function Home() {
         </div>
 
         <div style={{marginTop:'48px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}><h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>
-            📬 Resevwa pwonostic yo
+            📬 Recevoir les pronostics
           </h2>
           <p style={{color:'rgba(255,255,255,0.8)',fontSize:'15px',marginBottom:'20px'}}>
-            Antre imel ou pou resevwa analiz MakeGoal anvan chak match.
+            Entrez votre email pour recevoir les analyses MakeGoal avant chaque match.
           </p>
           {newsletterMsg ? (
             <p style={{color:'#10b981',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
@@ -181,11 +183,11 @@ export default function Home() {
             <div style={{display:'flex',gap:'8px',maxWidth:'400px',margin:'0 auto',flexWrap:'wrap'}}>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="imel@ou.com"
+                placeholder="votre@email.com"
                 style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}
               />
               <button onClick={inscrireNewsletter} style={{background:'#fff',color:VIOLET,padding:'12px 24px',borderRadius:'999px',border:'none',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>
-                Enskriri
+                S'inscrire
               </button>
             </div>
           )}
