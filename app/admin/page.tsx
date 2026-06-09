@@ -16,7 +16,7 @@ const CATEGORIES: Record<string, string[]> = {
   'Divinò': ['Buteur', 'Premier Buteur', 'Score exact'],
   'Bèl Mirak': ['Victoire Surprise', 'Buts Outsider'],
 };
-const STATS_CATS = ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Équipe 1', 'Buts Équipe 2', 'Buts Outsider'];
+const STATS_CATS = ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Équipe 1', 'Buts Équipe 2'];
 type Pari = { id?: string; niveau: string; categorie: string; type_pari: string; valeur: string; cote: number | null; confiance: number | null; ordre: number; pronostic_id?: string; };
 type PronosticExistant = { id: string; match: string; date_match: string; publie: boolean; confiance_globale: number; };
 const coteToPct = (cote: number | null) => { if (!cote || cote <= 0) return '-'; return Math.round((1 / cote) * 100) + '%'; };
