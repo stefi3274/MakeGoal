@@ -4,21 +4,29 @@ import { supabase } from '../../lib/supabase';
 
 const VIOLET = '#bf00ff';
 
-type PronosticExistant = {
-  id: string;
-  match: string;
-  date_match: string;
-  publie: boolean;
-  confiance_globale: number;
+const NIVEAUX = [
+  { key: 'Kiyès k ap bat ?', emoji: '⚽', color: '#10b981' },
+  { key: 'Bèl ti stat', emoji: '📊', color: '#3b82f6' },
+  { key: 'Kiyès k ap fè Gòl ?', emoji: '🎯', color: '#f59e0b' },
+  { key: 'Divinò', emoji: '🔮', color: '#eab308' },
+  { key: 'Bèl Mirak', emoji: '🌈', color: '#8b00ff' },
+];
+
+const CATEGORIES: Record<string, string[]> = {
+  'Kiyès k ap bat ?': ['Résultat', 'Double Chance', 'Trophée'],
+  'Bèl ti stat': ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche'],
+  'Kiyès k ap fè Gòl ?': ['Buts total', 'Buts Équipe 1', 'Buts Équipe 2', 'BTTS'],
+  'Divinò': ['Buteur', 'Premier Buteur', 'Score exact'],
+  'Bèl Mirak': ['Victoire Surprise', 'Buts Outsider'],
 };
 
-type PariFixe = {
-  niveau: string;
-  categorie: string;
-  type_pari: string;
-  valeur: string;
-  cote: string;
-};
+const STATS_CATS = ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Équipe 1', 'Buts Équipe 2'];
+
+import { MATCHES } from '../../data/matches';
+
+type Pari = { id?: string; niveau: string; categorie: string; type_pari: string; valeur: string; cote: number | null; confiance: number | null; ordre: number; pronostic_id?: string; };
+type PronosticExistant = { id: string; match: string; date_match: string; publie: boolean; confiance_globale: number; };
+type Score = { match_id: number; home_score: number; away_score: number; statut: string; };
 
 const coteToPct = (cote: string) => {
   const n = parseFloat(cote);
@@ -38,8 +46,9 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [connecte, setConnecte] = useState(false);
   const [erreurAuth, setErreurAuth] = useState('');
-  const [vue, setVue] = useState<'dashboard' | 'nouveau'>('dashboard');
+  const [vue, setVue] = useState<'dashboard' | 'nouveau' | 'scores'>('dashboard');
   const [pronostics, setPronostics] = useState<PronosticExistant[]>([]);
+  const [scores, setScores] = useState<Score[]>([]);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [analysing, setAnalysing] = useState(false);
@@ -59,15 +68,25 @@ export default function Admin() {
   const [divino, setDivino] = useState<{id:number;categorie:string;valeur:string;cote:string}[]>([]);
   const [mirak, setMirak] = useState({ coteVictoire:'', coteButs:'' });
 
+  const [scoreMatchId, setScoreMatchId] = useState('');
+  const [scoreHome, setScoreHome] = useState('');
+  const [scoreAway, setScoreAway] = useState('');
+  const [scoreStatut, setScoreStatut] = useState('final');
+
   const matchNom = equipe1 && equipe2 ? equipe1 + ' vs ' + equipe2 : '';
   const equipeOutsider = outsider(bat.v1, bat.v2, equipe1, equipe2);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
-  useEffect(() => { if (connecte) chargerPronostics(); }, [connecte]);
+  useEffect(() => { if (connecte) { chargerPronostics(); chargerScores(); } }, [connecte]);
 
   const chargerPronostics = async () => {
     const { data } = await supabase.from('pronostics').select('id, match, date_match, publie, confiance_globale').order('date_match', { ascending: false });
     if (data) setPronostics(data);
+  };
+
+  const chargerScores = async () => {
+    const { data } = await supabase.from('scores').select('*');
+    if (data) setScores(data);
   };
 
   const seConnecter = async () => {
@@ -92,7 +111,8 @@ export default function Admin() {
   };
 
   const modifierPronostic = async (id: string) => {
-    const { data: p } = await supabase.from('pronostics').select('*, pronostics_paris(*)').eq('id', id).single();if (!p) return;
+    const { data: p } = await supabase.from('pronostics').select('*, pronostics_paris(*)').eq('id', id).single();
+    if (!p) return;
     const equipes = p.match.split(' vs ');
     setEquipe1(equipes[0] || '');
     setEquipe2(equipes[1] || '');
@@ -120,49 +140,37 @@ export default function Admin() {
     setAnalysing(false);
   };
 
-  const construireParis = (): PariFixe[] => {
-    const paris: PariFixe[] = [];
+  const construireParis = () => {
+    const paris: Pari[] = [];
     let ordre = 1;
-
-    if (bat.v1) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe1, cote: bat.v1 });
-    if (bat.nul) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Match nul', cote: bat.nul });
-    if (bat.v2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe2, cote: bat.v2 });
-    if (bat.dc1x) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: '1X — ' + equipe1 + ' ou Nul', cote: bat.dc1x });
-    if (bat.dcx2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: 'X2 — Nul ou ' + equipe2, cote: bat.dcx2 });
-
-    stats.forEach(s => {
-      if (s.seuil && s.cote) {
-        paris.push({ niveau: 'Bèl ti stat', categorie: s.categorie, type_pari: s.categorie, valeur: (s.plusMoins === 'plus' ? 'Plus de ' : 'Moins de ') + s.seuil + ' ' + s.categorie.toLowerCase(), cote: s.cote });
-      }
-    });
-
-    if (gols.totalSeuil && gols.totalCote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts total', type_pari: 'Total Goals', valeur: (gols.totalPM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.totalSeuil + ' buts', cote: gols.totalCote });
-    if (gols.eq1Seuil && gols.eq1Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe1, type_pari: 'Team Goals', valeur: (gols.eq1PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq1Seuil + ' buts ' + equipe1, cote: gols.eq1Cote });
-    if (gols.eq2Seuil && gols.eq2Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe2, type_pari: 'Team Goals', valeur: (gols.eq2PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq2Seuil + ' buts ' + equipe2, cote: gols.eq2Cote });
-
-    divino.forEach(d => {
-      if (d.valeur && d.cote) paris.push({ niveau: 'Divinò', categorie: d.categorie, type_pari: d.categorie, valeur: d.valeur, cote: d.cote });
-    });
-
-    if (mirak.coteVictoire) paris.push({ niveau: 'Bèl Mirak', categorie: 'Victoire Surprise', type_pari: 'Upset', valeur: 'Victoire ' + equipeOutsider, cote: mirak.coteVictoire });
-    if (mirak.coteButs) paris.push({ niveau: 'Bèl Mirak', categorie: 'Buts Outsider', type_pari: 'Goals', valeur: 'Plus de 1.5 buts ' + equipeOutsider, cote: mirak.coteButs });
-
-    return paris.map((p, i) => ({ ...p, ordre: ordre++ - 1 + i + 1 }));
+    if (bat.v1) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe1, cote: parseFloat(bat.v1), confiance: 4, ordre: ordre++ });
+    if (bat.nul) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Match nul', cote: parseFloat(bat.nul), confiance: 3, ordre: ordre++ });
+    if (bat.v2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe2, cote: parseFloat(bat.v2), confiance: 3, ordre: ordre++ });
+    if (bat.dc1x) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: '1X — ' + equipe1 + ' ou Nul', cote: parseFloat(bat.dc1x), confiance: 4, ordre: ordre++ });
+    if (bat.dcx2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: 'X2 — Nul ou ' + equipe2, cote: parseFloat(bat.dcx2), confiance: 3, ordre: ordre++ });
+    stats.forEach(s => { if (s.seuil && s.cote) paris.push({ niveau: 'Bèl ti stat', categorie: s.categorie, type_pari: s.categorie, valeur: (s.plusMoins === 'plus' ? 'Plus de ' : 'Moins de ') + s.seuil + ' ' + s.categorie.toLowerCase(), cote: parseFloat(s.cote), confiance: 3, ordre: ordre++ }); });
+    if (gols.totalSeuil && gols.totalCote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts total', type_pari: 'Total Goals', valeur: (gols.totalPM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.totalSeuil + ' buts', cote: parseFloat(gols.totalCote), confiance: 3, ordre: ordre++ });
+    if (gols.eq1Seuil && gols.eq1Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe1, type_pari: 'Team Goals', valeur: (gols.eq1PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq1Seuil + ' buts ' + equipe1, cote: parseFloat(gols.eq1Cote), confiance: 3, ordre: ordre++ });
+    if (gols.eq2Seuil && gols.eq2Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe2, type_pari: 'Team Goals', valeur: (gols.eq2PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq2Seuil + ' buts ' + equipe2, cote: parseFloat(gols.eq2Cote), confiance: 3, ordre: ordre++ });
+    divino.forEach(d => { if (d.valeur && d.cote) paris.push({ niveau: 'Divinò', categorie: d.categorie, type_pari: d.categorie, valeur: d.valeur, cote: parseFloat(d.cote), confiance: 3, ordre: ordre++ }); });
+    if (mirak.coteVictoire) paris.push({ niveau: 'Bèl Mirak', categorie: 'Victoire Surprise', type_pari: 'Upset', valeur: 'Victoire ' + equipeOutsider, cote: parseFloat(mirak.coteVictoire), confiance: 2, ordre: ordre++ });
+    if (mirak.coteButs) paris.push({ niveau: 'Bèl Mirak', categorie: 'Buts Outsider', type_pari: 'Goals', valeur: 'Plus de 1.5 buts ' + equipeOutsider, cote: parseFloat(mirak.coteButs), confiance: 2, ordre: ordre++ });
+    return paris;
   };
 
   const sauvegarder = async (publier: boolean) => {
     if (!matchNom || !dateMatch) { setMessage('Deux équipes et date obligatoires.'); return; }
     setSaving(true); setMessage('');
-    const paris = construireParis();if (editId) {
+    const paris = construireParis();
+    if (editId) {
       await supabase.from('pronostics').update({ match: matchNom, competition, date_match: dateMatch, lieu, contexte, confiance_globale: confiance }).eq('id', editId);
       await supabase.from('pronostics_paris').delete().eq('pronostic_id', editId);
-      await supabase.from('pronostics_paris').insert(paris.map(p => ({ ...p, cote: parseFloat(p.cote), pronostic_id: editId })));
+      await supabase.from('pronostics_paris').insert(paris.map(p => ({ ...p, pronostic_id: editId })));
       await supabase.from('pronostics').update({ publie: publier }).eq('id', editId);
       setSaving(false); setMessage('✅ Modification sauvegardée !'); setEditId(null);
       chargerPronostics(); setTimeout(() => setVue('dashboard'), 1500); return;
     }
-
-    const res = await fetch('/api/admin/pronostic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ match: matchNom, competition, date_match: dateMatch, lieu, contexte, confiance_globale: confiance, paris: paris.map(p => ({ ...p, cote: parseFloat(p.cote) })) }) });
+    const res = await fetch('/api/admin/pronostic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ match: matchNom, competition, date_match: dateMatch, lieu, contexte, confiance_globale: confiance, paris }) });
     const data = await res.json();
     if (data.success && publier) { await fetch('/api/admin/pronostic', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: data.id, publie: true }) }); }
     setSaving(false);
@@ -174,7 +182,24 @@ export default function Admin() {
       setDivino([]); setMirak({ coteVictoire:'', coteButs:'' });
       chargerPronostics(); setTimeout(() => setVue('dashboard'), 1500);
     } else { setMessage('❌ Erreur : ' + (data.error || 'inconnue')); }
-  };if (!connecte) {
+  };
+
+  const enregistrerScore = async () => {
+    if (!scoreMatchId || scoreHome === '' || scoreAway === '') { setMessage('Match et scores obligatoires.'); return; }
+    const res = await fetch('/api/scores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match_id: parseInt(scoreMatchId), home_score: parseInt(scoreHome), away_score: parseInt(scoreAway), statut: scoreStatut })
+    });
+    const data = await res.json();
+    if (data.success) {
+      setMessage('✅ Score enregistré !');
+      setScoreMatchId(''); setScoreHome(''); setScoreAway(''); setScoreStatut('final');
+      chargerScores();
+    } else { setMessage('❌ Erreur : ' + (data.error || 'inconnue')); }
+  };
+
+  if (!connecte) {
     return (
       <div style={{minHeight:'100vh',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
         <div style={{background:'#1a1a1a',padding:'40px',borderRadius:'16px',width:'100%',maxWidth:'380px',border:'1px solid #333'}}>
@@ -199,7 +224,7 @@ export default function Admin() {
       <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>MakeGoal Admin</h1>
         <div style={{display:'flex',gap:'12px'}}>
-          {vue === 'nouveau' && <button onClick={() => { setVue('dashboard'); setEditId(null); }} style={{background:'#333',color:'#fff',border:'none',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px'}}>← Dashboard</button>}
+          {vue !== 'dashboard' && <button onClick={() => { setVue('dashboard'); setEditId(null); }} style={{background:'#333',color:'#fff',border:'none',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px'}}>← Dashboard</button>}
           <button onClick={seDeconnecter} style={{background:'#ef4444',color:'#fff',border:'none',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px'}}>Déconnexion</button>
         </div>
       </header>
@@ -208,11 +233,16 @@ export default function Admin() {
         <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}}>
             <h2 style={{fontWeight:900,fontSize:'24px',margin:0}}>Pronostics</h2>
-            <button onClick={() => setVue('nouveau')} style={{background:VIOLET,color:'#fff',border:'none',padding:'10px 24px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>+ Nouveau</button>
+            <div style={{display:'flex',gap:'8px'}}>
+              <button onClick={() => setVue('scores')} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 20px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>⚽ Scores</button>
+              <button onClick={() => setVue('nouveau')} style={{background:VIOLET,color:'#fff',border:'none',padding:'10px 20px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>+ Nouveau</button>
+            </div>
           </div>
+          {message && <div style={{padding:'12px',borderRadius:'8px',marginBottom:'16px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981',fontWeight:700}}>{message}</div>}
           {pronostics.length === 0 && <p style={{color:'#6b7280'}}>Aucun pronostic.</p>}
           {pronostics.map(p => (
-            <div key={p.id} style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'16px',marginBottom:'12px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+            <div key={p.id} style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'16px',marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
                 <div>
                   <p style={{fontWeight:700,margin:0,marginBottom:'4px'}}>{p.match}</p>
                   <p style={{color:'#6b7280',fontSize:'13px',margin:0}}>{new Date(p.date_match).toLocaleDateString('fr-FR')} — {'★'.repeat(p.confiance_globale)}</p>
@@ -225,6 +255,65 @@ export default function Admin() {
               </div>
             </div>
           ))}
+        </main>
+      )}
+
+      {vue === 'scores' && (
+        <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
+          <h2 style={{fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>⚽ Entrer un score</h2>
+          {message && <div style={{padding:'12px',borderRadius:'8px',marginBottom:'16px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981',fontWeight:700}}>{message}</div>}
+
+          <div style={sectionStyle}>
+            <div style={{marginBottom:'16px'}}>
+              <label style={labelStyle}>Match</label>
+              <select value={scoreMatchId} onChange={e => setScoreMatchId(e.target.value)} style={{...inputStyle}}>
+                <option value="">-- Choisir un match --</option>
+                {MATCHES.map(m => (
+                  <option key={m.id} value={m.id}>{m.date} — {m.home} vs {m.away}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:'16px',alignItems:'center',marginBottom:'16px'}}>
+              <div>
+                <label style={labelStyle}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.home || 'Équipe 1' : 'Équipe 1'}</label>
+                <input type="number" min={0} value={scoreHome} onChange={e => setScoreHome(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900}}/>
+              </div>
+              <div style={{textAlign:'center',fontWeight:900,fontSize:'20px',color:'#9ca3af',paddingTop:'18px'}}>—</div>
+              <div>
+                <label style={labelStyle}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.away || 'Équipe 2' : 'Équipe 2'}</label>
+                <input type="number" min={0} value={scoreAway} onChange={e => setScoreAway(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:'16px'}}>
+              <label style={labelStyle}>Statut</label>
+              <select value={scoreStatut} onChange={e => setScoreStatut(e.target.value)} style={inputStyle}>
+                <option value="final">Final</option>
+                <option value="en cours">En cours</option>
+                <option value="annulé">Annulé</option>
+              </select>
+            </div>
+            <button onClick={enregistrerScore} style={{width:'100%',padding:'14px',background:'#10b981',color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>
+              ✅ Enregistrer le score
+            </button>
+          </div>
+
+          <div style={sectionStyle}>
+            <h3 style={{fontWeight:700,marginBottom:'12px',fontSize:'16px'}}>Scores enregistrés</h3>
+            {scores.length === 0 && <p style={{color:'#6b7280',fontSize:'14px'}}>Aucun score enregistré.</p>}
+            {scores.map(s => {
+              const m = MATCHES.find(x => x.id === s.match_id);
+              if (!m) return null;
+              return (
+                <div key={s.match_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f3f4f6'}}>
+                  <span style={{fontSize:'14px',fontWeight:600}}>{m.home} vs {m.away}</span>
+                  <div style={{display:'flex',gap:'12px',alignItems:'center'}}>
+                    <span style={{fontWeight:900,fontSize:'18px',color:VIOLET}}>{s.home_score} — {s.away_score}</span>
+                    <span style={{fontSize:'11px',background:s.statut==='final'?'#10b981':s.statut==='en cours'?'#f59e0b':'#ef4444',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{s.statut}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </main>
       )}
 
@@ -244,7 +333,8 @@ export default function Admin() {
             <div style={{marginBottom:'12px'}}><label style={labelStyle}>Compétition</label><input value={competition} onChange={e => setCompetition(e.target.value)} placeholder="FIFA World Cup 2026" style={inputStyle}/></div>
             <div style={{marginBottom:'12px'}}><label style={labelStyle}>Lieu (Stade)</label><input value={lieu} onChange={e => setLieu(e.target.value)} placeholder="Estadio Azteca, Mexico City" style={inputStyle}/></div>
             <div style={{marginBottom:'12px'}}><label style={labelStyle}>Date et heure *</label><input type="datetime-local" value={dateMatch} onChange={e => setDateMatch(e.target.value)} style={inputStyle}/></div>
-            <div style={{marginBottom:'12px'}}><label style={labelStyle}>Contexte / Analyse</label><textarea value={contexte} onChange={e => setContexte(e.target.value)} rows={3} placeholder="Analyse du match..." style={{...inputStyle,resize:'vertical'}}/></div><div style={{marginBottom:'12px'}}>
+            <div style={{marginBottom:'12px'}}><label style={labelStyle}>Contexte / Analyse</label><textarea value={contexte} onChange={e => setContexte(e.target.value)} rows={3} placeholder="Analyse du match..." style={{...inputStyle,resize:'vertical'}}/></div>
+            <div style={{marginBottom:'12px'}}>
               <label style={labelStyle}>Confiance globale : {'★'.repeat(confiance)+'☆'.repeat(5-confiance)}</label>
               <input type="range" min={1} max={5} value={confiance} onChange={e => setConfiance(Number(e.target.value))} style={{width:'100%'}}/>
             </div>
@@ -276,7 +366,8 @@ export default function Admin() {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
                   <div>
                     <label style={labelStyle}>Catégorie</label>
-                    <select value={s.categorie} onChange={e => setStats(stats.map((x,j) => j===i?{...x,categorie:e.target.value}:x))} style={{...inputStyle,padding:'8px'}}>{['Tir','Tir cadré','Corners','Carton Jaune','Carton Rouge','Hors-jeu','Touche'].map(c => <option key={c}>{c}</option>)}
+                    <select value={s.categorie} onChange={e => setStats(stats.map((x,j) => j===i?{...x,categorie:e.target.value}:x))} style={{...inputStyle,padding:'8px'}}>
+                      {['Tir','Tir cadré','Corners','Carton Jaune','Carton Rouge','Hors-jeu','Touche'].map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
@@ -293,7 +384,6 @@ export default function Admin() {
                   <input type="number" step="0.5" value={s.seuil} onChange={e => setStats(stats.map((x,j) => j===i?{...x,seuil:e.target.value}:x))} placeholder="Seuil ex: 2.5" style={{...inputStyle,flex:1}}/>
                   <button onClick={() => setStats(stats.filter((_,j) => j!==i))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'20px'}}>×</button>
                 </div>
-                {s.seuil&&<p style={{fontSize:'12px',color:'#374151',marginTop:'4px'}}>{s.plusMoins==='plus'?'Plus de':'Moins de'} {s.seuil} {s.categorie.toLowerCase()}</p>}
               </div>
             ))}
           </div>
@@ -312,12 +402,14 @@ export default function Admin() {
                   <button onClick={() => g.setPM('moins')} style={pmBtn(g.pm==='moins','#ef4444')}>Moins de ↓</button>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
-                  <div><input type="number" step="0.5" value={g.seuil} onChange={e => g.setSeuil(e.target.value)} placeholder="Seuil ex: 2.5" style={inputStyle}/></div>
+                  <input type="number" step="0.5" value={g.seuil} onChange={e => g.setSeuil(e.target.value)} placeholder="Seuil ex: 2.5" style={inputStyle}/>
                   <div><input type="number" step="0.01" value={g.cote} onChange={e => g.setCote(e.target.value)} placeholder="Cote ex: 1.80" style={inputStyle}/>{g.cote&&<p style={{fontSize:'11px',color:VIOLET,margin:'3px 0 0',fontWeight:700}}>{coteToPct(g.cote)}</p>}</div>
                 </div>
               </div>
             ))}
-          </div><div style={sectionStyle}>
+          </div>
+
+          <div style={sectionStyle}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
               <h3 style={{fontWeight:700,fontSize:'16px',margin:0}}>🔮 Divinò</h3>
               <div style={{display:'flex',gap:'8px'}}>
@@ -330,7 +422,7 @@ export default function Admin() {
               <div key={d.id} style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}}>
                 <span style={{fontSize:'11px',color:'#6b7280',width:'90px',flexShrink:0}}>{d.categorie}</span>
                 <input value={d.valeur} onChange={e => setDivino(divino.map((x,j) => j===i?{...x,valeur:e.target.value}:x))} placeholder={d.categorie==='Score exact'?'Ex: 2-1':'Ex: Jiménez'} style={{...inputStyle,flex:2}}/>
-                <div style={{flex:1,position:'relative'}}>
+                <div style={{flex:1}}>
                   <input type="number" step="0.01" value={d.cote} onChange={e => setDivino(divino.map((x,j) => j===i?{...x,cote:e.target.value}:x))} placeholder="Cote" style={inputStyle}/>
                   {d.cote&&<p style={{fontSize:'11px',color:VIOLET,margin:'2px 0 0',fontWeight:700}}>{coteToPct(d.cote)}</p>}
                 </div>
@@ -357,7 +449,8 @@ export default function Admin() {
           </div>
 
           <div style={{display:'flex',gap:'12px'}}>
-            <button onClick={() => sauvegarder(false)} disabled={saving} style={{flex:1,padding:'14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>💾 Brouillon</button><button onClick={() => sauvegarder(true)} disabled={saving} style={{flex:1,padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>{saving ? '...' : '🚀 Publier'}</button>
+            <button onClick={() => sauvegarder(false)} disabled={saving} style={{flex:1,padding:'14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>💾 Brouillon</button>
+            <button onClick={() => sauvegarder(true)} disabled={saving} style={{flex:1,padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>{saving ? '...' : '🚀 Publier'}</button>
           </div>
         </main>
       )}
