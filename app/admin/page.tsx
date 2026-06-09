@@ -386,4 +386,81 @@ export default function Admin() {
                   </div>
                 </div>
                 {seuil && (
-                  <div style={{marginTop:'8px',padding:'8px 12px',background:'#f9fafb',borderRad
+                  <div style={{marginTop:'8px',padding:'8px 12px',background:'#f9fafb',borderRadius:'8px',fontSize:'13px',color:'#374151'}}>
+                    Aperçu : <strong>{construireValeur()}</strong>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{marginBottom:'12px'}}>
+                <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'4px'}}>Valè pari *</label>
+                <input value={valeurLibre} onChange={e => setValeurLibre(e.target.value)}
+                  placeholder="Ex: Viktwa Mexique, Jiménez make gòl..."
+                  style={{width:'100%',padding:'10px',borderRadius:'8px',border:'1px solid #e5e7eb',fontSize:'14px',boxSizing:'border-box'}}
+                />
+              </div>
+            )}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
+              <div>
+                <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'4px'}}>Cote (ex: 1.43)</label>
+                <input type="number" step="0.01" value={coteActuelle} onChange={e => setCoteActuelle(e.target.value)} placeholder="1.43"
+                  style={{width:'100%',padding:'10px',borderRadius:'8px',border:'1px solid #e5e7eb',fontSize:'14px',boxSizing:'border-box'}}
+                />
+                {coteActuelle && (
+                  <p style={{fontSize:'12px',color:VIOLET,margin:'4px 0 0',fontWeight:700}}>
+                    = {coteToPct(parseFloat(coteActuelle))} chans
+                  </p>
+                )}
+              </div>
+              <div>
+                <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'4px'}}>Konfyans (1-5)</label>
+                <div style={{display:'flex',gap:'4px',marginTop:'8px'}}>
+                  {[1,2,3,4,5].map(n => (
+                    <button key={n} onClick={() => setConfianceActuelle(n)}
+                      style={{flex:1,padding:'8px 0',borderRadius:'6px',border:'none',background:n<=confianceActuelle?'#f59e0b':'#e5e7eb',color:n<=confianceActuelle?'#fff':'#9ca3af',cursor:'pointer',fontSize:'16px'}}>
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button onClick={ajouterPari} style={{width:'100%',padding:'12px',background:'#111',color:'#fff',border:'none',borderRadius:'8px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>
+              ➕ Ajoute pari sa a
+            </button>
+          </div>
+          {paris.length > 0 && (
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'20px',marginBottom:'16px'}}>
+              <h3 style={{fontWeight:700,marginBottom:'12px',fontSize:'16px'}}>📋 {paris.length} pari ajoute</h3>
+              {paris.map((p, i) => (
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f3f4f6',gap:'8px'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <span style={{fontSize:'11px',color:'#9ca3af',marginRight:'6px',textTransform:'uppercase'}}>{p.niveau}</span>
+                    <span style={{fontWeight:600,fontSize:'14px'}}>{p.valeur}</span>
+                  </div>
+                  <div style={{display:'flex',gap:'8px',alignItems:'center',flexShrink:0}}>
+                    {p.cote && (
+                      <span style={{background:'#faf5ff',color:VIOLET,fontWeight:700,fontSize:'13px',padding:'3px 10px',borderRadius:'999px'}}>
+                        {coteToPct(p.cote)}
+                      </span>
+                    )}
+                    <span style={{color:'#f59e0b',fontSize:'12px'}}>{'★'.repeat(p.confiance || 0)}</span>
+                    <button onClick={() => supprimerPari(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'18px',padding:'0 4px'}}>×</button></div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{display:'flex',gap:'12px'}}>
+            <button onClick={() => sauvegarder(false)} disabled={saving}
+              style={{flex:1,padding:'14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>
+              💾 Bouyon
+            </button>
+            <button onClick={() => sauvegarder(true)} disabled={saving}
+              style={{flex:1,padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'15px'}}>
+              {saving ? '...' : '🚀 Pibliye'}
+            </button>
+          </div>
+        </main>
+      )}
+    </div>
+  );
+}
