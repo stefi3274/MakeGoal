@@ -1,131 +1,198 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import Footer from '../components/Footer';
-
-type Match = {
-  idEvent: string;
-  dateEvent: string;
-  strHomeTeam: string;
-  strAwayTeam: string;
-};
+import { MATCHES, FLAGS, GROUP_COLORS, Match } from '../data/matches';
+import Header from './components/Header';
+import Footer from './components/Footer';
 
 const VIOLET = '#bf00ff';
 
+type Pronostic = {
+  id: string;
+  match: string;
+  publie: boolean;
+};
+
 export default function Home() {
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [pronostics, setPronostics] = useState<Pronostic[]>([]);
+  const [groupeActif, setGroupeActif] = useState('C');
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [newsletterMsg, setNewsletterMsg] = useState('');
 
   useEffect(() => {
-    fetch('/api/ligue1')
+    fetch('/api/pronostics')
       .then(res => res.json())
-      .then(data => {
-        if (data.events) setMatches(data.events.slice(0, 5));
-      });
+      .then(data => setPronostics(data.pronostics || []));
   }, []);
 
-  const scrollToMatchs = () => {
-    const el = document.getElementById('matchs');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  const groupes = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+  const aPronostic = (m: Match) => {
+    const nom = m.home + ' vs ' + m.away;
+    return pronostics.find(p => p.match === nom);
   };
 
-  const handleSubscribe = async () => {
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!valid) {
-      setMessage('Adresse email invalide.');
-      return;
-    }
-    setLoading(true);
-    setMessage('');
-    const { error } = await supabase.from('newsletter').insert({ email: email });
-    setLoading(false);
-    if (error) {
-      if (error.code === '23505') {
-        setMessage('Cet email est déjà inscrit.');
-      } else {
-        setMessage('Une erreur est survenue. Réessayez.');
-      }
-    } else {
-      setMessage('Merci ! Vous êtes inscrit.');
-      setEmail('');
-    }
+  const matchesParGroupe = (g: string) => MATCHES.filter(m => m.group === g);
+
+  const inscrireNewsletter = async () => {
+    if (!email) return;
+    await fetch('/api/newsletter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    setNewsletterMsg('Mèsi ! Ou enskriri ak siksè.');
+    setEmail('');
   };
 
   return (
-    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
-      <header style={{background:'#ffffff',borderBottom:'3px solid ' + VIOLET,padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:10}}>
-        <div>
-          <h1 style={{color:VIOLET,fontWeight:900,fontSize:'20px',margin:0}}>MakeGoal</h1>
-          <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Jouez intelligemment !</p>
-        </div>
-        <nav style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'14px',fontWeight:600}}>
-          <span style={{color:VIOLET,fontWeight:900,fontSize:'11px',border:'1px solid ' + VIOLET,padding:'2px 8px',borderRadius:'999px'}}>18+</span>
-          <button onClick={scrollToMatchs} style={{color:VIOLET,background:'none',border:'none',cursor:'pointer',fontSize:'14px',fontWeight:600}}>Matchs</button>
-          <a href="/pronostics" style={{color:'#6b7280',textDecoration:'none',fontSize:'14px',fontWeight:600}}>Pronostics</a>
-          <a href="/stats" style={{color:'#6b7280',textDecoration:'none',fontSize:'14px',fontWeight:600}}>Stats</a>
-        </nav>
-      </header>
+    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
+      <style>{
+        @keyframes rainbow {
+          0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%}
+        }
+        .haiti-badge {
+          background: linear-gradient(270deg,#003087,#D21034);
+          color: white;
+          animation: rainbow 4s ease infinite;
+          background-size: 400% 400%;
+        }
+      }</style>
 
-      <section style={{background:VIOLET,color:'#ffffff',textAlign:'center',padding:'64px 16px'}}>
-        <h2 style={{fontSize:'40px',fontWeight:900,marginBottom:'16px'}}>Jouez intelligemment.</h2>
-        <button
-          onClick={scrollToMatchs}
-          style={{background:'#ffffff',color:VIOLET,fontWeight:900,padding:'12px 40px',borderRadius:'999px',border:'none',cursor:'pointer'}}
-        >
-          Voir les matchs
-        </button>
-      </section>
+      <Header />
 
-      <section id="matchs" style={{padding:'32px 16px',maxWidth:'960px',margin:'0 auto'}}>
-        <h3 style={{fontWeight:900,marginBottom:'16px'}}>Ligue 1 — Prochains matchs</h3>
-        {matches.length === 0 && (
-          <p style={{color:'#9ca3af'}}>Chargement des matchs…</p>
-        )}
-        {matches.map((match) => (
-          <div
-            key={match.idEvent}
-            style={{border:'1px solid #e5e7eb',borderRadius:'16px',padding:'16px',marginBottom:'12px',cursor:'pointer'}}
-          >
-            <p style={{color:'#9ca3af',fontSize:'12px',marginBottom:'8px'}}>{match.dateEvent}</p>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontWeight:700}}>{match.strHomeTeam}</p>
-              <p style={{color:VIOLET,fontWeight:900}}>VS</p>
-              <p style={{fontWeight:700}}>{match.strAwayTeam}</p>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section style={{background:'#f9fafb',padding:'48px 16px',textAlign:'center'}}>
-        <h3 style={{fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>Newsletter MakeGoal</h3>
-        <p style={{color:'#6b7280',marginBottom:'24px'}}>Recevez les pronostics et les matchs à venir.</p>
-        <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',maxWidth:'420px',margin:'0 auto'}}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Votre email"
-            style={{flex:1,minWidth:'200px',padding:'12px 16px',borderRadius:'999px',border:'1px solid #d1d5db',fontSize:'14px'}}
-          />
-          <button
-            onClick={handleSubscribe}
-            disabled={loading}
-            style={{background:VIOLET,color:'#ffffff',fontWeight:900,padding:'12px 28px',borderRadius:'999px',border:'none',cursor:'pointer'}}
-          >
-            {loading ? '...' : "S'inscrire"}
-          </button>
-        </div>
-        {message && (
-          <p style={{marginTop:'16px',fontWeight:600,color:VIOLET}}>{message}</p>
-        )}
-        <p style={{marginTop:'16px',fontSize:'12px',color:'#9ca3af'}}>
-          En vous inscrivant, vous acceptez notre <a href="/confidentialite" style={{color:VIOLET}}>politique de confidentialité</a>.
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'48px 24px',textAlign:'center'}}>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,52px)',margin:'0 0 12px'}}>
+          🏆 MakeGoal
+        </h1>
+        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'18px',margin:'0 0 24px'}}>
+          Bon analiz. Bon chif. Pou paryè entèlijan.
         </p>
-      </section>
+        <div style={{display:'flex',gap:'12px',justifyContent:'center',flexWrap:'wrap'}}>
+          <a href="/pronostics" style={{background:'#fff',color:VIOLET,padding:'12px 28px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none'}}>
+            ⚽ Pwonostic yo
+          </a>
+          <a href="/stats" style={{background:'rgba(255,255,255,0.15)',color:'#fff',padding:'12px 28px',borderRadius:'999px',fontWeight:700,fontSize:'16px',textDecoration:'none',border:'2px solid rgba(255,255,255,0.4)'}}>
+            📊 Stats & Cotes
+          </a>
+        </div>
+      </div>
 
+      <div style={{background:'#003087',padding:'16px 24px',textAlign:'center'}}>
+        <p style={{color:'#fff',margin:0,fontSize:'15px',fontWeight:700}}>
+          🇭🇹 <span style={{color:'#D21034'}}>AYITI</span> nan Mondyal 2026 — Gwoup C — Boston · Philadelphie · Atlanta
+        </p>
+      </div>
+
+      <main style={{maxWidth:'1000px',margin:'0 auto',padding:'32px 16px'}}>
+
+        <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'24px',justifyContent:'center'}}>
+          {groupes.map(g => (
+            <button key={g} onClick={() => setGroupeActif(g)} style={{
+              padding:'8px 18px', borderRadius:'999px', fontWeight:700, fontSize:'14px', cursor:'pointer',
+              background: groupeActif === g ? GROUP_COLORS[g] : '#f3f4f6',
+              color: groupeActif === g ? '#fff' : '#374151',
+              border: 'none',
+              boxShadow: groupeActif === g ? '0 2px 8px ' + GROUP_COLORS[g] + '80' : 'none'
+            }}>
+              Groupe {g}
+            </button>
+          ))}
+        </div><div>
+          {matchesParGroupe(groupeActif).map(m => {
+            const prono = aPronostic(m);
+            const estHaiti = m.home === 'Haïti' || m.away === 'Haïti';
+            const couleurGroupe = GROUP_COLORS[m.group];
+
+            return (
+              <div key={m.id} style={{
+                border: estHaiti ? '2px solid #D21034' : '1px solid #e5e7eb',
+                borderRadius:'16px', padding:'20px', marginBottom:'12px',
+                background: estHaiti ? '#fff5f5' : '#ffffff',
+                boxShadow: estHaiti ? '0 4px 16px rgba(210,16,52,0.12)' : '0 1px 4px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px',flexWrap:'wrap',gap:'8px'}}>
+                  <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                    <span style={{background:couleurGroupe,color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>
+                      Groupe {m.group}
+                    </span>
+                    {m.label && (
+                      <span style={{background:'#111',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>
+                        {m.label}
+                      </span>
+                    )}
+                    {estHaiti && (
+                      <span className="haiti-badge" style={{fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>
+                        🇭🇹 AYITI
+                      </span>
+                    )}
+                  </div>
+                  <span style={{fontSize:'12px',color:'#9ca3af'}}>
+                    {m.day} {m.date} · {m.time} · {m.city}
+                  </span>
+                </div>
+
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'12px',flex:1}}>
+                    <div style={{textAlign:'center',minWidth:'80px'}}>
+                      <div style={{fontSize:'32px'}}>{FLAGS[m.home] || '🏳️'}</div>
+                      <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.home}</p>
+                    </div>
+                    <div style={{textAlign:'center',flex:1}}>
+                      <p style={{fontWeight:900,fontSize:'20px',color:'#9ca3af',margin:0}}>VS</p>
+                      <p style={{fontSize:'11px',color:'#9ca3af',margin:'4px 0 0'}}>🏟️ {m.stadium}</p>
+                    </div>
+                    <div style={{textAlign:'center',minWidth:'80px'}}>
+                      <div style={{fontSize:'32px'}}>{FLAGS[m.away] || '🏳️'}</div>
+                      <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.away}</p>
+                    </div>
+                  </div>
+
+                  <div style={{flexShrink:0}}>
+                    {prono ? (
+                      <a href="/pronostics" style={{
+                        display:'inline-block', background:VIOLET, color:'#fff',
+                        padding:'10px 20px', borderRadius:'999px', fontWeight:700,
+                        fontSize:'13px', textDecoration:'none',
+                        boxShadow:'0 2px 8px rgba(191,0,255,0.3)'
+                      }}>
+                        ⚽ Pwonostic →
+                      </a>
+                    ) : (
+                      <span style={{fontSize:'12px',color:'#9ca3af',fontStyle:'italic'}}>
+                        Pwonostic ap vini
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{marginTop:'48px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}><h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>
+            📬 Resevwa pwonostic yo
+          </h2>
+          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'15px',marginBottom:'20px'}}>
+            Antre imel ou pou resevwa analiz MakeGoal anvan chak match.
+          </p>
+          {newsletterMsg ? (
+            <p style={{color:'#10b981',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
+          ) : (
+            <div style={{display:'flex',gap:'8px',maxWidth:'400px',margin:'0 auto',flexWrap:'wrap'}}>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="imel@ou.com"
+                style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}
+              />
+              <button onClick={inscrireNewsletter} style={{background:'#fff',color:VIOLET,padding:'12px 24px',borderRadius:'999px',border:'none',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>
+                Enskriri
+              </button>
+            </div>
+          )}
+        </div>
+
+      </main>
       <Footer />
     </div>
   );
-            }
+}
