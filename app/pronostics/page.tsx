@@ -118,7 +118,7 @@ export default function Pronostics() {
 
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
-      <style>{
+      <style>{`
         @keyframes rainbow {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -132,7 +132,7 @@ export default function Pronostics() {
           border: none !important;
         }
         .btn-rainbow:hover { opacity: 0.9; }
-      }</style>
+      `}</style>
 
       <Header />
       <main style={{maxWidth:'960px',margin:'0 auto',padding:'48px 24px'}}>
