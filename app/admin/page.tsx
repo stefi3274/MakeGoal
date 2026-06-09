@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { MATCHES } from '../../data/matches';
 
 const VIOLET = '#bf00ff';
 
@@ -11,22 +12,6 @@ const NIVEAUX = [
   { key: 'Divinò', emoji: '🔮', color: '#eab308' },
   { key: 'Bèl Mirak', emoji: '🌈', color: '#8b00ff' },
 ];
-
-const CATEGORIES: Record<string, string[]> = {
-  'Kiyès k ap bat ?': ['Résultat', 'Double Chance', 'Trophée'],
-  'Bèl ti stat': ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche'],
-  'Kiyès k ap fè Gòl ?': ['Buts total', 'Buts Équipe 1', 'Buts Équipe 2', 'BTTS'],
-  'Divinò': ['Buteur', 'Premier Buteur', 'Score exact'],
-  'Bèl Mirak': ['Victoire Surprise', 'Buts Outsider'],
-};
-
-const STATS_CATS = ['Tir', 'Tir cadré', 'Corners', 'Carton Jaune', 'Carton Rouge', 'Hors-jeu', 'Touche', 'Buts total', 'Buts Équipe 1', 'Buts Équipe 2'];
-
-import { MATCHES } from '../../data/matches';
-
-type Pari = { id?: string; niveau: string; categorie: string; type_pari: string; valeur: string; cote: number | null; confiance: number | null; ordre: number; pronostic_id?: string; };
-type PronosticExistant = { id: string; match: string; date_match: string; publie: boolean; confiance_globale: number; };
-type Score = { match_id: number; home_score: number; away_score: number; statut: string; };
 
 const coteToPct = (cote: string) => {
   const n = parseFloat(cote);
@@ -41,14 +26,46 @@ const outsider = (cote1: string, cote2: string, eq1: string, eq2: string) => {
   return n1 > n2 ? eq1 : eq2;
 };
 
+type PronosticExistant = {
+  id: string;
+  match: string;
+  date_match: string;
+  publie: boolean;
+  confiance_globale: number;
+};
+
+type Stats = {
+  totalPronostics: number;
+  totalPublies: number;
+  totalVotesUp: number;
+  totalVotesDown: number;
+  totalPartages: number;
+  totalNewsletter: number;
+};
+
+type PronosticStats = {
+  id: string;
+  match: string;
+  publie: boolean;
+  vues: number;
+  votes_up: number;
+  votes_down: number;
+  partages: number;
+};
+
+type Score = { match_id: number; home_score: number; away_score: number; statut: string; };
+type Pari = { niveau: string; categorie: string; type_pari: string; valeur: string; cote: number | null; confiance: number | null; ordre: number; pronostic_id?: string; };
+
 export default function Admin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [connecte, setConnecte] = useState(false);
   const [erreurAuth, setErreurAuth] = useState('');
-  const [vue, setVue] = useState<'dashboard' | 'nouveau' | 'scores'>('dashboard');
+  const [vue, setVue] = useState<'dashboard' | 'nouveau' | 'scores' | 'stats'>('dashboard');
   const [pronostics, setPronostics] = useState<PronosticExistant[]>([]);
+  const [pronosticsStats, setPronosticsStats] = useState<PronosticStats[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [globalStats, setGlobalStats] = useState<Stats>({ totalPronostics:0, totalPublies:0, totalVotesUp:0, totalVotesDown:0, totalPartages:0, totalNewsletter:0 });
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [analysing, setAnalysing] = useState(false);
@@ -62,9 +79,9 @@ export default function Admin() {
   const [contexte, setContexte] = useState('');
   const [confiance, setConfiance] = useState(3);
 
-  const [bat, setBat] = useState({ v1: '', nul: '', v2: '', dc1x: '', dcx2: '' });
+  const [bat, setBat] = useState({ v1:'', nul:'', v2:'', dc1x:'', dcx2:'' });
   const [stats, setStats] = useState<{id:number;plusMoins:string;seuil:string;categorie:string;cote:string}[]>([]);
-  const [gols, setGols] = useState({ totalPM:'plus', totalSeuil:'', totalCote:'', eq1PM:'plus', eq1Seuil:'', eq1Cote:'', eq2PM:'plus', eq2Seuil:'', eq2Cote:'' });
+  const [gols, setGols] = useState({ totalPM:'plus',totalSeuil:'',totalCote:'',eq1PM:'plus',eq1Seuil:'',eq1Cote:'',eq2PM:'plus',eq2Seuil:'',eq2Cote:'' });
   const [divino, setDivino] = useState<{id:number;categorie:string;valeur:string;cote:string}[]>([]);
   const [mirak, setMirak] = useState({ coteVictoire:'', coteButs:'' });
 
@@ -76,8 +93,19 @@ export default function Admin() {
   const matchNom = equipe1 && equipe2 ? equipe1 + ' vs ' + equipe2 : '';
   const equipeOutsider = outsider(bat.v1, bat.v2, equipe1, equipe2);
 
+  const prochainMatchs = MATCHES.filter(m => {
+    const hasScore = scores.find(s => s.match_id === m.id);
+    return !hasScore;
+  }).slice(0, 5);
+
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
-  useEffect(() => { if (connecte) { chargerPronostics(); chargerScores(); } }, [connecte]);
+  useEffect(() => { if (connecte) { chargerTout(); } }, [connecte]);
+
+  const chargerTout = async () => {
+    chargerPronostics();
+    chargerScores();
+    chargerStats();
+  };
 
   const chargerPronostics = async () => {
     const { data } = await supabase.from('pronostics').select('id, match, date_match, publie, confiance_globale').order('date_match', { ascending: false });
@@ -87,6 +115,35 @@ export default function Admin() {
   const chargerScores = async () => {
     const { data } = await supabase.from('scores').select('*');
     if (data) setScores(data);
+  };
+
+  const chargerStats = async () => {
+    const { data: pronos } = await supabase.from('pronostics').select('id, match, publie, vues');
+    const { data: votesData } = await supabase.from('votes').select('pronostic_id, type');
+    const { data: partagsData } = await supabase.from('partages').select('pronostic_id');
+    const { data: newsletterData } = await supabase.from('newsletter').select('id');
+
+    if (pronos) {
+      const statsParProno: PronosticStats[] = pronos.map(p => ({
+        id: p.id,
+        match: p.match,
+        publie: p.publie,
+        vues: p.vues || 0,
+        votes_up: votesData?.filter(v => v.pronostic_id === p.id && v.type === 'up').length || 0,
+        votes_down: votesData?.filter(v => v.pronostic_id === p.id && v.type === 'down').length || 0,
+        partages: partagsData?.filter(v => v.pronostic_id === p.id).length || 0,
+      }));
+      setPronosticsStats(statsParProno);
+
+      setGlobalStats({
+        totalPronostics: pronos.length,
+        totalPublies: pronos.filter(p => p.publie).length,
+        totalVotesUp: votesData?.filter(v => v.type === 'up').length || 0,
+        totalVotesDown: votesData?.filter(v => v.type === 'down').length || 0,
+        totalPartages: partagsData?.length || 0,
+        totalNewsletter: newsletterData?.length || 0,
+      });
+    }
   };
 
   const seConnecter = async () => {
@@ -100,29 +157,24 @@ export default function Admin() {
 
   const togglePublie = async (id: string, publie: boolean) => {
     await fetch('/api/admin/pronostic', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, publie: !publie }) });
-    chargerPronostics();
+    chargerTout();
   };
 
   const supprimerPronostic = async (id: string) => {
     if (!confirm('Supprimer ce pronostic et tous ses paris ?')) return;
     await supabase.from('pronostics_paris').delete().eq('pronostic_id', id);
     await supabase.from('pronostics').delete().eq('id', id);
-    chargerPronostics();
+    chargerTout();
   };
 
   const modifierPronostic = async (id: string) => {
     const { data: p } = await supabase.from('pronostics').select('*, pronostics_paris(*)').eq('id', id).single();
     if (!p) return;
     const equipes = p.match.split(' vs ');
-    setEquipe1(equipes[0] || '');
-    setEquipe2(equipes[1] || '');
-    setCompetition(p.competition || '');
-    setDateMatch(p.date_match ? p.date_match.slice(0, 16) : '');
-    setLieu(p.lieu || '');
-    setContexte(p.contexte || '');
-    setConfiance(p.confiance_globale || 3);
-    setEditId(id);
-    setVue('nouveau');
+    setEquipe1(equipes[0] || ''); setEquipe2(equipes[1] || '');
+    setCompetition(p.competition || ''); setDateMatch(p.date_match ? p.date_match.slice(0, 16) : '');
+    setLieu(p.lieu || ''); setContexte(p.contexte || ''); setConfiance(p.confiance_globale || 3);
+    setEditId(id); setVue('nouveau');
   };
 
   const analyserAvecIA = async () => {
@@ -134,27 +186,27 @@ export default function Admin() {
       if (data.success && data.analyse) {
         setContexte(data.analyse.contexte || '');
         setConfiance(data.analyse.confiance_globale || 3);
-        setMessage('✅ Analyse IA terminée ! Complétez les cotes manuellement.');
+        setMessage('✅ Analyse IA terminée !');
       } else { setMessage('❌ Erreur IA : ' + (data.error || 'inconnue')); }
     } catch { setMessage('❌ Erreur connexion IA.'); }
     setAnalysing(false);
   };
 
-  const construireParis = () => {
+  const construireParis = (): Pari[] => {
     const paris: Pari[] = [];
     let ordre = 1;
-    if (bat.v1) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe1, cote: parseFloat(bat.v1), confiance: 4, ordre: ordre++ });
-    if (bat.nul) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Match nul', cote: parseFloat(bat.nul), confiance: 3, ordre: ordre++ });
-    if (bat.v2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Résultat', type_pari: 'Match Result', valeur: 'Victoire ' + equipe2, cote: parseFloat(bat.v2), confiance: 3, ordre: ordre++ });
-    if (bat.dc1x) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: '1X — ' + equipe1 + ' ou Nul', cote: parseFloat(bat.dc1x), confiance: 4, ordre: ordre++ });
-    if (bat.dcx2) paris.push({ niveau: 'Kiyès k ap bat ?', categorie: 'Double Chance', type_pari: 'Double Chance', valeur: 'X2 — Nul ou ' + equipe2, cote: parseFloat(bat.dcx2), confiance: 3, ordre: ordre++ });
-    stats.forEach(s => { if (s.seuil && s.cote) paris.push({ niveau: 'Bèl ti stat', categorie: s.categorie, type_pari: s.categorie, valeur: (s.plusMoins === 'plus' ? 'Plus de ' : 'Moins de ') + s.seuil + ' ' + s.categorie.toLowerCase(), cote: parseFloat(s.cote), confiance: 3, ordre: ordre++ }); });
-    if (gols.totalSeuil && gols.totalCote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts total', type_pari: 'Total Goals', valeur: (gols.totalPM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.totalSeuil + ' buts', cote: parseFloat(gols.totalCote), confiance: 3, ordre: ordre++ });
-    if (gols.eq1Seuil && gols.eq1Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe1, type_pari: 'Team Goals', valeur: (gols.eq1PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq1Seuil + ' buts ' + equipe1, cote: parseFloat(gols.eq1Cote), confiance: 3, ordre: ordre++ });
-    if (gols.eq2Seuil && gols.eq2Cote) paris.push({ niveau: 'Kiyès k ap fè Gòl ?', categorie: 'Buts ' + equipe2, type_pari: 'Team Goals', valeur: (gols.eq2PM === 'plus' ? 'Plus de ' : 'Moins de ') + gols.eq2Seuil + ' buts ' + equipe2, cote: parseFloat(gols.eq2Cote), confiance: 3, ordre: ordre++ });
-    divino.forEach(d => { if (d.valeur && d.cote) paris.push({ niveau: 'Divinò', categorie: d.categorie, type_pari: d.categorie, valeur: d.valeur, cote: parseFloat(d.cote), confiance: 3, ordre: ordre++ }); });
-    if (mirak.coteVictoire) paris.push({ niveau: 'Bèl Mirak', categorie: 'Victoire Surprise', type_pari: 'Upset', valeur: 'Victoire ' + equipeOutsider, cote: parseFloat(mirak.coteVictoire), confiance: 2, ordre: ordre++ });
-    if (mirak.coteButs) paris.push({ niveau: 'Bèl Mirak', categorie: 'Buts Outsider', type_pari: 'Goals', valeur: 'Plus de 1.5 buts ' + equipeOutsider, cote: parseFloat(mirak.coteButs), confiance: 2, ordre: ordre++ });
+    if (bat.v1) paris.push({ niveau:'Kiyès k ap bat ?', categorie:'Résultat', type_pari:'Match Result', valeur:'Victoire '+equipe1, cote:parseFloat(bat.v1), confiance:4, ordre:ordre++ });
+    if (bat.nul) paris.push({ niveau:'Kiyès k ap bat ?', categorie:'Résultat', type_pari:'Match Result', valeur:'Match nul', cote:parseFloat(bat.nul), confiance:3, ordre:ordre++ });
+    if (bat.v2) paris.push({ niveau:'Kiyès k ap bat ?', categorie:'Résultat', type_pari:'Match Result', valeur:'Victoire '+equipe2, cote:parseFloat(bat.v2), confiance:3, ordre:ordre++ });
+    if (bat.dc1x) paris.push({ niveau:'Kiyès k ap bat ?', categorie:'Double Chance', type_pari:'Double Chance', valeur:'1X — '+equipe1+' ou Nul', cote:parseFloat(bat.dc1x), confiance:4, ordre:ordre++ });
+    if (bat.dcx2) paris.push({ niveau:'Kiyès k ap bat ?', categorie:'Double Chance', type_pari:'Double Chance', valeur:'X2 — Nul ou '+equipe2, cote:parseFloat(bat.dcx2), confiance:3, ordre:ordre++ });
+    stats.forEach(s => { if (s.seuil && s.cote) paris.push({ niveau:'Bèl ti stat', categorie:s.categorie, type_pari:s.categorie, valeur:(s.plusMoins==='plus'?'Plus de ':'Moins de ')+s.seuil+' '+s.categorie.toLowerCase(), cote:parseFloat(s.cote), confiance:3, ordre:ordre++ }); });
+    if (gols.totalSeuil && gols.totalCote) paris.push({ niveau:'Kiyès k ap fè Gòl ?', categorie:'Buts total', type_pari:'Total Goals', valeur:(gols.totalPM==='plus'?'Plus de ':'Moins de ')+gols.totalSeuil+' buts', cote:parseFloat(gols.totalCote), confiance:3, ordre:ordre++ });
+    if (gols.eq1Seuil && gols.eq1Cote) paris.push({ niveau:'Kiyès k ap fè Gòl ?', categorie:'Buts '+equipe1, type_pari:'Team Goals', valeur:(gols.eq1PM==='plus'?'Plus de ':'Moins de ')+gols.eq1Seuil+' buts '+equipe1, cote:parseFloat(gols.eq1Cote), confiance:3, ordre:ordre++ });
+    if (gols.eq2Seuil && gols.eq2Cote) paris.push({ niveau:'Kiyès k ap fè Gòl ?', categorie:'Buts '+equipe2, type_pari:'Team Goals', valeur:(gols.eq2PM==='plus'?'Plus de ':'Moins de ')+gols.eq2Seuil+' buts '+equipe2, cote:parseFloat(gols.eq2Cote), confiance:3, ordre:ordre++ });
+    divino.forEach(d => { if (d.valeur && d.cote) paris.push({ niveau:'Divinò', categorie:d.categorie, type_pari:d.categorie, valeur:d.valeur, cote:parseFloat(d.cote), confiance:3, ordre:ordre++ }); });
+    if (mirak.coteVictoire) paris.push({ niveau:'Bèl Mirak', categorie:'Victoire Surprise', type_pari:'Upset', valeur:'Victoire '+equipeOutsider, cote:parseFloat(mirak.coteVictoire), confiance:2, ordre:ordre++ });
+    if (mirak.coteButs) paris.push({ niveau:'Bèl Mirak', categorie:'Buts Outsider', type_pari:'Goals', valeur:'Plus de 1.5 buts '+equipeOutsider, cote:parseFloat(mirak.coteButs), confiance:2, ordre:ordre++ });
     return paris;
   };
 
@@ -163,34 +215,30 @@ export default function Admin() {
     setSaving(true); setMessage('');
     const paris = construireParis();
     if (editId) {
-      await supabase.from('pronostics').update({ match: matchNom, competition, date_match: dateMatch, lieu, contexte, confiance_globale: confiance }).eq('id', editId);
+      await supabase.from('pronostics').update({ match:matchNom, competition, date_match:dateMatch, lieu, contexte, confiance_globale:confiance }).eq('id', editId);
       await supabase.from('pronostics_paris').delete().eq('pronostic_id', editId);
-      await supabase.from('pronostics_paris').insert(paris.map(p => ({ ...p, pronostic_id: editId })));
-      await supabase.from('pronostics').update({ publie: publier }).eq('id', editId);
+      await supabase.from('pronostics_paris').insert(paris.map(p => ({ ...p, pronostic_id:editId })));
+      await supabase.from('pronostics').update({ publie:publier }).eq('id', editId);
       setSaving(false); setMessage('✅ Modification sauvegardée !'); setEditId(null);
-      chargerPronostics(); setTimeout(() => setVue('dashboard'), 1500); return;
+      chargerTout(); setTimeout(() => setVue('dashboard'), 1500); return;
     }
-    const res = await fetch('/api/admin/pronostic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ match: matchNom, competition, date_match: dateMatch, lieu, contexte, confiance_globale: confiance, paris }) });
+    const res = await fetch('/api/admin/pronostic', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ match:matchNom, competition, date_match:dateMatch, lieu, contexte, confiance_globale:confiance, paris }) });
     const data = await res.json();
-    if (data.success && publier) { await fetch('/api/admin/pronostic', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: data.id, publie: true }) }); }
+    if (data.success && publier) { await fetch('/api/admin/pronostic', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:data.id, publie:true }) }); }
     setSaving(false);
     if (data.success) {
       setMessage(publier ? '✅ Publié !' : '✅ Brouillon sauvegardé !');
       setEquipe1(''); setEquipe2(''); setCompetition(''); setDateMatch(''); setLieu(''); setContexte(''); setConfiance(3);
-      setBat({ v1: '', nul: '', v2: '', dc1x: '', dcx2: '' });
-      setStats([]); setGols({ totalPM:'plus', totalSeuil:'', totalCote:'', eq1PM:'plus', eq1Seuil:'', eq1Cote:'', eq2PM:'plus', eq2Seuil:'', eq2Cote:'' });
+      setBat({ v1:'', nul:'', v2:'', dc1x:'', dcx2:'' });
+      setStats([]); setGols({ totalPM:'plus',totalSeuil:'',totalCote:'',eq1PM:'plus',eq1Seuil:'',eq1Cote:'',eq2PM:'plus',eq2Seuil:'',eq2Cote:'' });
       setDivino([]); setMirak({ coteVictoire:'', coteButs:'' });
-      chargerPronostics(); setTimeout(() => setVue('dashboard'), 1500);
+      chargerTout(); setTimeout(() => setVue('dashboard'), 1500);
     } else { setMessage('❌ Erreur : ' + (data.error || 'inconnue')); }
   };
 
   const enregistrerScore = async () => {
     if (!scoreMatchId || scoreHome === '' || scoreAway === '') { setMessage('Match et scores obligatoires.'); return; }
-    const res = await fetch('/api/scores', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ match_id: parseInt(scoreMatchId), home_score: parseInt(scoreHome), away_score: parseInt(scoreAway), statut: scoreStatut })
-    });
+    const res = await fetch('/api/scores', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ match_id:parseInt(scoreMatchId), home_score:parseInt(scoreHome), away_score:parseInt(scoreAway), statut:scoreStatut }) });
     const data = await res.json();
     if (data.success) {
       setMessage('✅ Score enregistré !');
@@ -219,74 +267,190 @@ export default function Admin() {
   const sectionStyle = {background:'#fff',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'20px',marginBottom:'16px'};
   const pmBtn = (actif: boolean, color: string) => ({ flex:1,padding:'9px',borderRadius:'8px',border:'2px solid '+(actif?color:'#e5e7eb'),background:actif?color+'15':'#fff',color:actif?color:'#6b7280',fontWeight:700 as const,cursor:'pointer' as const,fontSize:'13px' });
 
+  const navBtn = (v: typeof vue, label: string, color: string) => (
+    <button onClick={() => setVue(v)} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue===v?color:'#333',color:'#fff'}}>
+      {label}
+    </button>
+  );
+
   return (
-    <div style={{minHeight:'100vh',background:'#f9fafb',fontFamily:'sans-serif'}}>
-      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>MakeGoal Admin</h1>
-        <div style={{display:'flex',gap:'12px'}}>
-          {vue !== 'dashboard' && <button onClick={() => { setVue('dashboard'); setEditId(null); }} style={{background:'#333',color:'#fff',border:'none',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px'}}>← Dashboard</button>}
-          <button onClick={seDeconnecter} style={{background:'#ef4444',color:'#fff',border:'none',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px'}}>Déconnexion</button>
+    <div style={{minHeight:'100vh',background:'#0f0f0f',fontFamily:'sans-serif'}}>
+      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222'}}>
+        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>🏆 MakeGoal Admin</h1>
+        <div style={{display:'flex',gap:'8px'}}>
+          {navBtn('dashboard','📊 Dashboard','#7c3aed')}
+          {navBtn('stats','📈 Stats','#0891b2')}
+          {navBtn('scores','⚽ Scores','#10b981')}
+          {navBtn('nouveau',editId?'✏️ Modifier':'➕ Nouveau',VIOLET)}
+          <button onClick={seDeconnecter} style={{background:'#ef4444',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>Déconnexion</button>
         </div>
       </header>
 
+      {message && (
+        <div style={{padding:'12px 24px',background:message.includes('❌')?'#7f1d1d':'#064e3b',color:message.includes('❌')?'#fca5a5':'#6ee7b7',fontWeight:700,fontSize:'14px'}}>
+          {message}
+        </div>
+      )}
+
       {vue === 'dashboard' && (
-        <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}}>
-            <h2 style={{fontWeight:900,fontSize:'24px',margin:0}}>Pronostics</h2>
-            <div style={{display:'flex',gap:'8px'}}>
-              <button onClick={() => setVue('scores')} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 20px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>⚽ Scores</button>
-              <button onClick={() => setVue('nouveau')} style={{background:VIOLET,color:'#fff',border:'none',padding:'10px 20px',borderRadius:'999px',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>+ Nouveau</button>
+        <main style={{maxWidth:'1000px',margin:'0 auto',padding:'32px 16px'}}>
+
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'16px',marginBottom:'32px'}}>
+            {[
+              { label:'Pronostics', value:globalStats.totalPronostics, color:'#7c3aed', icon:'📋' },
+              { label:'Publiés', value:globalStats.totalPublies, color:'#10b981', icon:'✅' },
+              { label:'Votes 👍', value:globalStats.totalVotesUp, color:'#3b82f6', icon:'👍' },
+              { label:'Votes 👎', value:globalStats.totalVotesDown, color:'#ef4444', icon:'👎' },
+              { label:'Partages WA', value:globalStats.totalPartages, color:'#25D366', icon:'📱' },
+              { label:'Newsletter', value:globalStats.totalNewsletter, color:'#f59e0b', icon:'📬' },
+            ].map(s => (
+              <div key={s.label} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px',textAlign:'center'}}>
+                <div style={{fontSize:'28px',marginBottom:'8px'}}>{s.icon}</div>
+                <div style={{fontSize:'32px',fontWeight:900,color:s.color}}>{s.value}</div>
+                <div style={{fontSize:'12px',color:'#6b7280',marginTop:'4px'}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'32px'}}>
+            <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px'}}>
+              <h3 style={{color:'#fff',fontWeight:700,marginBottom:'16px',fontSize:'16px'}}>📅 Prochains matchs</h3>
+              {prochainMatchs.length === 0 && <p style={{color:'#6b7280',fontSize:'14px'}}>Tous les matchs ont un score.</p>}
+              {prochainMatchs.map(m => {
+                const aProno = pronostics.find(p => p.match === m.home + ' vs ' + m.away);
+                return (
+                  <div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #222'}}>
+                    <div>
+                      <p style={{color:'#fff',fontWeight:600,fontSize:'13px',margin:0}}>{m.home} vs {m.away}</p>
+                      <p style={{color:'#6b7280',fontSize:'11px',margin:0}}>{m.date} · {m.time}</p>
+                    </div>
+                    <span style={{fontSize:'11px',padding:'2px 8px',borderRadius:'999px',background:aProno?'#10b981':'#374151',color:'#fff'}}>
+                      {aProno ? '✓ Prono' : 'Sans prono'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px'}}>
+              <h3 style={{color:'#fff',fontWeight:700,marginBottom:'16px',fontSize:'16px'}}>🏆 Pronostics récents</h3>
+              {pronostics.slice(0, 5).map(p => (
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #222',gap:'8px'}}>
+                  <p style={{color:'#fff',fontWeight:600,fontSize:'13px',margin:0,flex:1}}>{p.match}</p>
+                  <div style={{display:'flex',gap:'6px'}}>
+                    <button onClick={() => togglePublie(p.id, p.publie)} style={{padding:'4px 10px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:p.publie?'#10b981':'#374151',color:'#fff'}}>
+                      {p.publie ? '✓' : '○'}
+                    </button>
+                    <button onClick={() => modifierPronostic(p.id)} style={{padding:'4px 10px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:'#7c3aed',color:'#fff'}}>✏️</button>
+                    <button onClick={() => supprimerPronostic(p.id)} style={{padding:'4px 10px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:'#7f1d1d',color:'#fff'}}>🗑️</button>
+                  </div>
+                </div>
+              ))}
+              {pronostics.length > 5 && (
+                <p style={{color:'#6b7280',fontSize:'12px',textAlign:'center',marginTop:'8px'}}>
+                  + {pronostics.length - 5} autres pronostics
+                </p>
+              )}
             </div>
           </div>
-          {message && <div style={{padding:'12px',borderRadius:'8px',marginBottom:'16px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981',fontWeight:700}}>{message}</div>}
-          {pronostics.length === 0 && <p style={{color:'#6b7280'}}>Aucun pronostic.</p>}
-          {pronostics.map(p => (
-            <div key={p.id} style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'16px',marginBottom:'12px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+
+          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px'}}>
+            <h3 style={{color:'#fff',fontWeight:700,marginBottom:'16px',fontSize:'16px'}}>📋 Tous les pronostics</h3>
+            {pronostics.map(p => (
+              <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #222',gap:'12px',flexWrap:'wrap'}}>
                 <div>
-                  <p style={{fontWeight:700,margin:0,marginBottom:'4px'}}>{p.match}</p>
-                  <p style={{color:'#6b7280',fontSize:'13px',margin:0}}>{new Date(p.date_match).toLocaleDateString('fr-FR')} — {'★'.repeat(p.confiance_globale)}</p>
+                  <p style={{color:'#fff',fontWeight:700,margin:0,marginBottom:'2px'}}>{p.match}</p>
+                  <p style={{color:'#6b7280',fontSize:'12px',margin:0}}>{new Date(p.date_match).toLocaleDateString('fr-FR')} — {'★'.repeat(p.confiance_globale)}</p>
                 </div>
                 <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-                  <button onClick={() => togglePublie(p.id, p.publie)} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:p.publie?'#10b981':'#6b7280',color:'#fff'}}>{p.publie ? '✓ Publié' : 'Brouillon'}</button>
-                  <button onClick={() => modifierPronostic(p.id)} style={{padding:'8px 16px',borderRadius:'999px',border:'2px solid '+VIOLET,background:'#fff',color:VIOLET,cursor:'pointer',fontWeight:700,fontSize:'13px'}}>✏️ Modifier</button>
-                  <button onClick={() => supprimerPronostic(p.id)} style={{padding:'8px 16px',borderRadius:'999px',border:'2px solid #ef4444',background:'#fff',color:'#ef4444',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>🗑️ Supprimer</button>
+                  <button onClick={() => togglePublie(p.id, p.publie)} style={{padding:'6px 14px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:p.publie?'#10b981':'#374151',color:'#fff'}}>
+                    {p.publie ? '✓ Publié' : 'Brouillon'}
+                  </button>
+                  <button onClick={() => modifierPronostic(p.id)} style={{padding:'6px 14px',borderRadius:'999px',border:'2px solid '+VIOLET,background:'transparent',color:VIOLET,cursor:'pointer',fontWeight:700,fontSize:'12px'}}>✏️ Modifier</button>
+                  <button onClick={() => supprimerPronostic(p.id)} style={{padding:'6px 14px',borderRadius:'999px',border:'2px solid #ef4444',background:'transparent',color:'#ef4444',cursor:'pointer',fontWeight:700,fontSize:'12px'}}>🗑️ Supprimer</button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </main>
+      )}
+
+      {vue === 'stats' && (
+        <main style={{maxWidth:'1000px',margin:'0 auto',padding:'32px 16px'}}>
+          <h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>📈 Statistiques détaillées</h2>
+          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'14px',color:'#fff'}}>
+              <thead>
+                <tr style={{borderBottom:'1px solid #333'}}>
+                  <th style={{padding:'10px 8px',textAlign:'left',color:'#6b7280',fontWeight:600}}>Match</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>Statut</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>Vues</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>👍</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>👎</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>📱 WA</th>
+                  <th style={{padding:'10px 8px',textAlign:'center',color:'#6b7280',fontWeight:600}}>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pronosticsStats.map(p => {
+                  const total = p.votes_up + p.votes_down;
+                  const pct = total > 0 ? Math.round((p.votes_up / total) * 100) : 0;
+                  return (
+                    <tr key={p.id} style={{borderBottom:'1px solid #222'}}>
+                      <td style={{padding:'12px 8px',fontWeight:600}}>{p.match}</td>
+                      <td style={{padding:'12px 8px',textAlign:'center'}}>
+                        <span style={{background:p.publie?'#10b981':'#374151',color:'#fff',padding:'2px 8px',borderRadius:'999px',fontSize:'11px'}}>
+                          {p.publie ? 'Publié' : 'Brouillon'}
+                        </span>
+                      </td>
+                      <td style={{padding:'12px 8px',textAlign:'center',color:'#9ca3af'}}>{p.vues}</td>
+                      <td style={{padding:'12px 8px',textAlign:'center',color:'#10b981',fontWeight:700}}>{p.votes_up}</td>
+                      <td style={{padding:'12px 8px',textAlign:'center',color:'#ef4444',fontWeight:700}}>{p.votes_down}</td>
+                      <td style={{padding:'12px 8px',textAlign:'center',color:'#25D366',fontWeight:700}}>{p.partages}</td>
+                      <td style={{padding:'12px 8px',textAlign:'center'}}>
+                        {total > 0 ? (
+                          <div style={{display:'flex',alignItems:'center',gap:'6px',justifyContent:'center'}}>
+                            <div style={{width:'60px',height:'6px',background:'#374151',borderRadius:'999px',overflow:'hidden'}}>
+                              <div style={{width:pct+'%',height:'100%',background:'#10b981',borderRadius:'999px'}}/>
+                            </div>
+                            <span style={{fontSize:'11px',color:'#10b981'}}>{pct}%</span>
+                          </div>
+                        ) : <span style={{color:'#374151',fontSize:'12px'}}>—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </main>
       )}
 
       {vue === 'scores' && (
         <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
-          <h2 style={{fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>⚽ Entrer un score</h2>
-          {message && <div style={{padding:'12px',borderRadius:'8px',marginBottom:'16px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981',fontWeight:700}}>{message}</div>}
-
-          <div style={sectionStyle}>
+          <h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>⚽ Entrer un score</h2>
+          <div style={{...sectionStyle,background:'#1a1a1a',border:'1px solid #333'}}>
             <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Match</label>
-              <select value={scoreMatchId} onChange={e => setScoreMatchId(e.target.value)} style={{...inputStyle}}>
+              <label style={{...labelStyle,color:'#9ca3af'}}>Match</label>
+              <select value={scoreMatchId} onChange={e => setScoreMatchId(e.target.value)} style={{...inputStyle,background:'#222',color:'#fff',border:'1px solid #333'}}>
                 <option value="">-- Choisir un match --</option>
-                {MATCHES.map(m => (
-                  <option key={m.id} value={m.id}>{m.date} — {m.home} vs {m.away}</option>
-                ))}
+                {MATCHES.map(m => <option key={m.id} value={m.id}>{m.date} — {m.home} vs {m.away}</option>)}
               </select>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:'16px',alignItems:'center',marginBottom:'16px'}}>
               <div>
-                <label style={labelStyle}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.home || 'Équipe 1' : 'Équipe 1'}</label>
-                <input type="number" min={0} value={scoreHome} onChange={e => setScoreHome(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900}}/>
+                <label style={{...labelStyle,color:'#9ca3af'}}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.home || 'Équipe 1' : 'Équipe 1'}</label>
+                <input type="number" min={0} value={scoreHome} onChange={e => setScoreHome(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900,background:'#222',color:'#fff',border:'1px solid #333'}}/>
               </div>
-              <div style={{textAlign:'center',fontWeight:900,fontSize:'20px',color:'#9ca3af',paddingTop:'18px'}}>—</div>
+              <div style={{textAlign:'center',fontWeight:900,fontSize:'20px',color:'#6b7280',paddingTop:'18px'}}>—</div>
               <div>
-                <label style={labelStyle}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.away || 'Équipe 2' : 'Équipe 2'}</label>
-                <input type="number" min={0} value={scoreAway} onChange={e => setScoreAway(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900}}/>
+                <label style={{...labelStyle,color:'#9ca3af'}}>{scoreMatchId ? MATCHES.find(m => m.id === parseInt(scoreMatchId))?.away || 'Équipe 2' : 'Équipe 2'}</label>
+                <input type="number" min={0} value={scoreAway} onChange={e => setScoreAway(e.target.value)} placeholder="0" style={{...inputStyle,textAlign:'center',fontSize:'24px',fontWeight:900,background:'#222',color:'#fff',border:'1px solid #333'}}/>
               </div>
             </div>
             <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Statut</label>
-              <select value={scoreStatut} onChange={e => setScoreStatut(e.target.value)} style={inputStyle}>
+              <label style={{...labelStyle,color:'#9ca3af'}}>Statut</label>
+              <select value={scoreStatut} onChange={e => setScoreStatut(e.target.value)} style={{...inputStyle,background:'#222',color:'#fff',border:'1px solid #333'}}>
                 <option value="final">Final</option>
                 <option value="en cours">En cours</option>
                 <option value="annulé">Annulé</option>
@@ -297,15 +461,15 @@ export default function Admin() {
             </button>
           </div>
 
-          <div style={sectionStyle}>
-            <h3 style={{fontWeight:700,marginBottom:'12px',fontSize:'16px'}}>Scores enregistrés</h3>
+          <div style={{...sectionStyle,background:'#1a1a1a',border:'1px solid #333'}}>
+            <h3 style={{color:'#fff',fontWeight:700,marginBottom:'12px',fontSize:'16px'}}>Scores enregistrés</h3>
             {scores.length === 0 && <p style={{color:'#6b7280',fontSize:'14px'}}>Aucun score enregistré.</p>}
             {scores.map(s => {
               const m = MATCHES.find(x => x.id === s.match_id);
               if (!m) return null;
               return (
-                <div key={s.match_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f3f4f6'}}>
-                  <span style={{fontSize:'14px',fontWeight:600}}>{m.home} vs {m.away}</span>
+                <div key={s.match_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #222'}}>
+                  <span style={{fontSize:'14px',fontWeight:600,color:'#fff'}}>{m.home} vs {m.away}</span>
                   <div style={{display:'flex',gap:'12px',alignItems:'center'}}>
                     <span style={{fontWeight:900,fontSize:'18px',color:VIOLET}}>{s.home_score} — {s.away_score}</span>
                     <span style={{fontSize:'11px',background:s.statut==='final'?'#10b981':s.statut==='en cours'?'#f59e0b':'#ef4444',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{s.statut}</span>
@@ -319,8 +483,7 @@ export default function Admin() {
 
       {vue === 'nouveau' && (
         <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
-          <h2 style={{fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>{editId ? '✏️ Modifier' : '➕ Nouveau Pronostic'}</h2>
-          {message && <div style={{padding:'12px 16px',borderRadius:'8px',marginBottom:'16px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981',fontWeight:700}}>{message}</div>}
+          <h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'24px'}}>{editId ? '✏️ Modifier' : '➕ Nouveau Pronostic'}</h2>
 
           <div style={sectionStyle}>
             <h3 style={{fontWeight:700,marginBottom:'16px',fontSize:'16px'}}>⚽ Les deux équipes</h3>
