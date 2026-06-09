@@ -119,14 +119,14 @@ export default function Pronostics() {
           Pronostics MakeGoal
         </h1>
         <p style={{color:'#6b7280',fontSize:'16px',marginBottom:'32px'}}>
-          Analiz reyèl. Chif onèt. Pou pariè ki konnen kisa yo fè.
+          Bon analiz. Bon chif. Pou paryè entèlijan.
         </p>
 
         {loading && <p style={{color:'#9ca3af'}}>Chargement…</p>}
 
         {!loading && pronostics.length === 0 && (
           <div style={{background:'#f9fafb',padding:'32px',borderRadius:'16px',textAlign:'center'}}>
-            <p style={{color:'#6b7280',margin:0}}>Okenn pwonostic piblie pou kounye a.</p>
+            <p style={{color:'#6b7280',margin:0}}>Poko gen pwonosik.</p>
           </div>
         )}
 
