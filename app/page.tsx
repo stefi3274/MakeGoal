@@ -1,10 +1,27 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { MATCHES, FLAGS, GROUP_COLORS, Match } from '../data/matches';
+import { MATCHES, GROUP_COLORS, Match } from '../data/matches';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const VIOLET = '#bf00ff';
+
+const FLAG_CODES: Record<string, string> = {
+  'Mexique':'mx','Afrique du Sud':'za','Corée du Sud':'kr','Rép. Tchèque':'cz',
+  'Canada':'ca','Qatar':'qa','Bosnie-Herzégovine':'ba','Suisse':'ch',
+  'Brésil':'br','Écosse':'gb-sct','Maroc':'ma','Haïti':'ht',
+  'États-Unis':'us','Türkiye':'tr','Paraguay':'py','Australie':'au',
+  'Allemagne':'de','Équateur':'ec','Côte d\'Ivoire':'ci','Curaçao':'cw',
+  'Pays-Bas':'nl','Tunisie':'tn','Japon':'jp','Suède':'se',
+  'Belgique':'be','Nouvelle-Zélande':'nz','Égypte':'eg','Iran':'ir',
+  'Espagne':'es','Cap-Vert':'cv','Uruguay':'uy','Arabie Saoudite':'sa',
+  'France':'fr','Irak':'iq','Sénégal':'sn','Norvège':'no',
+  'Argentine':'ar','Jordanie':'jo','Algérie':'dz','Autriche':'at',
+  'Portugal':'pt','RD Congo':'cd','Colombie':'co','Ouzbékistan':'uz',
+  'Angleterre':'gb-eng','Panama':'pa','Croatie':'hr','Ghana':'gh',
+};
+
+const getFlagCode = (pays: string) => FLAG_CODES[pays] || 'un';
 
 type Pronostic = {
   id: string;
@@ -69,14 +86,9 @@ export default function Home() {
         <p style={{color:'rgba(255,255,255,0.85)',fontSize:'18px',margin:'0 0 24px'}}>
           Bonne analyse. Bons chiffres. Pour parier intelligemment.
         </p>
-        <div style={{display:'flex',gap:'12px',justifyContent:'center',flexWrap:'wrap'}}>
-          <a href="/pronostics" style={{background:'#fff',color:VIOLET,padding:'12px 28px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none'}}>
-            ⚽ Pronostics
-          </a>
-          <a href="/stats" style={{background:'rgba(255,255,255,0.15)',color:'#fff',padding:'12px 28px',borderRadius:'999px',fontWeight:700,fontSize:'16px',textDecoration:'none',border:'2px solid rgba(255,255,255,0.4)'}}>
-            📊 Stats & Cotes
-          </a>
-        </div>
+        <a href="/pronostics" style={{background:'#fff',color:VIOLET,padding:'12px 28px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none'}}>
+          ⚽ Pronostics
+        </a>
       </div>
 
       <div style={{background:'#003087',padding:'16px 24px',textAlign:'center'}}>
@@ -108,10 +120,10 @@ export default function Home() {
             const couleurGroupe = GROUP_COLORS[m.group];
             return (
               <div key={m.id} style={{
-                border: estHaiti ? '2px solid #D21034' : '1px solid #e5e7eb',
+                border: estHaiti ? '2px solid #D21034' : '2px solid ' + couleurGroupe + '40',
                 borderRadius:'16px',padding:'20px',marginBottom:'12px',
-                background: estHaiti ? '#fff5f5' : '#ffffff',
-                boxShadow: estHaiti ? '0 4px 16px rgba(210,16,52,0.12)' : '0 1px 4px rgba(0,0,0,0.05)'
+                background: estHaiti ? '#fff5f5' : couleurGroupe + '08',
+                boxShadow: '0 2px 8px ' + couleurGroupe + '30'
               }}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px',flexWrap:'wrap',gap:'8px'}}>
                   <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
@@ -137,7 +149,7 @@ export default function Home() {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'12px',flex:1}}>
                     <div style={{textAlign:'center',minWidth:'80px'}}>
-                      <div style={{fontSize:'32px'}}>{FLAGS[m.home] || '🏳️'}</div>
+                      <img src={'https://flagcdn.com/48x36/' + getFlagCode(m.home) + '.png'} alt={m.home} style={{width:'48px',height:'36px',borderRadius:'4px',objectFit:'cover'}}/>
                       <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.home}</p>
                     </div>
                     <div style={{textAlign:'center',flex:1}}>
@@ -145,7 +157,7 @@ export default function Home() {
                       <p style={{fontSize:'11px',color:'#9ca3af',margin:'4px 0 0'}}>🏟️ {m.stadium}</p>
                     </div>
                     <div style={{textAlign:'center',minWidth:'80px'}}>
-                      <div style={{fontSize:'32px'}}>{FLAGS[m.away] || '🏳️'}</div>
+                      <img src={'https://flagcdn.com/48x36/' + getFlagCode(m.away) + '.png'} alt={m.away} style={{width:'48px',height:'36px',borderRadius:'4px',objectFit:'cover'}}/>
                       <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.away}</p>
                     </div>
                   </div>
