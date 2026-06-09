@@ -17,7 +17,7 @@ export const GROUP_COLORS: Record<string, string> = {
   A:'#e74c3c',B:'#e67e22',C:'#f1c40f',D:'#2ecc71',
   E:'#1abc9c',F:'#3498db',G:'#9b59b6',H:'#e91e8c',
   I:'#ff5722',J:'#4caf50',K:'#00bcd4',L:'#ff9800',
-  'KO':'#7c3aed'
+  KO:'#7c3aed',
 };
 
 export type Match = {
