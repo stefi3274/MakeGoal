@@ -44,7 +44,7 @@ const estAujourdhui = (dateStr: string) => {
 export default function Home() {
   const [pronostics, setPronostics] = useState<Pronostic[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
-  const [groupeActif, setGroupeActif] = useState('C');
+  const [groupeActif, setGroupeActif] = useState('');
   const [email, setEmail] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
 
@@ -93,7 +93,7 @@ export default function Home() {
             </span>
             {m.label && <span style={{background:'#111',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>{m.label}</span>}
             {estHaiti && <span className="haiti-badge" style={{fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>🇭🇹 HAÏTI</span>}
-            {score && <span style={{background: score.statut==='final'?'#10b981':score.statut==='en cours'?'#f59e0b':'#6b7280',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>{score.statut}</span>}
+            {score && <span style={{background:score.statut==='final'?'#10b981':score.statut==='en cours'?'#f59e0b':'#6b7280',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>{score.statut}</span>}
           </div>
           <span style={{fontSize:'12px',color:'#9ca3af'}}>{m.day} {m.date} · {m.time} · {m.city}</span>
         </div>
@@ -182,7 +182,7 @@ export default function Home() {
 
         <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'24px',justifyContent:'center'}}>
           {groupes.map(g => (
-            <button key={g} onClick={() => setGroupeActif(g)} style={{
+            <button key={g} onClick={() => setGroupeActif(groupeActif === g ? '' : g)} style={{
               padding:'8px 18px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer',
               background: groupeActif === g ? GROUP_COLORS[g] : '#f3f4f6',
               color: groupeActif === g ? '#fff' : '#374151',
@@ -195,7 +195,12 @@ export default function Home() {
         </div>
 
         <div>
-          {matchesParGroupe(groupeActif).map(m => <CarteMatch key={m.id} m={m} />)}
+          {groupeActif && matchesParGroupe(groupeActif).map(m => <CarteMatch key={m.id} m={m} />)}
+          {!groupeActif && (
+            <p style={{color:'#9ca3af',textAlign:'center',fontSize:'14px',padding:'20px'}}>
+              Sélectionnez un groupe pour voir les matchs.
+            </p>
+          )}
         </div>
 
         <div style={{marginTop:'48px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
