@@ -7,11 +7,11 @@ import Footer from '../../../components/Footer';
 const VIOLET = '#bf00ff';
 
 const NIVEAUX = [
-  { key: 'Kiyès k ap bat ?', emoji: '⚽', color: '#10b981', bg: '#f0fdf4' },
-  { key: 'Bèl ti stat', emoji: '📊', color: '#3b82f6', bg: '#eff6ff' },
-  { key: 'Kiyès k ap fè Gòl ?', emoji: '🎯', color: '#f59e0b', bg: '#fffbeb' },
-  { key: 'Divinò', emoji: '🔮', color: '#eab308', bg: '#fefce8' },
-  { key: 'Bèl Mirak', emoji: '🌈', color: '#8b00ff', bg: '#fdf4ff' },
+  { key: 'Kiyès k ap bat ?', emoji: '⚽', color: '#10b981', bg: '#f0fdf4', label: 'Kiyès k ap bat ?' },
+  { key: 'Bèl ti stat', emoji: '📊', color: '#3b82f6', bg: '#eff6ff', label: 'Bèl ti stat' },
+  { key: 'Kiyès k ap fè Gòl ?', emoji: '🎯', color: '#f59e0b', bg: '#fffbeb', label: 'Kiyès k ap fè Gòl ?' },
+  { key: 'Divinò', emoji: '🔮', color: '#eab308', bg: '#fefce8', label: 'Divinò' },
+  { key: 'Bèl Mirak', emoji: '🌈', color: '#8b00ff', bg: '#fdf4ff', label: 'Bèl Mirak' },
 ];
 
 type Pari = {

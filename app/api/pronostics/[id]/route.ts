@@ -7,29 +7,22 @@ const supabase = createClient(
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
   const { data, error } = await supabase
     .from('pronostics')
     .select('*, pronostics_paris(*)')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('publie', true)
     .single();
-
   if (error || !data) {
     return Response.json({ error: 'Pronostic introuvable' }, { status: 404 });
   }
-
   const pronostic = {
     ...data,
     paris: (data.pronostics_paris || []).sort((a: { ordre: number }, b: { ordre: number }) => a.ordre - b.ordre)
   };
-
-  // Incrémenter les vues
-  await supabase
-    .from('pronostics')
-    .update({ vues: (data.vues || 0) + 1 })
-    .eq('id', params.id);
-
+  await supabase.from('pronostics').update({ vues: (data.vues || 0) + 1 }).eq('id', id);
   return Response.json({ pronostic });
 }

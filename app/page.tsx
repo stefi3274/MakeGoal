@@ -11,7 +11,7 @@ const FLAG_CODES: Record<string, string> = {
   'Canada':'ca','Qatar':'qa','Bosnie-Herzégovine':'ba','Suisse':'ch',
   'Brésil':'br','Écosse':'gb-sct','Maroc':'ma','Haïti':'ht',
   'États-Unis':'us','Türkiye':'tr','Paraguay':'py','Australie':'au',
-  'Allemagne':'de','Équateur':'ec','Côte d\'Ivoire':'ci','Curaçao':'cw',
+  'Allemagne':'de','Équateur':'ec',"Côte d'Ivoire":'ci','Curaçao':'cw',
   'Pays-Bas':'nl','Tunisie':'tn','Japon':'jp','Suède':'se',
   'Belgique':'be','Nouvelle-Zélande':'nz','Égypte':'eg','Iran':'ir',
   'Espagne':'es','Cap-Vert':'cv','Uruguay':'uy','Arabie Saoudite':'sa',
@@ -59,7 +59,7 @@ export default function Home() {
 
   const groupes = ['A','B','C','D','E','F','G','H','I','J','K','L'];
   const matchsDuJour = MATCHES.filter(m => estAujourdhui(m.date));
-  const aPronostic = (m: Match) => pronostics.find(p => p.match === m.home + ' vs ' + m.away);
+  const getPronostic = (m: Match) => pronostics.find(p => p.match === m.home + ' vs ' + m.away);
   const getScore = (m: Match) => scores.find(s => s.match_id === m.id);
   const matchesParGroupe = (g: string) => MATCHES.filter(m => m.group === g);
 
@@ -75,7 +75,7 @@ export default function Home() {
   };
 
   const CarteMatch = ({ m }: { m: Match }) => {
-    const prono = aPronostic(m);
+    const prono = getPronostic(m);
     const score = getScore(m);
     const estHaiti = m.home === 'Haïti' || m.away === 'Haïti';
     const couleurGroupe = GROUP_COLORS[m.group];
@@ -97,7 +97,6 @@ export default function Home() {
           </div>
           <span style={{fontSize:'12px',color:'#9ca3af'}}>{m.day} {m.date} · {m.time} · {m.city}</span>
         </div>
-
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:'12px',flex:1}}>
             <div style={{textAlign:'center',minWidth:'80px'}}>
@@ -106,9 +105,7 @@ export default function Home() {
             </div>
             <div style={{textAlign:'center',flex:1}}>
               {score ? (
-                <p style={{fontWeight:900,fontSize:'28px',color:'#111',margin:0}}>
-                  {score.home_score} — {score.away_score}
-                </p>
+                <p style={{fontWeight:900,fontSize:'28px',color:'#111',margin:0}}>{score.home_score} — {score.away_score}</p>
               ) : (
                 <p style={{fontWeight:900,fontSize:'20px',color:'#9ca3af',margin:0}}>VS</p>
               )}
@@ -121,7 +118,12 @@ export default function Home() {
           </div>
           <div style={{flexShrink:0}}>
             {prono ? (
-              <a href="/pronostics" style={{display:'inline-block',background:VIOLET,color:'#fff',padding:'10px 20px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',boxShadow:'0 2px 8px rgba(191,0,255,0.3)'}}>
+              <a href={'/pronostics/' + prono.id} style={{
+                display:'inline-block',background:VIOLET,color:'#fff',
+                padding:'10px 20px',borderRadius:'999px',fontWeight:700,
+                fontSize:'13px',textDecoration:'none',
+                boxShadow:'0 2px 8px rgba(191,0,255,0.3)'
+              }}>
                 ⚽ Pronostic →
               </a>
             ) : (
@@ -214,8 +216,7 @@ export default function Home() {
             <p style={{color:'#10b981',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
           ) : (
             <div style={{display:'flex',gap:'8px',maxWidth:'400px',margin:'0 auto',flexWrap:'wrap'}}>
-              <input
-                type="email" value={email} onChange={e => setEmail(e.target.value)}
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="votre@email.com"
                 style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}
               />
