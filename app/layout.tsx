@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "../lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
         url: "https://makegoal.vercel.app/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "MakeGoal — Pronostics Coupe du Monde 2026",
+        alt: "MakeGoal",
       },
     ],
     locale: "fr_FR",
@@ -46,7 +47,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

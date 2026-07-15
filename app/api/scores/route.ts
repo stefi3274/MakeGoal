@@ -23,4 +23,4 @@ export async function POST(request: Request) {
     .single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ success: true, score: data });
-}
+} 
