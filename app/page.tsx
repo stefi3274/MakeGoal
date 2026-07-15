@@ -1,67 +1,61 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { MATCHES, GROUP_COLORS, Match } from '../data/matches';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const VIOLET = '#bf00ff';
+const PETITE_FINALE_ID = 999;
 
-const FLAG_CODES: Record<string, string> = {
-  'Mexique':'mx','Afrique du Sud':'za','Corée du Sud':'kr','Rép. Tchèque':'cz',
-  'Canada':'ca','Qatar':'qa','Bosnie-Herzégovine':'ba','Suisse':'ch',
-  'Brésil':'br','Écosse':'gb-sct','Maroc':'ma','Haïti':'ht',
-  'États-Unis':'us','Türkiye':'tr','Paraguay':'py','Australie':'au',
-  'Allemagne':'de','Équateur':'ec',"Côte d'Ivoire":'ci','Curaçao':'cw',
-  'Pays-Bas':'nl','Tunisie':'tn','Japon':'jp','Suède':'se',
-  'Belgique':'be','Nouvelle-Zélande':'nz','Égypte':'eg','Iran':'ir',
-  'Espagne':'es','Cap-Vert':'cv','Uruguay':'uy','Arabie Saoudite':'sa',
-  'France':'fr','Irak':'iq','Sénégal':'sn','Norvège':'no',
-  'Argentine':'ar','Jordanie':'jo','Algérie':'dz','Autriche':'at',
-  'Portugal':'pt','RD Congo':'cd','Colombie':'co','Ouzbékistan':'uz',
-  'Angleterre':'gb-eng','Panama':'pa','Croatie':'hr','Ghana':'gh',
-};
+type VoteStat = { '1': number; 'X': number; '2': number; total: number };
 
-const getFlagCode = (pays: string) => FLAG_CODES[pays] || 'un';
-
-type Pronostic = { id: string; match: string; publie: boolean; };
-type Score = { match_id: number; home_score: number; away_score: number; statut: string; };
-
-const MOIS: Record<string, number> = {
-  'janvier':1,'février':2,'mars':3,'avril':4,'mai':5,'juin':6,
-  'juillet':7,'août':8,'septembre':9,'octobre':10,'novembre':11,'décembre':12
-};
-
-const estAujourdhui = (dateStr: string) => {
-  const now = new Date();
-  const parts = dateStr.trim().split(' ');
-  if (parts.length < 2) return false;
-  const jour = parseInt(parts[0]);
-  const mois = MOIS[parts[1].toLowerCase()];
-  if (!mois) return false;
-  return now.getDate() === jour && (now.getMonth() + 1) === mois;
-};
+const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0;
 
 export default function Home() {
-  const [pronostics, setPronostics] = useState<Pronostic[]>([]);
-  const [scores, setScores] = useState<Score[]>([]);
-  const [groupeActif, setGroupeActif] = useState('');
+  const router = useRouter();
+  const { user } = useAuth();
+  const [stats, setStats] = useState<VoteStat>({ '1': 0, 'X': 0, '2': 0, total: 0 });
+  const [monVote, setMonVote] = useState('');
   const [email, setEmail] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
 
   useEffect(() => {
-    fetch('/api/pronostics')
-      .then(res => res.json())
-      .then(data => setPronostics(data.pronostics || []));
-    fetch('/api/scores')
-      .then(res => res.json())
-      .then(data => setScores(data.scores || []));
+    chargerStats();
   }, []);
 
-  const groupes = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-  const matchsDuJour = MATCHES.filter(m => estAujourdhui(m.date));
-  const getPronostic = (m: Match) => pronostics.find(p => p.match === m.home + ' vs ' + m.away);
-  const getScore = (m: Match) => scores.find(s => s.match_id === m.id);
-  const matchesParGroupe = (g: string) => MATCHES.filter(m => m.group === g);
+  useEffect(() => {
+    if (user) chargerMonVote();
+  }, [user]);
+
+  const chargerStats = async () => {
+    const { data } = await supabase.from('votes_matchs').select('choix').eq('match_id', PETITE_FINALE_ID);
+    if (data) {
+      const s: VoteStat = { '1': 0, 'X': 0, '2': 0, total: 0 };
+      data.forEach((v: { choix: string }) => {
+        s[v.choix as '1' | 'X' | '2']++;
+        s.total++;
+      });
+      setStats(s);
+    }
+  };
+
+  const chargerMonVote = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('votes_matchs').select('choix').eq('user_id', user.id).eq('match_id', PETITE_FINALE_ID).single();
+    if (data) setMonVote(data.choix);
+  };
+
+  const voter = async (choix: '1' | 'X' | '2') => {
+    if (!user) { router.push('/compte'); return; }
+    await supabase.from('votes_matchs').upsert(
+      { user_id: user.id, match_id: PETITE_FINALE_ID, choix },
+      { onConflict: 'user_id,match_id' }
+    );
+    setMonVote(choix);
+    chargerStats();
+  };
 
   const inscrireNewsletter = async () => {
     if (!email) return;
@@ -72,154 +66,127 @@ export default function Home() {
     });
     setNewsletterMsg('Merci ! Vous êtes inscrit avec succès.');
     setEmail('');
-  };
-
-  const CarteMatch = ({ m }: { m: Match }) => {
-    const prono = getPronostic(m);
-    const score = getScore(m);
-    const estHaiti = m.home === 'Haïti' || m.away === 'Haïti';
-    const couleurGroupe = GROUP_COLORS[m.group];
-    return (
-      <div style={{
-        border: estHaiti ? '2px solid #D21034' : '2px solid ' + couleurGroupe + '40',
-        borderRadius:'16px', padding:'20px', marginBottom:'12px',
-        background: estHaiti ? '#fff5f5' : couleurGroupe + '08',
-        boxShadow: '0 2px 8px ' + couleurGroupe + '30'
-      }}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px',flexWrap:'wrap',gap:'8px'}}>
-          <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-            <span style={{background:couleurGroupe,color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>
-              Groupe {m.group}
-            </span>
-            {m.label && <span style={{background:'#111',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>{m.label}</span>}
-            {estHaiti && <span className="haiti-badge" style={{fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>🇭🇹 HAÏTI</span>}
-            {score && <span style={{background:score.statut==='final'?'#10b981':score.statut==='en cours'?'#f59e0b':'#6b7280',color:'#fff',fontSize:'11px',fontWeight:700,padding:'2px 10px',borderRadius:'999px'}}>{score.statut}</span>}
-          </div>
-          <span style={{fontSize:'12px',color:'#9ca3af'}}>{m.day} {m.date} · {m.time} · {m.city}</span>
-        </div>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
-          <div style={{display:'flex',alignItems:'center',gap:'12px',flex:1}}>
-            <div style={{textAlign:'center',minWidth:'80px'}}>
-              <img src={'https://flagcdn.com/48x36/' + getFlagCode(m.home) + '.png'} alt={m.home} style={{width:'48px',height:'36px',borderRadius:'4px',objectFit:'cover'}}/>
-              <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.home}</p>
-            </div>
-            <div style={{textAlign:'center',flex:1}}>
-              {score ? (
-                <p style={{fontWeight:900,fontSize:'28px',color:'#111',margin:0}}>{score.home_score} — {score.away_score}</p>
-              ) : (
-                <p style={{fontWeight:900,fontSize:'20px',color:'#9ca3af',margin:0}}>VS</p>
-              )}
-              <p style={{fontSize:'11px',color:'#9ca3af',margin:'4px 0 0'}}>🏟️ {m.stadium}</p>
-            </div>
-            <div style={{textAlign:'center',minWidth:'80px'}}>
-              <img src={'https://flagcdn.com/48x36/' + getFlagCode(m.away) + '.png'} alt={m.away} style={{width:'48px',height:'36px',borderRadius:'4px',objectFit:'cover'}}/>
-              <p style={{fontWeight:700,fontSize:'13px',margin:'4px 0 0',color:'#111'}}>{m.away}</p>
-            </div>
-          </div>
-          <div style={{flexShrink:0}}>
-            {prono ? (
-              <a href={'/pronostics/' + prono.id} style={{
-                display:'inline-block',background:VIOLET,color:'#fff',
-                padding:'10px 20px',borderRadius:'999px',fontWeight:700,
-                fontSize:'13px',textDecoration:'none',
-                boxShadow:'0 2px 8px rgba(191,0,255,0.3)'
-              }}>
-                ⚽ Pronostic →
-              </a>
-            ) : (
-              <span style={{fontSize:'12px',color:'#9ca3af',fontStyle:'italic'}}>Pronostic à venir</span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
-      <style>{`
-        @keyframes rainbow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .haiti-badge {
-          background: linear-gradient(270deg, #003087, #D21034);
-          color: white;
-          background-size: 400% 400%;
-          animation: rainbow 4s ease infinite;
-        }
-      `}</style>
-
+  };return (
+    <div style={{minHeight:'100vh',background:'#0a0018',color:'#fff',fontFamily:'sans-serif'}}>
       <Header />
 
-      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'48px 24px',textAlign:'center'}}>
-        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,52px)',margin:'0 0 12px'}}>
-          🏆 MakeGoal
+      <div style={{background:'linear-gradient(135deg,#bf00ff,#ff0080,#7c3aed)',padding:'56px 24px',textAlign:'center'}}>
+        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'14px',fontWeight:700,textTransform:'uppercase',letterSpacing:'2px',margin:'0 0 12px'}}>
+          ⚡ La Coupe du Monde touche à sa fin
+        </p>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(32px,6vw,60px)',margin:'0 0 16px',textShadow:'0 2px 20px rgba(0,0,0,0.3)'}}>
+          Le grand final 🏆
         </h1>
-        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'18px',margin:'0 0 24px'}}>
-          Bonne analyse. Bons chiffres. Pour parier intelligemment.
+        <p style={{color:'rgba(255,255,255,0.95)',fontSize:'18px',margin:'0 0 8px',fontWeight:600}}>
+          Vote. Pronostique. Gagne.
         </p>
-        <a href="/pronostics" style={{background:'#fff',color:VIOLET,padding:'12px 28px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none'}}>
-          ⚽ Pronostics
-        </a>
-      </div>
-
-      <div style={{background:'#003087',padding:'16px 24px',textAlign:'center'}}>
-        <p style={{color:'#fff',margin:0,fontSize:'15px',fontWeight:700}}>
-          🇭🇹 <span style={{color:'#D21034'}}>HAÏTI</span> au Mondial 2026 — Groupe C — Boston · Philadelphie · Atlanta
+        <p style={{color:'rgba(255,255,255,0.8)',fontSize:'15px',margin:0}}>
+          La communauté MakeGoal vibre pour les derniers matchs du Mondial 2026.
         </p>
       </div>
 
-      <main style={{maxWidth:'1000px',margin:'0 auto',padding:'32px 16px'}}>
+      <main style={{maxWidth:'900px',margin:'0 auto',padding:'40px 16px'}}>
 
-        {matchsDuJour.length > 0 && (
-          <div style={{marginBottom:'32px'}}>
-            <h2 style={{fontWeight:900,fontSize:'22px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'8px'}}>
-              🔴 <span style={{color:'#ef4444'}}>Matchs du jour</span>
-            </h2>
-            {matchsDuJour.map(m => <CarteMatch key={m.id} m={m} />)}
+        <div style={{
+          background:'linear-gradient(135deg,#1a0033,#bf00ff)',
+          borderRadius:'24px', padding:'40px 32px', marginBottom:'32px',
+          textAlign:'center', boxShadow:'0 8px 40px rgba(191,0,255,0.4)',
+          border:'1px solid rgba(255,255,255,0.1)'
+        }}>
+          <div style={{display:'inline-block',background:'#ff0080',color:'#fff',fontSize:'12px',fontWeight:900,padding:'6px 16px',borderRadius:'999px',marginBottom:'16px',textTransform:'uppercase',letterSpacing:'1px'}}>
+            🏆 Grande Finale · Concours
           </div>
-        )}
+          <h2 style={{color:'#fff',fontWeight:900,fontSize:'clamp(24px,5vw,36px)',margin:'0 0 8px'}}>
+            🇪🇸 Espagne <span style={{color:'#ffd700'}}>vs</span> Argentine 🇦🇷
+          </h2>
+          <p style={{color:'rgba(255,255,255,0.85)',fontSize:'15px',margin:'0 0 4px'}}>
+            📅 Dimanche 19 juillet · 15h00 (ET)
+          </p>
+          <p style={{color:'rgba(255,255,255,0.7)',fontSize:'13px',margin:'0 0 20px'}}>
+            🏟️ MetLife Stadium, New Jersey
+          </p>
 
-        <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'24px',justifyContent:'center'}}>
-          {groupes.map(g => (
-            <button key={g} onClick={() => setGroupeActif(groupeActif === g ? '' : g)} style={{
-              padding:'8px 18px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer',
-              background: groupeActif === g ? GROUP_COLORS[g] : '#f3f4f6',
-              color: groupeActif === g ? '#fff' : '#374151',
-              border:'none',
-              boxShadow: groupeActif === g ? '0 2px 8px ' + GROUP_COLORS[g] + '80' : 'none'
-            }}>
-              Groupe {g}
-            </button>
-          ))}
-        </div>
-
-        <div>
-          {groupeActif && matchesParGroupe(groupeActif).map(m => <CarteMatch key={m.id} m={m} />)}
-          {!groupeActif && (
-            <p style={{color:'#9ca3af',textAlign:'center',fontSize:'14px',padding:'20px'}}>
-              Sélectionnez un groupe pour voir les matchs.
+          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:'16px',padding:'20px',marginBottom:'24px'}}>
+            <p style={{color:'#ffd700',fontSize:'13px',fontWeight:900,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>🎁 À gagner</p>
+            <p style={{color:'#fff',fontSize:'17px',fontWeight:700,margin:0,lineHeight:'1.5'}}>
+              10 000 Gourdes · Tablettes · Netflix 3 mois
             </p>
-          )}
+          </div>
+
+          <a href="/concours" style={{
+            display:'inline-block', background:'#fff', color:VIOLET,
+            padding:'16px 40px', borderRadius:'999px', fontWeight:900, fontSize:'18px',
+            textDecoration:'none', boxShadow:'0 4px 20px rgba(0,0,0,0.2)'
+          }}>
+            🎯 Participer et gagner
+          </a>
+          <p style={{color:'rgba(255,255,255,0.7)',fontSize:'12px',margin:'16px 0 0'}}>
+            Pronostique le score, les buteurs, et invite tes amis pour plus de points.
+          </p>
+        </div><div style={{
+          background:'#12002a', borderRadius:'24px', padding:'32px',
+          marginBottom:'32px', border:'1px solid rgba(255,255,255,0.1)'
+        }}>
+          <div style={{textAlign:'center',marginBottom:'24px'}}>
+            <div style={{display:'inline-block',background:'#7c3aed',color:'#fff',fontSize:'12px',fontWeight:900,padding:'6px 16px',borderRadius:'999px',marginBottom:'12px',textTransform:'uppercase',letterSpacing:'1px'}}>
+              🥉 Petite Finale
+            </div>
+            <h2 style={{color:'#fff',fontWeight:900,fontSize:'clamp(22px,4vw,30px)',margin:'0 0 8px'}}>
+              🇫🇷 France <span style={{color:'#ffd700'}}>vs</span> Angleterre 🏴󠁧󠁢󠁥󠁮󠁧󠁿
+            </h2>
+            <p style={{color:'rgba(255,255,255,0.7)',fontSize:'14px',margin:'0 0 2px'}}>
+              📅 Samedi 18 juillet · 17h00 (ET)
+            </p>
+            <p style={{color:'rgba(255,255,255,0.5)',fontSize:'13px',margin:0}}>
+              🏟️ Hard Rock Stadium, Miami
+            </p>
+          </div>
+
+          <p style={{textAlign:'center',color:'rgba(255,255,255,0.8)',fontSize:'15px',fontWeight:700,margin:'0 0 16px'}}>
+            Qui va gagner ? Vote maintenant 👇
+          </p>
+
+          <div style={{display:'flex',gap:'10px',marginBottom:'12px'}}>
+            {([['1','France'],['X','Nul'],['2','Angleterre']] as const).map(([val,label]) => {
+              const nb = stats[val];
+              const pourcent = pct(nb, stats.total);
+              const actif = monVote === val;
+              return (
+                <button key={val} onClick={() => voter(val)} style={{
+                  flex:1, position:'relative', overflow:'hidden',
+                  padding:'18px 8px', borderRadius:'14px', cursor:'pointer',
+                  border: actif ? '2px solid #ffd700' : '2px solid rgba(255,255,255,0.2)',
+                  background: actif ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)',
+                  textAlign:'center'
+                }}>
+                  <div style={{position:'absolute',bottom:0,left:0,height:'5px',width:pourcent+'%',background:actif?'#ffd700':'#7c3aed',transition:'width 0.3s'}}/>
+                  <div style={{fontWeight:900,fontSize:'22px',color:actif?'#ffd700':'#fff',marginBottom:'4px'}}>{val}</div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.7)',fontWeight:600}}>{label}</div>
+                  <div style={{fontSize:'15px',color:actif?'#ffd700':'#fff',fontWeight:900,marginTop:'6px'}}>{stats.total > 0 ? pourcent + '%' : '—'}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p style={{textAlign:'center',fontSize:'12px',color:'rgba(255,255,255,0.5)',margin:0}}>
+            {stats.total > 0 ? stats.total + ' vote' + (stats.total > 1 ? 's' : '') : 'Soyez le premier à voter'}
+            {!user && ' · connectez-vous pour voter'}
+          </p>
         </div>
 
-        <div style={{marginTop:'48px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
+        <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
           <h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>
-            📬 Recevoir les pronostics
+            📬 Reste connecté
           </h2>
           <p style={{color:'rgba(255,255,255,0.8)',fontSize:'15px',marginBottom:'20px'}}>
-            Entrez votre email pour recevoir les analyses MakeGoal avant chaque match.
+            Reçois les actus et les prochains concours MakeGoal.
           </p>
           {newsletterMsg ? (
-            <p style={{color:'#10b981',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
+            <p style={{color:'#6ee7b7',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
           ) : (
             <div style={{display:'flex',gap:'8px',maxWidth:'400px',margin:'0 auto',flexWrap:'wrap'}}>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="votre@email.com"
-                style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}
-              />
+                style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}/>
               <button onClick={inscrireNewsletter} style={{background:'#fff',color:VIOLET,padding:'12px 24px',borderRadius:'999px',border:'none',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>
                 S'inscrire
               </button>
