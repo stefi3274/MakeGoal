@@ -1,20 +1,44 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 
 const VIOLET = '#bf00ff';
 
-export default function Compte() {
+function CompteContent() {
   const router = useRouter();
-  const [mode, setMode] = useState<'connexion' | 'inscription'>('connexion');
+  const searchParams = useSearchParams();
+  const refParrain = searchParams.get('ref');
+  const [mode, setMode] = useState<'connexion' | 'inscription'>(refParrain ? 'inscription' : 'connexion');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (refParrain) {
+      setMessage('🎁 Un ami vous a invité ! Inscrivez-vous pour rejoindre le concours.');
+    }
+  }, [refParrain]);
+
+  const enregistrerParrainage = async (filleulId: string) => {
+    if (!refParrain || refParrain === filleulId) return;
+    const { data: concoursActif } = await supabase
+      .from('concours')
+      .select('id')
+      .in('statut', ['ouvert', 'ferme'])
+      .order('date_match', { ascending: false })
+      .limit(1)
+      .single();
+    await supabase.from('parrainages').insert({
+      parrain_id: refParrain,
+      filleul_id: filleulId,
+      concours_id: concoursActif?.id || null
+    });
+  };
 
   const seConnecter = async () => {
     setLoading(true); setMessage('');
@@ -31,7 +55,7 @@ export default function Compte() {
     if (!email || !password) { setMessage('❌ Email et mot de passe obligatoires.'); return; }
     if (password.length < 6) { setMessage('❌ Le mot de passe doit contenir au moins 6 caractères.'); return; }
     setLoading(true); setMessage('');
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { username: username || email.split('@')[0] } }
@@ -40,6 +64,9 @@ export default function Compte() {
     if (error) {
       setMessage('❌ ' + error.message);
     } else {
+      if (data.user && refParrain) {
+        await enregistrerParrainage(data.user.id);
+      }
       setMessage('✅ Inscription réussie ! Vérifiez votre email pour confirmer votre compte.');
       setEmail(''); setPassword(''); setUsername('');
     }
@@ -67,8 +94,7 @@ export default function Compte() {
           </div>
 
           <div style={{display:'flex',gap:'8px',marginBottom:'24px',background:'#f3f4f6',borderRadius:'12px',padding:'4px'}}>
-            <button onClick={() => { setMode('connexion'); setMessage(''); }} style={{
-              flex:1, padding:'12px', borderRadius:'8px', border:'none', cursor:'pointer',
+            <button onClick={() => { setMode('connexion'); setMessage(''); }} style={{flex:1, padding:'12px', borderRadius:'8px', border:'none', cursor:'pointer',
               fontWeight:700, fontSize:'14px',
               background: mode === 'connexion' ? '#fff' : 'transparent',
               color: mode === 'connexion' ? VIOLET : '#6b7280',
@@ -85,7 +111,9 @@ export default function Compte() {
             }}>
               Inscription
             </button>
-          </div>{message && (
+          </div>
+
+          {message && (
             <div style={{
               padding:'12px 16px', borderRadius:'12px', marginBottom:'16px', fontSize:'14px', fontWeight:600,
               background: message.includes('❌') ? '#fef2f2' : '#f0fdf4',
@@ -128,5 +156,13 @@ export default function Compte() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+export default function Compte() {
+  return (
+    <Suspense fallback={<div style={{minHeight:'100vh',background:'#fff'}}/>}>
+      <CompteContent />
+    </Suspense>
   );
 }
