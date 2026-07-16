@@ -15,6 +15,7 @@ export default function Header() {
       <div style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'13px',fontWeight:600}}>
         <span style={{color:VIOLET,fontWeight:900,fontSize:'11px',border:'1px solid ' + VIOLET,padding:'2px 8px',borderRadius:'999px'}}>18+</span>
         <a href="/" style={{color:'#6b7280',textDecoration:'none'}}>Accueil</a>
+        <a href="/media" style={{color:'#6b7280',textDecoration:'none'}}>Média</a>
         <a href="/about" style={{color:'#6b7280',textDecoration:'none'}}>À propos</a>
         {!loading && (
           user ? (
