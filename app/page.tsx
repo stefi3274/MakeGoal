@@ -126,34 +126,6 @@ export default function Home() {
       <main style={{maxWidth:'900px',margin:'0 auto',padding:'40px 16px'}}>
 
         <div style={{
-          background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',
-          borderRadius:'24px', padding:'36px 28px', marginBottom:'28px',
-          textAlign:'center', boxShadow:'0 8px 40px rgba(255,215,0,0.25)',
-          border:'2px solid #ffd700'
-        }}>
-          <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'12px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'16px',textTransform:'uppercase',letterSpacing:'1px'}}>
-            🥇 Grande Finale · OR
-          </div>
-          <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'clamp(24px,5vw,34px)',margin:'0 0 8px'}}>
-            🇪🇸 Espagne — Argentine 🇦🇷
-          </h2>
-          <p style={{color:'rgba(255,255,255,0.85)',fontSize:'14px',margin:'0 0 2px'}}>
-            📅 Dimanche 19 juillet · 15h00 (ET)
-          </p>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'13px',margin:'0 0 20px'}}>
-            🏟️ MetLife Stadium, New Jersey
-          </p>
-
-          <BoutonsVote matchId={FINALE_ID} stats={statsFinale} monVote={voteFinale} setter={setVoteFinale} reload={() => chargerStats(FINALE_ID, setStatsFinale)} e1="Espagne" e2="Argentine" couleur="#ffd700" /><div style={{background:'rgba(0,0,0,0.3)',borderRadius:'14px',padding:'16px',margin:'20px 0 0'}}>
-            <p style={{color:'#ffd700',fontSize:'13px',fontWeight:900,margin:'0 0 8px'}}>🎁 10 000 Gourdes · Tablettes · Netflix 3 mois</p>
-            <a href="/concours" style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',padding:'14px 32px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none',marginTop:'4px'}}>
-              🎯 Compléter mon pronostic
-            </a>
-            <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:'12px 0 0'}}>
-              Ajoute le score exact et les buteurs pour gagner plus de points.
-            </p>
-          </div>
-        </div><div style={{
           background:'linear-gradient(135deg,#3d1f00,#6b3410,#3d1f00)',
           borderRadius:'24px', padding:'32px 28px', marginBottom:'28px',
           textAlign:'center', boxShadow:'0 8px 30px rgba(205,127,50,0.25)',
@@ -173,6 +145,36 @@ export default function Home() {
           </p>
 
           <BoutonsVote matchId={PETITE_FINALE_ID} stats={statsPetite} monVote={votePetite} setter={setVotePetite} reload={() => chargerStats(PETITE_FINALE_ID, setStatsPetite)} e1="France" e2="Angleterre" couleur="#cd7f32" />
+        </div><div style={{
+          background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',
+          borderRadius:'24px', padding:'36px 28px', marginBottom:'28px',
+          textAlign:'center', boxShadow:'0 8px 40px rgba(255,215,0,0.25)',
+          border:'2px solid #ffd700'
+        }}>
+          <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'12px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'16px',textTransform:'uppercase',letterSpacing:'1px'}}>
+            🥇 Grande Finale · OR
+          </div>
+          <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'clamp(24px,5vw,34px)',margin:'0 0 8px'}}>
+            🇪🇸 Espagne — Argentine 🇦🇷
+          </h2>
+          <p style={{color:'rgba(255,255,255,0.85)',fontSize:'14px',margin:'0 0 2px'}}>
+            📅 Dimanche 19 juillet · 15h00 (ET)
+          </p>
+          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'13px',margin:'0 0 20px'}}>
+            🏟️ MetLife Stadium, New Jersey
+          </p>
+
+          <BoutonsVote matchId={FINALE_ID} stats={statsFinale} monVote={voteFinale} setter={setVoteFinale} reload={() => chargerStats(FINALE_ID, setStatsFinale)} e1="Espagne" e2="Argentine" couleur="#ffd700" />
+
+          <div style={{background:'rgba(0,0,0,0.3)',borderRadius:'14px',padding:'16px',margin:'20px 0 0'}}>
+            <p style={{color:'#ffd700',fontSize:'13px',fontWeight:900,margin:'0 0 8px'}}>🎁 10 000 Gourdes · Tablettes · Netflix 3 mois</p>
+            <a href="/concours" style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',padding:'14px 32px',borderRadius:'999px',fontWeight:900,fontSize:'16px',textDecoration:'none',marginTop:'4px'}}>
+              🎯 Compléter mon pronostic
+            </a>
+            <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:'12px 0 0'}}>
+              Ajoute le score exact et les buteurs pour gagner plus de points.
+            </p>
+          </div>
         </div>
 
         <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
