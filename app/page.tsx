@@ -95,17 +95,22 @@ export default function Home() {
 
   // Calcul du Pouls de la communauté
   const totalVotes = Object.values(stats).reduce((acc, s) => acc + s.total, 0);
-  let matchChaud: { m: Match; s: VoteStat } | null = null;
-  let opinionTranchee: { m: Match; choix: string; pourcent: number } | null = null;
+  
+  type MatchChaud = { m: Match; s: VoteStat };
+  type OpinionTranchee = { m: Match; choix: string; pourcent: number };
+  let mc: MatchChaud | null = null;
+  let ot: OpinionTranchee | null = null;
   matchs.forEach(m => {
     const s = stats[m.id];
     if (!s || s.total === 0) return;
-    if (!matchChaud || s.total > matchChaud.s.total) matchChaud = { m, s };
+    if (mc === null || s.total > mc.s.total) mc = { m, s };
     (['1','X','2'] as const).forEach(ch => {
       const p = pct(s[ch], s.total);
-      if (!opinionTranchee || p > opinionTranchee.pourcent) opinionTranchee = { m, choix: ch, pourcent: p };
+      if (ot === null || p > ot.pourcent) ot = { m, choix: ch, pourcent: p };
     });
   });
+  const matchChaud: MatchChaud | null = mc;
+  const opinionTranchee: OpinionTranchee | null = ot;
 
   const labelChoix = (m: Match, ch: string) => ch === '1' ? m.equipe1 : ch === '2' ? m.equipe2 : 'le nul';
 
