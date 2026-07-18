@@ -95,22 +95,21 @@ export default function Home() {
 
   // Calcul du Pouls de la communauté
   const totalVotes = Object.values(stats).reduce((acc, s) => acc + s.total, 0);
-  
-  type MatchChaud = { m: Match; s: VoteStat };
-  type OpinionTranchee = { m: Match; choix: string; pourcent: number };
-  let mc: MatchChaud | null = null;
-  let ot: OpinionTranchee | null = null;
-  matchs.forEach(m => {
-    const s = stats[m.id];
-    if (!s || s.total === 0) return;
-    if (mc === null || s.total > mc.s.total) mc = { m, s };
-    (['1','X','2'] as const).forEach(ch => {
+  const matchsAvecVotes = matchs
+    .map(m => ({ m, s: stats[m.id] }))
+    .filter((x): x is { m: Match; s: VoteStat } => !!x.s && x.s.total > 0);
+  const matchChaud = matchsAvecVotes.length > 0
+    ? matchsAvecVotes.reduce((max, cur) => cur.s.total > max.s.total ? cur : max)
+    : null;
+  let opinionTranchee: { m: Match; choix: string; pourcent: number } | null = null;
+  for (const { m, s } of matchsAvecVotes) {
+    for (const ch of ['1', 'X', '2'] as const) {
       const p = pct(s[ch], s.total);
-      if (ot === null || p > ot.pourcent) ot = { m, choix: ch, pourcent: p };
-    });
-  });
-  const matchChaud: MatchChaud | null = mc;
-  const opinionTranchee: OpinionTranchee | null = ot;
+      if (opinionTranchee === null || p > opinionTranchee.pourcent) {
+        opinionTranchee = { m, choix: ch, pourcent: p };
+      }
+    }
+  }
 
   const labelChoix = (m: Match, ch: string) => ch === '1' ? m.equipe1 : ch === '2' ? m.equipe2 : 'le nul';
 
