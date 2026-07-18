@@ -85,8 +85,7 @@ export default function Home() {
   };
 
   const voter = async (matchId: string, choix: '1'|'X'|'2') => {
-    if (!user) { router.push('/compte'); return; }
-    const existant = mesVotes[matchId];
+    if (!user) { router.push('/compte'); return; }const existant = mesVotes[matchId];
     if (existant) {
       await supabase.from('participations_matchs').update({ choix_1x2: choix }).eq('user_id', user.id).eq('concours_match_id', matchId);
     } else {
@@ -132,7 +131,7 @@ export default function Home() {
         </div>
 
         <div style={{textAlign:'center',marginBottom:'16px'}}>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:'0 0 2px'}}>📅 {new Date(m.date_match).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}</p>
+          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:'0 0 2px'}}>📅 {new Date(m.date_match).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',timeZone:'America/Port-au-Prince'})}</p>
           <p style={{color:couleur,fontSize:'13px',fontWeight:900,margin:0}}>⏳ {compteRebours(m.date_match)}</p>
         </div>
 
@@ -148,8 +147,7 @@ export default function Home() {
                 background: actif ? couleur+'22' : 'rgba(255,255,255,0.05)', textAlign:'center'
               }}>
                 <div className="mg-bar" style={{position:'absolute',bottom:0,left:0,height:'5px',width:pourcent+'%',background:couleur}}/>
-                <div style={{fontWeight:900,fontSize:'20px',color:actif?couleur:'#fff',marginBottom:'2px'}}>{val}</div>
-                <div style={{fontSize:'11px',color:'rgba(255,255,255,0.7)',fontWeight:600}}>{label}</div>
+                <div style={{fontWeight:900,fontSize:'20px',color:actif?couleur:'#fff',marginBottom:'2px'}}>{val}</div><div style={{fontSize:'11px',color:'rgba(255,255,255,0.7)',fontWeight:600}}>{label}</div>
                 <div style={{fontSize:'14px',color:actif?couleur:'#fff',fontWeight:900,marginTop:'4px'}}>{s.total>0?pourcent+'%':'—'}</div>
               </button>
             );
@@ -220,8 +218,7 @@ export default function Home() {
               <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',margin:0}}>🏆 Top 10 en direct</h2>
               <a href="/concours" style={{color:'#ffd700',fontSize:'13px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
             </div>
-            {classement.map((c, i) => (
-              <div key={c.user_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+            {classement.map((c, i) => (<div key={c.user_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
                   <span style={{
                     fontWeight:900,fontSize:'14px',width:'30px',height:'30px',borderRadius:'999px',

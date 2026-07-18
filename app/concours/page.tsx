@@ -163,7 +163,7 @@ export default function ConcoursPage() {
   };
 
   const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Port-au-Prince'
   });
 
   if (loading) return (
