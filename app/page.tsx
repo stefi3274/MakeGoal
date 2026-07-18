@@ -162,3 +162,112 @@ export default function Home() {
       </div>
 
       <main style={{maxWidth:'1100px',margin:'0 auto',padding:'32px 16px'}}>
+
+        {totalVotes > 0 && (
+          <div style={{background:'linear-gradient(135deg,#0f0f0f,#2a1a3a)',borderRadius:'16px',padding:'20px 24px',marginBottom:'24px',border:'1px solid '+VIOLET}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'14px'}}>
+              <span style={{fontSize:'20px'}}>🔥</span>
+              <h2 style={{color:'#fff',fontWeight:900,fontSize:'17px',margin:0}}>Le Pouls de la communauté</h2>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'12px'}}>
+              <div style={{background:'rgba(191,0,255,0.12)',borderRadius:'12px',padding:'14px'}}>
+                <p style={{color:'#c4b5fd',fontSize:'11px',fontWeight:700,margin:'0 0 4px',textTransform:'uppercase'}}>Votes communauté</p>
+                <p style={{color:'#fff',fontSize:'24px',fontWeight:900,margin:0}}>{totalVotes}</p>
+              </div>
+              {opinionTranchee && (
+                <div style={{background:'rgba(255,215,0,0.12)',borderRadius:'12px',padding:'14px'}}>
+                  <p style={{color:'#ffd700',fontSize:'11px',fontWeight:700,margin:'0 0 4px',textTransform:'uppercase'}}>Opinion tranchée</p>
+                  <p style={{color:'#fff',fontSize:'14px',fontWeight:700,margin:0}}>{opinionTranchee.pourcent}% pour {labelChoix(opinionTranchee.m, opinionTranchee.choix)}</p>
+                </div>
+              )}
+              {matchChaud && (
+                <div style={{background:'rgba(16,185,129,0.12)',borderRadius:'12px',padding:'14px'}}>
+                  <p style={{color:'#6ee7b7',fontSize:'11px',fontWeight:700,margin:'0 0 4px',textTransform:'uppercase'}}>Match le plus chaud</p>
+                  <p style={{color:'#fff',fontSize:'14px',fontWeight:700,margin:0}}>{matchChaud.m.equipe1} vs {matchChaud.m.equipe2}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {concours && (
+          <a href="/concours" style={{textDecoration:'none',display:'block',marginBottom:'28px'}}>
+            <div style={{background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',borderRadius:'16px',padding:'20px 24px',border:'2px solid #ffd700',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}}>
+              <div>
+                <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'8px',textTransform:'uppercase'}}>🏆 Concours en cours</div>
+                <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'20px',margin:'0 0 4px'}}>{concours.titre}</h2>
+                {concours.lots && <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>🎁 {concours.lots}</p>}
+              </div>
+              <span style={{background:'#ffd700',color:'#3d2c00',padding:'12px 24px',borderRadius:'999px',fontWeight:900,fontSize:'14px',whiteSpace:'nowrap'}}>Participer →</span>
+            </div>
+          </a>
+        )}
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'24px'}} className="mg-layout">
+          <div>
+            <div style={{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}}>
+              {['Tous', 'Actualités', 'Revue de presse'].map(cat => (
+                <button key={cat} onClick={() => setFiltre(cat)} style={{
+                  padding:'8px 18px', borderRadius:'999px', fontWeight:700, fontSize:'13px', cursor:'pointer', border:'none',
+                  background: filtre === cat ? VIOLET : '#fff',
+                  color: filtre === cat ? '#fff' : '#374151',
+                  boxShadow: filtre === cat ? 'none' : '0 1px 4px rgba(0,0,0,0.08)'
+                }}>{cat}</button>
+              ))}
+            </div>
+
+            <div className="mg-widget-mobile" style={{marginBottom:'24px'}}>
+              <WidgetMatchs />
+            </div>
+
+            {loading && <p style={{color:'#9ca3af',textAlign:'center'}}>Chargement…</p>}
+            {!loading && articlesFiltres.length === 0 && (
+              <div style={{background:'#fff',padding:'40px',borderRadius:'16px',textAlign:'center'}}>
+                <p style={{color:'#6b7280',margin:0}}>Aucun article pour le moment.</p>
+              </div>
+            )}
+
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'20px'}}>
+              {!loading && articlesFiltres.map(a => (
+                <a key={a.id} href={'/media/' + a.id} style={{textDecoration:'none',color:'inherit'}}>
+                  <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',height:'100%',display:'flex',flexDirection:'column',cursor:'pointer'}}>
+                    {a.image_couverture ? (
+                      <img src={a.image_couverture} alt={a.titre} style={{width:'100%',height:'160px',objectFit:'cover'}}/>
+                    ) : (
+                      <div style={{width:'100%',height:'160px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'36px'}}>⚽</span></div>
+                    )}
+                    <div style={{padding:'16px',flex:1,display:'flex',flexDirection:'column'}}>
+                      <span style={{display:'inline-block',alignSelf:'flex-start',fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px',marginBottom:'8px'}}>{a.categorie}</span>
+                      <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>
+                      {a.extrait && <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 10px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
+                      <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>{a.auteur} · {formatDate(a.created_at)}</p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <aside className="mg-widget-desktop">
+            <WidgetMatchs />
+          </aside>
+        </div>
+
+        <div style={{marginTop:'40px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
+          <h2 style={{color:'#fff',fontWeight:900,fontSize:'22px',marginBottom:'8px'}}>📬 Reste connecté</h2>
+          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'14px',marginBottom:'20px'}}>Reçois les dernières actus et les concours MakeGoal.</p>
+          {newsletterMsg ? (
+            <p style={{color:'#6ee7b7',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
+          ) : (
+            <div style={{display:'flex',gap:'8px',maxWidth:'400px',margin:'0 auto',flexWrap:'wrap'}}>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="votre@email.com" style={{flex:1,padding:'12px 16px',borderRadius:'999px',border:'none',fontSize:'14px',minWidth:'200px'}}/>
+              <button onClick={inscrireNewsletter} style={{background:'#fff',color:VIOLET,padding:'12px 24px',borderRadius:'999px',border:'none',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>S'inscrire</button>
+            </div>
+          )}
+        </div>
+
+      </main>
+      <Footer />
+    </div>
+  );
+}
