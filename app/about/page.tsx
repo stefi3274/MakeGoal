@@ -1,43 +1,58 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 
 const VIOLET = '#bf00ff';
 
+type Apropos = { photo_url: string | null; titre: string; texte: string | null; };
+
 export default function About() {
+  const [data, setData] = useState<Apropos | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { charger(); }, []);
+
+  const charger = async () => {
+    const { data } = await supabase.from('a_propos').select('*').eq('id', 1).single();
+    if (data) setData(data);
+    setLoading(false);
+  };
+
   return (
-    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111111',fontFamily:'sans-serif'}}>
+    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
-      <main style={{maxWidth:'760px',margin:'0 auto',padding:'48px 24px'}}>
-        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'36px',marginBottom:'8px'}}>À propos de MakeGoal</h1>
-        <p style={{color:'#6b7280',fontSize:'16px',marginBottom:'32px'}}>Plateforme de pronostics pour parieurs intelligents.</p>
 
-        <section style={{marginBottom:'32px'}}>
-          <h2 style={{fontWeight:900,fontSize:'22px',marginBottom:'12px'}}>Notre mission</h2>
-          <p style={{lineHeight:'1.7',fontSize:'16px',color:'#374151'}}>
-            MakeGoal a une seule ambition : aider les joueurs à jouer intelligemment. Trop de parieurs misent à l&apos;aveugle, sans information ni recul. Nous croyons qu&apos;un pari devrait être une décision éclairée, jamais un coup de tête.
-          </p>
-        </section>
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'48px 24px',textAlign:'center'}}>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,44px)',margin:0}}>
+          {data?.titre || 'À propos de MakeGoal'}
+        </h1>
+      </div>
 
-        <section style={{marginBottom:'32px'}}>
-          <h2 style={{fontWeight:900,fontSize:'22px',marginBottom:'12px'}}>Ce que nous proposons</h2>
-          <p style={{lineHeight:'1.7',fontSize:'16px',color:'#374151'}}>
-            Sur MakeGoal, vous trouvez les calendriers des grandes ligues, des analyses de matchs, des pronostics raisonnés et bientôt des outils statistiques pour affiner vos choix. Notre approche est simple : donner aux parieurs francophones, en particulier en Haïti et dans la Caraïbe, des informations claires et accessibles.
-          </p>
-        </section>
+      <main style={{maxWidth:'720px',margin:'0 auto',padding:'48px 24px'}}>
+        {loading ? (
+          <p style={{color:'#9ca3af',textAlign:'center'}}>Chargement…</p>
+        ) : (
+          <>
+            {data?.photo_url && (
+              <div style={{textAlign:'center',marginBottom:'32px'}}>
+                <img src={data.photo_url} alt="Photo de profil" style={{width:'160px',height:'160px',objectFit:'cover',borderRadius:'50%',border:'4px solid '+VIOLET,boxShadow:'0 4px 20px rgba(191,0,255,0.3)'}}/>
+              </div>
+            )}
+            <div style={{fontSize:'17px',lineHeight:'1.9',color:'#374151',whiteSpace:'pre-wrap'}}>
+              {data?.texte || 'MakeGoal est un média de relai sportif.'}
+            </div>
 
-        <section style={{marginBottom:'32px'}}>
-          <h2 style={{fontWeight:900,fontSize:'22px',marginBottom:'12px'}}>Qui est derrière le projet</h2>
-          <p style={{lineHeight:'1.7',fontSize:'16px',color:'#374151'}}>
-            MakeGoal est édité par <strong>SteFi Services</strong>, une structure haïtienne basée à Port-au-Prince. SteFi Services développe des projets numériques au service du public francophone et caribéen.
-          </p>
-        </section>
-
-        <section style={{background:'#f9fafb',padding:'20px',borderRadius:'12px',borderLeft:'4px solid ' + VIOLET}}>
-          <h2 style={{fontWeight:900,fontSize:'18px',marginBottom:'8px',color:VIOLET}}>Notre engagement</h2>
-          <p style={{lineHeight:'1.6',fontSize:'14px',color:'#374151',margin:0}}>
-            Nous ne sommes pas un opérateur de paris. Nous sommes une plateforme d&apos;information et de pronostics. Nous encourageons toujours le jeu responsable et rappelons que les paris doivent rester un loisir, jamais une source de revenus.
-          </p>
-        </section>
+            <div style={{marginTop:'40px',padding:'24px',background:'#faf5ff',borderRadius:'16px',textAlign:'center',border:'1px solid '+VIOLET}}>
+              <p style={{color:'#374151',fontSize:'15px',margin:'0 0 16px',fontWeight:600}}>Rejoignez la communauté MakeGoal</p>
+              <div style={{display:'flex',gap:'12px',justifyContent:'center',flexWrap:'wrap'}}>
+                <a href="/" style={{background:VIOLET,color:'#fff',padding:'12px 24px',borderRadius:'999px',fontWeight:700,fontSize:'14px',textDecoration:'none'}}>📰 Le média</a>
+                <a href="/concours" style={{background:'#ffd700',color:'#3d2c00',padding:'12px 24px',borderRadius:'999px',fontWeight:700,fontSize:'14px',textDecoration:'none'}}>🏆 Le concours</a>
+              </div>
+            </div>
+          </>
+        )}
       </main>
       <Footer />
     </div>

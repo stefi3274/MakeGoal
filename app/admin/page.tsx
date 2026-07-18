@@ -40,6 +40,7 @@ export default function AdminHub() {
     { titre: 'Matchs', desc: 'Vote communautaire 1X2', emoji: '⚽', href: '/admin/matchs', couleur: '#10b981' },
     { titre: 'Concours', desc: 'Concours et tirages', emoji: '🏆', href: '/admin/concours', couleur: '#f59e0b' },
     { titre: 'Articles', desc: 'Média et revue de presse', emoji: '📰', href: '/admin/media', couleur: '#3b82f6' },
+    { titre: 'À propos', desc: 'Votre photo et présentation', emoji: '👤', href: '/admin/apropos', couleur: '#ec4899' },
   ];
 
   return (
