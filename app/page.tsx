@@ -1,99 +1,49 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const VIOLET = '#bf00ff';
 
-const FLAG_CODES: Record<string, string> = {
-  'Espagne':'es','Argentine':'ar','France':'fr','Angleterre':'gb-eng',
+type Article = {
+  id: string;
+  titre: string;
+  categorie: string;
+  image_couverture: string | null;
+  extrait: string | null;
+  auteur: string;
+  created_at: string;
 };
-const flag = (pays: string) => 'https://flagcdn.com/80x60/' + (FLAG_CODES[pays] || 'un') + '.png';
 
-type ConcoursMatch = {
-  id: string; equipe1: string; equipe2: string;
-  date_match: string; ordre: number; label: string | null;
-};
 type Concours = { id: string; titre: string; statut: string; lots: string | null; };
-type Classement = { user_id: string; username: string; points_total: number };
-type VoteStat = { '1': number; 'X': number; '2': number; total: number };
-
-const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0;
-
-const compteRebours = (dateStr: string) => {
-  const diff = new Date(dateStr).getTime() - Date.now();
-  if (diff <= 0) return 'Match en cours ou terminé';
-  const j = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  if (j > 0) return 'Plus que ' + j + 'j ' + h + 'h';
-  return 'Plus que ' + h + 'h ' + m + 'm';
-};
 
 export default function Home() {
-  const router = useRouter();
-  const { user } = useAuth();
+  const [articles, setArticles] = useState<Article[]>([]);
   const [concours, setConcours] = useState<Concours | null>(null);
-  const [matchs, setMatchs] = useState<ConcoursMatch[]>([]);
-  const [statsVotes, setStatsVotes] = useState<Record<string, VoteStat>>({});
-  const [mesVotes, setMesVotes] = useState<Record<string, string>>({});
-  const [classement, setClassement] = useState<Classement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtre, setFiltre] = useState('Tous');
   const [email, setEmail] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
-  const [, tick] = useState(0);
 
   useEffect(() => {
+    chargerArticles();
     chargerConcours();
-    const timer = setInterval(() => tick(t => t + 1), 60000);
-    return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
+  const chargerArticles = async () => {
+    const { data } = await supabase
+      .from('articles')
+      .select('id, titre, categorie, image_couverture, extrait, auteur, created_at')
+      .eq('publie', true)
+      .order('created_at', { ascending: false });
+    if (data) setArticles(data);
+    setLoading(false);
+  };
 
   const chargerConcours = async () => {
-    const { data: c } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();
-    if (c) {
-      setConcours(c);
-      const { data: m } = await supabase.from('concours_matchs').select('*').eq('concours_id', c.id).order('ordre', { ascending: true });
-      if (m) { setMatchs(m); m.forEach(match => chargerStatsVotes(match.id)); }
-      const { data: cl } = await supabase.rpc('classement_concours', { cid: c.id });
-      if (cl) setClassement(cl.slice(0, 10));
-    }
-  };
-
-  const chargerStatsVotes = async (matchId: string) => {
-    const { data } = await supabase.from('participations_matchs').select('choix_1x2').eq('concours_match_id', matchId);
-    if (data) {
-      const s: VoteStat = { '1':0,'X':0,'2':0,total:0 };
-      data.forEach((v: { choix_1x2: string }) => { if (v.choix_1x2) { s[v.choix_1x2 as '1'|'X'|'2']++; s.total++; } });
-      setStatsVotes(prev => ({ ...prev, [matchId]: s }));
-    }
-  };
-
-  const chargerMesVotes = async () => {
-    if (!user) return;
-    const ids = matchs.map(m => m.id);
-    const { data } = await supabase.from('participations_matchs').select('concours_match_id, choix_1x2').eq('user_id', user.id).in('concours_match_id', ids);
-    if (data) {
-      const map: Record<string, string> = {};
-      data.forEach((v: { concours_match_id: string; choix_1x2: string }) => { map[v.concours_match_id] = v.choix_1x2; });
-      setMesVotes(map);
-    }
-  };
-
-  const voter = async (matchId: string, choix: '1'|'X'|'2') => {
-    if (!user) { router.push('/compte'); return; }const existant = mesVotes[matchId];
-    if (existant) {
-      await supabase.from('participations_matchs').update({ choix_1x2: choix }).eq('user_id', user.id).eq('concours_match_id', matchId);
-    } else {
-      await supabase.from('participations_matchs').insert({ user_id: user.id, concours_match_id: matchId, choix_1x2: choix, points: 10 });
-    }
-    setMesVotes(prev => ({ ...prev, [matchId]: choix }));
-    chargerStatsVotes(matchId);
-    if (concours) { const { data: cl } = await supabase.rpc('classement_concours', { cid: concours.id }); if (cl) setClassement(cl.slice(0, 10)); }
+    const { data } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();
+    if (data) setConcours(data);
   };
 
   const inscrireNewsletter = async () => {
@@ -103,141 +53,99 @@ export default function Home() {
     setEmail('');
   };
 
-  const CarteMatch = ({ m, couleur, theme }: { m: ConcoursMatch; couleur: string; theme: string }) => {
-    const s = statsVotes[m.id] || { '1':0,'X':0,'2':0,total:0 };
-    const monVote = mesVotes[m.id];
-    return (
-      <div style={{
-        background: theme,
-        borderRadius:'24px', padding:'28px', marginBottom:'24px',
-        border:'2px solid '+couleur, boxShadow:'0 8px 30px '+couleur+'33'
-      }}>
-        {m.label && (
-          <div style={{textAlign:'center',marginBottom:'16px'}}>
-            <span style={{display:'inline-block',background:couleur,color:'#12002a',fontSize:'12px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'1px'}}>{m.label}</span>
-          </div>
-        )}
-
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'16px',marginBottom:'16px'}}>
-          <div style={{textAlign:'center',flex:1}}>
-            <img src={flag(m.equipe1)} alt={m.equipe1} style={{width:'64px',height:'48px',borderRadius:'6px',objectFit:'cover',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}/>
-            <p style={{color:'#fff',fontWeight:700,fontSize:'14px',margin:'8px 0 0'}}>{m.equipe1}</p>
-          </div>
-          <div style={{color:couleur,fontWeight:900,fontSize:'20px'}}>VS</div>
-          <div style={{textAlign:'center',flex:1}}>
-            <img src={flag(m.equipe2)} alt={m.equipe2} style={{width:'64px',height:'48px',borderRadius:'6px',objectFit:'cover',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}/>
-            <p style={{color:'#fff',fontWeight:700,fontSize:'14px',margin:'8px 0 0'}}>{m.equipe2}</p>
-          </div>
-        </div>
-
-        <div style={{textAlign:'center',marginBottom:'16px'}}>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:'0 0 2px'}}>📅 {new Date(m.date_match).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',timeZone:'America/Port-au-Prince'})}</p>
-          <p style={{color:couleur,fontSize:'13px',fontWeight:900,margin:0}}>⏳ {compteRebours(m.date_match)}</p>
-        </div>
-
-        <div style={{display:'flex',gap:'10px'}}>
-          {([['1',m.equipe1],['X','Nul'],['2',m.equipe2]] as const).map(([val,label]) => {
-            const pourcent = pct(s[val], s.total);
-            const actif = monVote === val;
-            return (
-              <button key={val} onClick={() => voter(m.id, val)} style={{
-                flex:1, position:'relative', overflow:'hidden',
-                padding:'16px 8px', borderRadius:'14px', cursor:'pointer',
-                border: actif ? '2px solid '+couleur : '2px solid rgba(255,255,255,0.2)',
-                background: actif ? couleur+'22' : 'rgba(255,255,255,0.05)', textAlign:'center'
-              }}>
-                <div className="mg-bar" style={{position:'absolute',bottom:0,left:0,height:'5px',width:pourcent+'%',background:couleur}}/>
-                <div style={{fontWeight:900,fontSize:'20px',color:actif?couleur:'#fff',marginBottom:'2px'}}>{val}</div><div style={{fontSize:'11px',color:'rgba(255,255,255,0.7)',fontWeight:600}}>{label}</div>
-                <div style={{fontSize:'14px',color:actif?couleur:'#fff',fontWeight:900,marginTop:'4px'}}>{s.total>0?pourcent+'%':'—'}</div>
-              </button>
-            );
-          })}
-        </div>
-        <p style={{textAlign:'center',fontSize:'11px',color:'rgba(255,255,255,0.5)',margin:'10px 0 0'}}>
-          {s.total>0 ? s.total+' vote'+(s.total>1?'s':'') : 'Soyez le premier à voter'}
-          {!user && ' · connectez-vous pour voter'}
-        </p>
-      </div>
-    );
-  };
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const articlesFiltres = filtre === 'Tous' ? articles : articles.filter(a => a.categorie === filtre);
+  const couleurCat = (cat: string) => cat === 'Actualités' ? '#3b82f6' : '#f59e0b';
 
   return (
-    <div style={{minHeight:'100vh',background:'#0a0018',color:'#fff',fontFamily:'sans-serif'}}>
+    <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
 
-      <div style={{background:'linear-gradient(135deg,#004e92,#000428)',padding:'48px 24px',textAlign:'center',borderBottom:'3px solid #ffd700'}}>
-        <p style={{color:'#ffd700',fontSize:'13px',fontWeight:900,textTransform:'uppercase',letterSpacing:'3px',margin:'0 0 12px'}}>
-          ⚽ FIFA World Cup 2026 ⚽
-        </p>
-        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(30px,6vw,56px)',margin:'0 0 12px'}}>
-          Le grand final 🏆
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'48px 24px',textAlign:'center'}}>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(30px,5vw,48px)',margin:'0 0 12px'}}>
+          📰 MakeGoal
         </h1>
-        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'17px',margin:0,fontWeight:600}}>
-          Vote. Pronostique. Gagne avec la communauté MakeGoal.
+        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'18px',margin:0,fontWeight:600}}>
+          Votre média football : actualités, analyses et pronostics.
         </p>
       </div>
 
-      <main style={{maxWidth:'860px',margin:'0 auto',padding:'40px 16px'}}>
-
-        {matchs.length === 0 && (
-          <div style={{textAlign:'center',padding:'40px',background:'#12002a',borderRadius:'20px',marginBottom:'24px'}}>
-            <p style={{color:'rgba(255,255,255,0.7)',fontSize:'15px',margin:0}}>Le concours arrive bientôt. Reviens vite !</p>
-          </div>
-        )}
-
-        {matchs.map((m, i) => (
-          <CarteMatch
-            key={m.id}
-            m={m}
-            couleur={i === 0 ? '#cd7f32' : '#ffd700'}
-            theme={i === 0 ? 'linear-gradient(135deg,#3d1f00,#6b3410,#3d1f00)' : 'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)'}
-          />
-        ))}
+      <main style={{maxWidth:'1000px',margin:'0 auto',padding:'40px 16px'}}>
 
         {concours && (
-          <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'24px',padding:'28px',marginBottom:'24px',textAlign:'center'}}>
-            <div style={{background:'rgba(255,255,255,0.12)',borderRadius:'14px',padding:'16px',marginBottom:'20px'}}>
-              <p style={{color:'#ffd700',fontSize:'13px',fontWeight:900,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 6px'}}>🎁 À gagner</p>
-              <p style={{color:'#fff',fontSize:'16px',fontWeight:700,margin:0}}>{concours.lots || '10 000 Gourdes · Tablettes · Netflix 3 mois'}</p>
-            </div>
-            <a href="/concours" className="mg-pulse-gold" style={{
-              display:'inline-block', background:'#ffd700', color:'#3d2c00',
-              padding:'16px 40px', borderRadius:'999px', fontWeight:900, fontSize:'17px', textDecoration:'none'
+          <a href="/concours" style={{textDecoration:'none',display:'block',marginBottom:'40px'}}>
+            <div style={{
+              background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',
+              borderRadius:'20px', padding:'24px 28px', border:'2px solid #ffd700',
+              boxShadow:'0 8px 30px rgba(255,215,0,0.25)',
+              display:'flex', justifyContent:'space-between', alignItems:'center', gap:'16px', flexWrap:'wrap', cursor:'pointer'
             }}>
-              🎯 Compléter mon pronostic
-            </a>
-            <p style={{color:'rgba(255,255,255,0.7)',fontSize:'12px',margin:'14px 0 0'}}>
-              Ajoute le score exact et les buteurs pour gagner un max de points.
-            </p>
-          </div>
-        )}
-
-        {classement.length > 0 && (
-          <div style={{background:'#12002a',borderRadius:'24px',padding:'28px',marginBottom:'24px',border:'1px solid rgba(255,255,255,0.1)'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}}>
-              <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',margin:0}}>🏆 Top 10 en direct</h2>
-              <a href="/concours" style={{color:'#ffd700',fontSize:'13px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
-            </div>
-            {classement.map((c, i) => (<div key={c.user_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
-                <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                  <span style={{
-                    fontWeight:900,fontSize:'14px',width:'30px',height:'30px',borderRadius:'999px',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    background: i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'rgba(255,255,255,0.1)',
-                    color: i<3?'#12002a':'#fff'
-                  }}>{i+1}</span>
-                  <span style={{color:'#fff',fontWeight:600,fontSize:'15px'}}>{c.username}</span>
+              <div>
+                <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'1px'}}>
+                  🏆 Concours en cours
                 </div>
-                <span style={{color:'#ffd700',fontWeight:900,fontSize:'16px'}}>{c.points_total} pts</span>
+                <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'22px',margin:'0 0 6px'}}>{concours.titre}</h2>
+                {concours.lots && <p style={{color:'rgba(255,255,255,0.85)',fontSize:'14px',margin:0}}>🎁 {concours.lots}</p>}
               </div>
-            ))}
+              <span style={{background:'#ffd700',color:'#3d2c00',padding:'14px 28px',borderRadius:'999px',fontWeight:900,fontSize:'15px',whiteSpace:'nowrap'}}>
+                Participer →
+              </span>
+            </div>
+          </a>
+        )}
+
+        <div style={{display:'flex',gap:'8px',marginBottom:'32px',justifyContent:'center',flexWrap:'wrap'}}>
+          {['Tous', 'Actualités', 'Revue de presse'].map(cat => (
+            <button key={cat} onClick={() => setFiltre(cat)} style={{
+              padding:'10px 20px', borderRadius:'999px', fontWeight:700, fontSize:'14px', cursor:'pointer', border:'none',
+              background: filtre === cat ? VIOLET : '#f3f4f6',
+              color: filtre === cat ? '#fff' : '#374151'
+            }}>
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {loading && <p style={{color:'#9ca3af',textAlign:'center'}}>Chargement…</p>}
+
+        {!loading && articlesFiltres.length === 0 && (
+          <div style={{background:'#f9fafb',padding:'40px',borderRadius:'16px',textAlign:'center'}}>
+            <p style={{color:'#6b7280',margin:0}}>Aucun article pour le moment. Revenez bientôt !</p>
           </div>
         )}
 
-        <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'24px'}}>
+          {!loading && articlesFiltres.map(a => (
+            <a key={a.id} href={'/media/' + a.id} style={{textDecoration:'none',color:'inherit'}}>
+              <div style={{
+                border:'1px solid #e5e7eb', borderRadius:'20px', overflow:'hidden',
+                boxShadow:'0 2px 12px rgba(0,0,0,0.06)', height:'100%',
+                display:'flex', flexDirection:'column', cursor:'pointer'
+              }}>
+                {a.image_couverture ? (
+                  <img src={a.image_couverture} alt={a.titre} style={{width:'100%',height:'180px',objectFit:'cover'}}/>
+                ) : (
+                  <div style={{width:'100%',height:'180px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <span style={{fontSize:'40px'}}>⚽</span>
+                  </div>
+                )}
+                <div style={{padding:'20px',flex:1,display:'flex',flexDirection:'column'}}>
+                  <span style={{display:'inline-block',alignSelf:'flex-start',fontSize:'11px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px',marginBottom:'10px'}}>
+                    {a.categorie}
+                  </span>
+                  <h2 style={{fontWeight:900,fontSize:'18px',margin:'0 0 8px',lineHeight:'1.3'}}>{a.titre}</h2>
+                  {a.extrait && <p style={{color:'#6b7280',fontSize:'14px',margin:'0 0 12px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
+                  <p style={{color:'#9ca3af',fontSize:'12px',margin:0}}>{a.auteur} · {formatDate(a.created_at)}</p>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        <div style={{marginTop:'48px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center'}}>
           <h2 style={{color:'#fff',fontWeight:900,fontSize:'24px',marginBottom:'8px'}}>📬 Reste connecté</h2>
           <p style={{color:'rgba(255,255,255,0.8)',fontSize:'15px',marginBottom:'20px'}}>
-            Reçois les actus et les prochains concours MakeGoal.
+            Reçois les dernières actus et les concours MakeGoal.
           </p>
           {newsletterMsg ? (
             <p style={{color:'#6ee7b7',fontWeight:700,fontSize:'16px'}}>{newsletterMsg}</p>
