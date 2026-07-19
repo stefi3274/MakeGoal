@@ -8,6 +8,10 @@ type Article = {
   id: string;
   titre: string;
   categorie: string;
+  type: string;
+  langue: string;
+  source_nom: string | null;
+  source_url: string | null;
   image_couverture: string | null;
   extrait: string | null;
   contenu: string | null;
@@ -28,7 +32,11 @@ export default function AdminMedia() {
 
   const [editId, setEditId] = useState<string | null>(null);
   const [titre, setTitre] = useState('');
+  const [type, setType] = useState('article');
+  const [langue, setLangue] = useState('fr');
   const [categorie, setCategorie] = useState('Actualités');
+  const [sourceNom, setSourceNom] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
   const [imageCouverture, setImageCouverture] = useState('');
   const [extrait, setExtrait] = useState('');
   const [contenu, setContenu] = useState('');
@@ -63,13 +71,14 @@ export default function AdminMedia() {
   };
 
   const nouvelArticle = () => {
-    setEditId(null); setTitre(''); setCategorie('Actualités');
-    setImageCouverture(''); setExtrait(''); setContenu('');
+    setEditId(null); setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
+    setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
     setVue('editer');
   };
 
   const editerArticle = (a: Article) => {
-    setEditId(a.id); setTitre(a.titre); setCategorie(a.categorie);
+    setEditId(a.id); setTitre(a.titre); setType(a.type || 'article'); setLangue(a.langue || 'fr');
+    setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
     setVue('editer');
   };
@@ -78,7 +87,9 @@ export default function AdminMedia() {
     if (!titre) { setMessage('❌ Titre obligatoire.'); return; }
     setSaving(true); setMessage('');
     const payload = {
-      titre, categorie, image_couverture: imageCouverture || null,
+      titre, type, langue, categorie,
+      source_nom: sourceNom || null, source_url: sourceUrl || null,
+      image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString()
@@ -87,12 +98,12 @@ export default function AdminMedia() {
       const { error } = await supabase.from('articles').update(payload).eq('id', editId);
       setSaving(false);
       if (error) { setMessage('❌ ' + error.message); return; }
-      setMessage('✅ Article mis à jour !');
+      setMessage('✅ Mis à jour !');
     } else {
       const { error } = await supabase.from('articles').insert(payload);
       setSaving(false);
       if (error) { setMessage('❌ ' + error.message); return; }
-      setMessage('✅ Article créé !');
+      setMessage('✅ Créé !');
     }
     chargerArticles();
     setTimeout(() => setVue('liste'), 1200);
@@ -104,7 +115,7 @@ export default function AdminMedia() {
   };
 
   const supprimer = async (id: string) => {
-    if (!confirm('Supprimer cet article ?')) return;
+    if (!confirm('Supprimer ?')) return;
     await supabase.from('articles').delete().eq('id', id);
     chargerArticles();
   };
@@ -127,6 +138,11 @@ export default function AdminMedia() {
     );
   }
 
+  const btnChoix = (actif: boolean) => ({
+    flex:1, padding:'10px', borderRadius:'8px', border:actif?'2px solid '+VIOLET:'1px solid #333',
+    background:actif?'#2a1a3a':'#222', color:actif?'#fff':'#9ca3af', cursor:'pointer', fontWeight:700, fontSize:'13px'
+  });
+
   return (
     <div style={{minHeight:'100vh',background:'#0f0f0f',fontFamily:'sans-serif'}}>
       <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222'}}>
@@ -134,7 +150,7 @@ export default function AdminMedia() {
         <div style={{display:'flex',gap:'8px'}}>
           <a href="/admin" style={{background:'#333',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin</a>
           <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
-          <button onClick={nouvelArticle} style={{background:vue==='editer'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouvel article</button>
+          <button onClick={nouvelArticle} style={{background:vue==='editer'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
         </div>
       </header>
 
@@ -144,11 +160,27 @@ export default function AdminMedia() {
 
         {vue === 'editer' && (
           <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
-            <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'20px'}}>{editId ? 'Modifier l\'article' : 'Nouvel article'}</h2>
+            <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'20px'}}>{editId ? 'Modifier' : 'Nouveau contenu'}</h2>
+
+            <div style={{marginBottom:'16px'}}>
+              <label style={labelStyle}>Format</label>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button onClick={() => setType('article')} style={btnChoix(type==='article')}>📄 Article (long)</button>
+                <button onClick={() => setType('post')} style={btnChoix(type==='post')}>⚡ Post (bref, style Romano)</button>
+              </div>
+            </div>
+
+            <div style={{marginBottom:'16px'}}>
+              <label style={labelStyle}>Langue</label>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button onClick={() => setLangue('fr')} style={btnChoix(langue==='fr')}>🇫🇷 Français</button>
+                <button onClick={() => setLangue('kreyol')} style={btnChoix(langue==='kreyol')}>🇭🇹 Kreyòl</button>
+              </div>
+            </div>
 
             <div style={{marginBottom:'16px'}}>
               <label style={labelStyle}>Titre *</label>
-              <input value={titre} onChange={e => setTitre(e.target.value)} placeholder="Titre de l'article" style={inputStyle}/>
+              <input value={titre} onChange={e => setTitre(e.target.value)} placeholder={type==='post'?'L\'info percutante':'Titre de l\'article'} style={inputStyle}/>
             </div>
 
             <div style={{marginBottom:'16px'}}>
@@ -159,24 +191,29 @@ export default function AdminMedia() {
               </select>
             </div>
 
-            <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Image de couverture</label>
-              <input type="file" accept="image/*" onChange={uploadImage} style={{...inputStyle,padding:'8px'}}/>
-              {uploading && <p style={{color:'#f59e0b',fontSize:'12px',margin:'8px 0 0'}}>⏳ Upload en cours...</p>}
-              {imageCouverture && <img src={imageCouverture} alt="couverture" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'8px',marginTop:'12px'}}/>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
+              <div><label style={labelStyle}>Source (nom)</label><input value={sourceNom} onChange={e => setSourceNom(e.target.value)} placeholder="Fabrizio Romano, L'Équipe..." style={inputStyle}/></div>
+              <div><label style={labelStyle}>Lien source (optionnel)</label><input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://..." style={inputStyle}/></div>
             </div>
 
             <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Extrait (résumé court affiché dans la liste)</label>
-              <textarea value={extrait} onChange={e => setExtrait(e.target.value)} rows={2} placeholder="Un résumé de 1-2 phrases..." style={{...inputStyle,resize:'vertical'}}/>
+              <label style={labelStyle}>Image {type==='post'?'(optionnelle)':'de couverture'}</label>
+              <input type="file" accept="image/*" onChange={uploadImage} style={{...inputStyle,padding:'8px'}}/>
+              {uploading && <p style={{color:'#f59e0b',fontSize:'12px',margin:'8px 0 0'}}>⏳ Upload...</p>}
+              {imageCouverture && <img src={imageCouverture} alt="" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'8px',marginTop:'12px'}}/>}
             </div>
+
+            {type === 'article' && (
+              <div style={{marginBottom:'16px'}}>
+                <label style={labelStyle}>Extrait (résumé pour la liste)</label>
+                <textarea value={extrait} onChange={e => setExtrait(e.target.value)} rows={2} placeholder="Résumé court..." style={{...inputStyle,resize:'vertical'}}/>
+              </div>
+            )}
 
             <div style={{marginBottom:'20px'}}>
-              <label style={labelStyle}>Contenu (Markdown)</label>
-              <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px'}}>
-                Astuce : ## pour un titre, **gras**, *italique*, ![texte](url-image) pour une image, [texte](lien) pour un lien.
-              </p>
-              <textarea value={contenu} onChange={e => setContenu(e.target.value)} rows={16} placeholder="Écrivez votre article ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',lineHeight:'1.6'}}/>
+              <label style={labelStyle}>{type==='post' ? 'Le texte du post' : 'Contenu (Markdown)'}</label>
+              {type === 'article' && <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px'}}>## titre, **gras**, *italique*, ![img](url), [lien](url)</p>}
+              <textarea value={contenu} onChange={e => setContenu(e.target.value)} rows={type==='post'?6:16} placeholder={type==='post'?'Écrivez votre brève percutante...':'Écrivez votre article...'} style={{...inputStyle,resize:'vertical',lineHeight:'1.6',fontFamily:type==='article'?'monospace':'inherit'}}/>
             </div>
 
             <div style={{display:'flex',gap:'12px'}}>
@@ -188,14 +225,17 @@ export default function AdminMedia() {
 
         {vue === 'liste' && (
           <>
-            {articles.length === 0 && <p style={{color:'#6b7280'}}>Aucun article. Créez-en un.</p>}
+            {articles.length === 0 && <p style={{color:'#6b7280'}}>Aucun contenu.</p>}
             {articles.map(a => (
               <div key={a.id} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'16px',marginBottom:'12px',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}}>
                 {a.image_couverture && <img src={a.image_couverture} alt={a.titre} style={{width:'80px',height:'60px',objectFit:'cover',borderRadius:'8px'}}/>}
                 <div style={{flex:1,minWidth:'200px'}}>
-                  <span style={{fontSize:'10px',background:a.categorie==='Actualités'?'#3b82f6':'#f59e0b',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.categorie}</span>
-                  <p style={{color:'#fff',fontWeight:700,margin:'6px 0 2px',fontSize:'15px'}}>{a.titre}</p>
-                  <p style={{color:'#6b7280',fontSize:'12px',margin:0}}>{new Date(a.created_at).toLocaleDateString('fr-FR')}</p>
+                  <div style={{display:'flex',gap:'6px',marginBottom:'4px',flexWrap:'wrap'}}>
+                    <span style={{fontSize:'10px',background:a.type==='post'?VIOLET:'#374151',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.type==='post'?'⚡ Post':'📄 Article'}</span>
+                    <span style={{fontSize:'10px',background:'#222',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.langue==='kreyol'?'🇭🇹 Kreyòl':'🇫🇷 FR'}</span>
+                  </div>
+                  <p style={{color:'#fff',fontWeight:700,margin:'4px 0 2px',fontSize:'15px'}}>{a.titre}</p>
+                  {a.source_nom && <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Source : {a.source_nom}</p>}
                 </div>
                 <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                   <button onClick={() => togglePublie(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:a.publie?'#10b981':'#374151',color:'#fff'}}>{a.publie ? '✓ Publié' : 'Brouillon'}</button>
