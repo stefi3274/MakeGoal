@@ -4,6 +4,13 @@ import { supabase } from '../../../lib/supabase';
 
 const VIOLET = '#bf00ff';
 
+const TAGS_DISPO = [
+  'Club', 'Sélection',
+  'Championnat', 'Coupe', 'Ligue des Champions', 'Euro', 'Éliminatoires', 'Copa America', 'CAN',
+  'Mi-temps', 'Match terminé', 'Statistiques',
+  'Transfert', 'En attente', 'Officiel'
+];
+
 type Article = {
   id: string;
   titre: string;
@@ -12,6 +19,7 @@ type Article = {
   langue: string;
   source_nom: string | null;
   source_url: string | null;
+  tags: string[] | null;
   image_couverture: string | null;
   extrait: string | null;
   contenu: string | null;
@@ -40,6 +48,7 @@ export default function AdminMedia() {
   const [imageCouverture, setImageCouverture] = useState('');
   const [extrait, setExtrait] = useState('');
   const [contenu, setContenu] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
@@ -73,6 +82,7 @@ export default function AdminMedia() {
   const nouvelArticle = () => {
     setEditId(null); setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
     setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
+    setTags([]);
     setVue('editer');
   };
 
@@ -80,6 +90,7 @@ export default function AdminMedia() {
     setEditId(a.id); setTitre(a.titre); setType(a.type || 'article'); setLangue(a.langue || 'fr');
     setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
+    setTags(a.tags || []);
     setVue('editer');
   };
 
@@ -89,6 +100,7 @@ export default function AdminMedia() {
     const payload = {
       titre, type, langue, categorie,
       source_nom: sourceNom || null, source_url: sourceUrl || null,
+      tags,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -118,6 +130,10 @@ export default function AdminMedia() {
     if (!confirm('Supprimer ?')) return;
     await supabase.from('articles').delete().eq('id', id);
     chargerArticles();
+  };
+
+  const toggleTag = (t: string) => {
+    setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   };
 
   const inputStyle = {width:'100%',padding:'12px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'14px',boxSizing:'border-box' as const};
@@ -194,6 +210,20 @@ export default function AdminMedia() {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
               <div><label style={labelStyle}>Source (nom)</label><input value={sourceNom} onChange={e => setSourceNom(e.target.value)} placeholder="Fabrizio Romano, L'Équipe..." style={inputStyle}/></div>
               <div><label style={labelStyle}>Lien source (optionnel)</label><input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://..." style={inputStyle}/></div>
+            </div>
+
+            <div style={{marginBottom:'16px'}}>
+              <label style={labelStyle}>Tags (cliquez pour ajouter)</label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                {TAGS_DISPO.map(t => (
+                  <button key={t} type="button" onClick={() => toggleTag(t)} style={{
+                    padding:'6px 12px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                    border: tags.includes(t) ? '2px solid '+VIOLET : '1px solid #333',
+                    background: tags.includes(t) ? VIOLET : '#222',
+                    color: tags.includes(t) ? '#fff' : '#9ca3af'
+                  }}>{t}</button>
+                ))}
+              </div>
             </div>
 
             <div style={{marginBottom:'16px'}}>
