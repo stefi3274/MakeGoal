@@ -114,27 +114,20 @@ export default function ConcoursPage() {
     setSaving(matchId); setMessage('');
     const buteursNettoyes = p.buteurs.filter(b => b.trim() !== '');
 
-    // Points immédiats : 10 par critère tenté
-    let pointsImmediat = 0;
-    if (p.choix_1x2) pointsImmediat += 10;
-    if (p.score_home !== '' && p.score_away !== '') pointsImmediat += 10;
-    pointsImmediat += buteursNettoyes.length * 10;
-
     const { error } = await supabase.from('participations_matchs').upsert({
       user_id: user.id,
       concours_match_id: matchId,
       choix_1x2: p.choix_1x2,
       score_home: p.score_home !== '' ? parseInt(p.score_home) : null,
       score_away: p.score_away !== '' ? parseInt(p.score_away) : null,
-      buteurs: buteursNettoyes,
-      points: pointsImmediat
+      buteurs: buteursNettoyes
     }, { onConflict: 'user_id,concours_match_id' });
 
     setSaving('');
     if (error) {
       setMessage('❌ Erreur : ' + error.message);
     } else {
-      setMessage('✅ Pronostic enregistré ! Vous avez déjà ' + pointsImmediat + ' points sur ce match.');
+      setMessage('✅ Pronostic enregistré ! Vos points seront calculés après le match.');
       if (concours) chargerClassement(concours.id);
     }
   };
