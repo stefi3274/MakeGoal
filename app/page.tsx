@@ -10,6 +10,7 @@ const VIOLET = '#bf00ff';
 
 type Article = {
   id: string; titre: string; categorie: string;
+  type: string; langue: string;
   image_couverture: string | null; extrait: string | null;
   auteur: string; created_at: string;
 };
@@ -40,7 +41,7 @@ export default function Home() {
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
   const chargerTout = async () => {
-    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
+    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
     if (arts) setArticles(arts);
     const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
     if (mts) { setMatchs(mts); mts.forEach(m => chargerStats(m.id)); }
@@ -233,15 +234,19 @@ export default function Home() {
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'20px'}}>
               {!loading && articlesFiltres.map(a => (
-                <a key={a.id} href={'/media/' + a.id} style={{textDecoration:'none',color:'inherit'}}>
+                <a key={a.id} href={(a.type === 'post' ? '/post/' : '/media/') + a.id} style={{textDecoration:'none',color:'inherit'}}>
                   <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',height:'100%',display:'flex',flexDirection:'column',cursor:'pointer'}}>
                     {a.image_couverture ? (
                       <img src={a.image_couverture} alt={a.titre} style={{width:'100%',height:'160px',objectFit:'cover'}}/>
                     ) : (
-                      <div style={{width:'100%',height:'160px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'36px'}}>⚽</span></div>
+                      <div style={{width:'100%',height:'160px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'36px'}}>{a.type === 'post' ? '⚡' : '⚽'}</span></div>
                     )}
                     <div style={{padding:'16px',flex:1,display:'flex',flexDirection:'column'}}>
-                      <span style={{display:'inline-block',alignSelf:'flex-start',fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px',marginBottom:'8px'}}>{a.categorie}</span>
+                      <div style={{display:'flex',gap:'6px',marginBottom:'8px',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px'}}>{a.categorie}</span>
+                        {a.type === 'post' && <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:VIOLET,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
+                        <span style={{fontSize:'10px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
+                      </div>
                       <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>
                       {a.extrait && <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 10px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
                       <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>{a.auteur} · {formatDate(a.created_at)}</p>
