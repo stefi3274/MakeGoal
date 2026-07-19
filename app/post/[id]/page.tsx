@@ -11,9 +11,20 @@ const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
 const LOGO_URL = 'https://giflxfycfqanyfaeoedz.supabase.co/storage/v1/object/public/images/logo%20makegoal.jpg';
 
+const couleurTag = (t: string) => {
+  if (t === 'Officiel') return '#10b981';
+  if (t === 'En attente') return '#f59e0b';
+  if (t === 'Transfert') return '#3b82f6';
+  if (t === 'Match terminé') return '#111111';
+  if (t === 'Mi-temps') return '#ef4444';
+  if (t === 'Statistiques') return '#8b5cf6';
+  return '#bf00ff';
+};
+
 type Post = {
   id: string; titre: string; contenu: string | null;
   langue: string; source_nom: string | null; source_url: string | null;
+  tags: string[] | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 
@@ -89,6 +100,14 @@ export default function PostPage() {
                 {post.langue==='kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 Actu'}
               </span>
             </div>
+
+            {post.tags && post.tags.length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
+                {post.tags.map(t => (
+                  <span key={t} style={{fontSize:'12px',fontWeight:900,color:'#fff',background:couleurTag(t),padding:'4px 12px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{t}</span>
+                ))}
+              </div>
+            )}
 
             <div style={{width:'40px',height:'4px',background:VIOLET,borderRadius:'2px',marginBottom:'24px'}}/>
 
