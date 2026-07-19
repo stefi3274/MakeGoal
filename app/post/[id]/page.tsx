@@ -57,6 +57,10 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
+type Commentaire = {
+  id: string; user_id: string; contenu: string; created_at: string;
+  username: string; likes: number; likedByMe: boolean;
+};
 
 export default function PostPage() {
   const params = useParams();
@@ -67,14 +71,91 @@ export default function PostPage() {
   const [format, setFormat] = useState<'carre' | 'vertical'>('carre');
   const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [likes, setLikes] = useState(0);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
+  const [nouveauComm, setNouveauComm] = useState('');
+  const [partageMsg, setPartageMsg] = useState('');
 
   useEffect(() => { if (id) charger(); }, [id]);
 
   const charger = async () => {
     const { data } = await supabase.from('articles').select('*').eq('id', id).eq('publie', true).single();
-    if (data) setPost(data);
+    if (data) { setPost(data); chargerLikes(); chargerCommentaires(); }
     setLoading(false);
   };
+
+  useEffect(() => { if (user) verifierAdmin(); }, [user]);
+
+  const verifierAdmin = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).single();
+    setIsAdmin(!!data);
+  };
+
+  const chargerLikes = async () => {
+    const { data } = await supabase.from('article_likes').select('user_id').eq('article_id', id);
+    if (data) { setLikes(data.length); if (user) setLikedByMe(data.some(l => l.user_id === user.id)); }
+  };
+
+  const chargerCommentaires = async () => {
+    const { data: comms } = await supabase.from('commentaires').select('*').eq('article_id', id).is('parent_id', null).order('created_at', { ascending: false });
+    if (!comms) return;
+    const userIds = [...new Set(comms.map(c => c.user_id))];
+    const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
+    const { data: allLikes } = await supabase.from('commentaire_likes').select('commentaire_id, user_id');
+    const enrichis: Commentaire[] = comms.map(c => {
+      const lk = (allLikes || []).filter(l => l.commentaire_id === c.id);
+      return { id: c.id, user_id: c.user_id, contenu: c.contenu, created_at: c.created_at,
+        username: profiles?.find(p => p.id === c.user_id)?.username || 'Anonyme',
+        likes: lk.length, likedByMe: user ? lk.some(l => l.user_id === user.id) : false };
+    });
+    setCommentaires(enrichis);
+  };
+
+  const toggleLike = async () => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (likedByMe) {
+      await supabase.from('article_likes').delete().eq('article_id', id).eq('user_id', user.id);
+      setLikes(l => l - 1); setLikedByMe(false);
+    } else {
+      await supabase.from('article_likes').insert({ article_id: id, user_id: user.id });
+      setLikes(l => l + 1); setLikedByMe(true);
+    }
+  };
+
+  const posterComm = async () => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (!nouveauComm.trim()) return;
+    await supabase.from('commentaires').insert({ article_id: id, user_id: user.id, contenu: nouveauComm.trim(), parent_id: null });
+    setNouveauComm(''); chargerCommentaires();
+  };
+
+  const toggleLikeComm = async (cm: Commentaire) => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (cm.likedByMe) await supabase.from('commentaire_likes').delete().eq('commentaire_id', cm.id).eq('user_id', user.id);
+    else await supabase.from('commentaire_likes').insert({ commentaire_id: cm.id, user_id: user.id });
+    chargerCommentaires();
+  };
+
+  const supprimerComm = async (cid: string) => {
+    if (!confirm('Supprimer ce commentaire ?')) return;
+    await supabase.from('commentaires').delete().eq('id', cid);
+    chargerCommentaires();
+  };
+
+  const partager = (reseau: string) => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const texte = post ? post.titre + ' — MakeGoal' : 'MakeGoal';
+    if (reseau === 'whatsapp') window.open('https://wa.me/?text=' + encodeURIComponent(texte + ' ' + url), '_blank');
+    else if (reseau === 'facebook') window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'twitter') window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(texte) + '&url=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'telegram') window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(texte), '_blank');
+    else if (reseau === 'copier') { navigator.clipboard.writeText(url); setPartageMsg('Lien copié ✓'); setTimeout(() => setPartageMsg(''), 2000); }
+  };
+
+  const formatComm = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
 
   const telecharger = async () => {
     if (!cardRef.current) return;
@@ -215,6 +296,43 @@ export default function PostPage() {
               <a href={post.source_url} target="_blank" rel="noopener noreferrer" style={{color:VIOLET,fontSize:'14px',fontWeight:600}}>Voir la source originale →</a>
             </p>
           )}
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'20px 0',margin:'8px 0 24px',borderTop:'1px solid #e5e7eb',borderBottom:'1px solid #e5e7eb',flexWrap:'wrap'}}>
+          <button onClick={toggleLike} style={{display:'flex',alignItems:'center',gap:'6px',padding:'10px 20px',borderRadius:'999px',border:'2px solid '+(likedByMe?VIOLET:'#e5e7eb'),background:likedByMe?'#faf5ff':'#fff',color:likedByMe?VIOLET:'#374151',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>
+            {likedByMe ? '❤️' : '🤍'} {likes} J'aime
+          </button>
+          <span style={{color:'#9ca3af',fontSize:'13px'}}>💬 {commentaires.length}</span>
+          <div style={{marginLeft:'auto',display:'flex',gap:'8px',alignItems:'center'}}>
+            {partageMsg && <span style={{color:'#10b981',fontSize:'13px',fontWeight:700}}>{partageMsg}</span>}
+            <button onClick={() => partager('whatsapp')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#25D366',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>WhatsApp</button>
+            <button onClick={() => partager('facebook')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#1877f2',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Facebook</button>
+            <button onClick={() => partager('twitter')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#000',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>X</button>
+            <button onClick={() => partager('telegram')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#0088cc',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Telegram</button>
+            <button onClick={() => partager('copier')} style={{padding:'8px 14px',borderRadius:'999px',border:'2px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>🔗</button>
+          </div>
+        </div>
+
+        <div style={{marginBottom:'40px'}}>
+          <h3 style={{fontWeight:900,fontSize:'20px',marginBottom:'16px'}}>💬 Commentaires ({commentaires.length})</h3>
+          <div style={{display:'flex',gap:'8px',marginBottom:'24px'}}>
+            <input value={nouveauComm} onChange={e => setNouveauComm(e.target.value)} placeholder={user ? 'Ajouter un commentaire...' : 'Connectez-vous pour commenter'} onKeyDown={e => e.key === 'Enter' && posterComm()} style={{flex:1,padding:'12px 16px',borderRadius:'12px',border:'1px solid #e5e7eb',fontSize:'14px'}}/>
+            <button onClick={posterComm} style={{padding:'12px 20px',borderRadius:'12px',border:'none',background:VIOLET,color:'#fff',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Publier</button>
+          </div>
+          {commentaires.length === 0 && <p style={{color:'#9ca3af',fontSize:'14px'}}>Soyez le premier à commenter !</p>}
+          {commentaires.map(cm => (
+            <div key={cm.id} style={{background:'#f9fafb',borderRadius:'12px',padding:'16px',marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                <span style={{fontWeight:700,fontSize:'14px'}}>{cm.username}</span>
+                <span style={{color:'#9ca3af',fontSize:'12px'}}>{formatComm(cm.created_at)}</span>
+              </div>
+              <p style={{margin:'0 0 10px',fontSize:'15px',lineHeight:'1.5'}}>{cm.contenu}</p>
+              <div style={{display:'flex',gap:'16px',alignItems:'center'}}>
+                <button onClick={() => toggleLikeComm(cm)} style={{background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:cm.likedByMe?VIOLET:'#6b7280',fontWeight:700}}>{cm.likedByMe ? '❤️' : '🤍'} {cm.likes}</button>
+                {(user?.id === cm.user_id || isAdmin) && <button onClick={() => supprimerComm(cm.id)} style={{background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:'#ef4444',fontWeight:700}}>🗑️</button>}
+              </div>
+            </div>
+          ))}
         </div>
 
       </main>

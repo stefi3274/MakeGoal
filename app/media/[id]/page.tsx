@@ -138,6 +138,8 @@ export default function ArticlePage() {
     const texte = article ? article.titre + ' — MakeGoal' : 'MakeGoal';
     if (reseau === 'whatsapp') window.open('https://wa.me/?text=' + encodeURIComponent(texte + ' ' + url), '_blank');
     else if (reseau === 'facebook') window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'twitter') window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(texte) + '&url=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'telegram') window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(texte), '_blank');
     else if (reseau === 'copier') { navigator.clipboard.writeText(url); setPartageMsg('Lien copié ✓'); setTimeout(() => setPartageMsg(''), 2000); }
   };
 
@@ -194,6 +196,8 @@ export default function ArticlePage() {
             {partageMsg && <span style={{color:'#10b981',fontSize:'13px',fontWeight:700}}>{partageMsg}</span>}
             <button onClick={() => partager('whatsapp')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#25D366',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>WhatsApp</button>
             <button onClick={() => partager('facebook')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#1877f2',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Facebook</button>
+            <button onClick={() => partager('twitter')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#000',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>X</button>
+            <button onClick={() => partager('telegram')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#0088cc',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Telegram</button>
             <button onClick={() => partager('copier')} style={{padding:'8px 14px',borderRadius:'999px',border:'2px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>🔗</button>
           </div>
         </div>
