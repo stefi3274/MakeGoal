@@ -85,7 +85,14 @@ export default function AdminConcours() {
   };
   const calculerPoints = async (matchId: string, concoursId: string) => {
     setMessage('⏳ Calcul en cours...');
-    const res = await fetch('/api/concours-calcul-match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ concours_match_id: matchId }) });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) { setMessage('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/concours-calcul-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ concours_match_id: matchId })
+    });
     const data = await res.json();
     if (data.success) { setMessage('✅ Points calculés pour ' + data.participants + ' participants !'); chargerMatchs(concoursId); }
     else { setMessage('❌ ' + (data.error || 'Erreur de calcul')); }
