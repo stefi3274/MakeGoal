@@ -5,12 +5,14 @@ import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { postVisible } from '../lib/postVisible';
 
 const VIOLET = '#bf00ff';
 
 type Article = {
   id: string; titre: string; categorie: string;
   type: string; langue: string;
+  statut_match: string | null; statut_change_at: string | null;
   image_couverture: string | null; extrait: string | null;
   auteur: string; created_at: string;
 };
@@ -41,8 +43,8 @@ export default function Home() {
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
   const chargerTout = async () => {
-    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
-    if (arts) setArticles(arts);
+    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
+    if (arts) setArticles(arts.filter(postVisible));
     const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
     if (mts) { setMatchs(mts); mts.forEach(m => chargerStats(m.id)); }
     const { data: c } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { postVisible } from '../../lib/postVisible';
 
 const VIOLET = '#bf00ff';
 
@@ -12,6 +13,8 @@ type Article = {
   categorie: string;
   type: string;
   langue: string;
+  statut_match: string | null;
+  statut_change_at: string | null;
   image_couverture: string | null;
   extrait: string | null;
   auteur: string;
@@ -28,10 +31,10 @@ export default function Media() {
   const chargerArticles = async () => {
     const { data } = await supabase
       .from('articles')
-      .select('id, titre, categorie, type, langue, image_couverture, extrait, auteur, created_at')
+      .select('id, titre, categorie, type, langue, statut_match, statut_change_at, image_couverture, extrait, auteur, created_at')
       .eq('publie', true)
       .order('created_at', { ascending: false });
-    if (data) setArticles(data);
+    if (data) setArticles(data.filter(postVisible));
     setLoading(false);
   };
 

@@ -15,6 +15,9 @@ type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
   source_nom: string | null; source_url: string | null;
   tags: string[] | null; pays1: string | null; pays2: string | null;
+  ligue: string | null; ligue_logo: string | null;
+  equipe1: string | null; equipe2: string | null;
+  score1: number | null; score2: number | null; statut_match: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -43,6 +46,14 @@ export default function AdminMedia() {
   const [tags, setTags] = useState<string[]>([]);
   const [pays1, setPays1] = useState('');
   const [pays2, setPays2] = useState('');
+  const [ligue, setLigue] = useState('');
+  const [ligueLogo, setLigueLogo] = useState('');
+  const [equipe1, setEquipe1] = useState('');
+  const [equipe2, setEquipe2] = useState('');
+  const [score1, setScore1] = useState('');
+  const [score2, setScore2] = useState('');
+  const [statutMatch, setStatutMatch] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
@@ -73,10 +84,24 @@ export default function AdminMedia() {
     setMessage('✅ Image uploadée !');
   };
 
+  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true); setMessage('');
+    const nom = 'logo-' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const { error } = await supabase.storage.from('articles').upload(nom, file);
+    if (error) { setMessage('❌ Upload logo : ' + error.message); setUploadingLogo(false); return; }
+    const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+    setLigueLogo(data.publicUrl);
+    setUploadingLogo(false);
+    setMessage('✅ Logo uploadé !');
+  };
+
   const resetForm = () => {
     setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
     setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
     setTags([]); setPays1(''); setPays2('');
+    setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -86,6 +111,11 @@ export default function AdminMedia() {
     setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
     setTags(a.tags || []); setPays1(a.pays1 || ''); setPays2(a.pays2 || '');
+    setLigue(a.ligue || ''); setLigueLogo(a.ligue_logo || '');
+    setEquipe1(a.equipe1 || ''); setEquipe2(a.equipe2 || '');
+    setScore1(a.score1 !== null && a.score1 !== undefined ? String(a.score1) : '');
+    setScore2(a.score2 !== null && a.score2 !== undefined ? String(a.score2) : '');
+    setStatutMatch(a.statut_match || '');
     setVue('editer');
   };
 
@@ -98,6 +128,12 @@ export default function AdminMedia() {
       titre, type, langue, categorie,
       source_nom: sourceNom || null, source_url: sourceUrl || null,
       tags, pays1: pays1 || null, pays2: pays2 || null,
+      ligue: ligue || null, ligue_logo: ligueLogo || null,
+      equipe1: equipe1 || null, equipe2: equipe2 || null,
+      score1: score1 !== '' ? parseInt(score1) : null,
+      score2: score2 !== '' ? parseInt(score2) : null,
+      statut_match: statutMatch || null,
+      statut_change_at: statutMatch ? new Date().toISOString() : null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -199,11 +235,47 @@ export default function AdminMedia() {
             {type === 'post' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>⚽ Affiche de match (optionnel)</label>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Pour un post "Qui va gagner ?". Tapez les pays, les drapeaux s'afficheront en grand.</p>
-                <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-                  <input value={pays1} onChange={e => setPays1(e.target.value)} placeholder="France" style={inputStyle}/>
-                  <span style={{color:VIOLET,fontWeight:900}}>VS</span>
-                  <input value={pays2} onChange={e => setPays2(e.target.value)} placeholder="Haïti" style={inputStyle}/>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Pour un post match. Remplissez ce que vous voulez afficher.</p>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ligue / compétition</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px',alignItems:'center'}}>
+                  <input value={ligue} onChange={e => setLigue(e.target.value)} placeholder="Ligue des Champions" style={inputStyle}/>
+                  <label style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'12px',cursor:'pointer',whiteSpace:'nowrap',color:'#9ca3af',fontSize:'12px',fontWeight:700}}>
+                    {uploadingLogo ? '⏳' : '🖼️ Logo'}
+                    <input type="file" accept="image/*" onChange={uploadLogo} style={{display:'none'}}/>
+                  </label>
+                </div>
+                {ligueLogo && <img src={ligueLogo} alt="logo ligue" style={{height:'40px',marginBottom:'14px',borderRadius:'6px'}}/>}
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Sélections (drapeaux auto) OU équipes/clubs (noms)</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'8px',alignItems:'center'}}>
+                  <input value={pays1} onChange={e => setPays1(e.target.value)} placeholder="Pays 1 (ex: France)" style={inputStyle}/>
+                  <span style={{color:VIOLET,fontWeight:900,fontSize:'12px'}}>VS</span>
+                  <input value={pays2} onChange={e => setPays2(e.target.value)} placeholder="Pays 2 (ex: Haïti)" style={inputStyle}/>
+                </div>
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px',alignItems:'center'}}>
+                  <input value={equipe1} onChange={e => setEquipe1(e.target.value)} placeholder="OU Club 1 (ex: PSG)" style={inputStyle}/>
+                  <span style={{color:VIOLET,fontWeight:900,fontSize:'12px'}}>VS</span>
+                  <input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="OU Club 2 (ex: Real)" style={inputStyle}/>
+                </div>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Score (laisser vide si pas encore joué)</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px',alignItems:'center',justifyContent:'center'}}>
+                  <input type="number" value={score1} onChange={e => setScore1(e.target.value)} placeholder="0" style={{...inputStyle,width:'70px',textAlign:'center',fontSize:'18px',fontWeight:900}}/>
+                  <span style={{color:VIOLET,fontWeight:900,fontSize:'18px'}}>-</span>
+                  <input type="number" value={score2} onChange={e => setScore2(e.target.value)} placeholder="0" style={{...inputStyle,width:'70px',textAlign:'center',fontSize:'18px',fontWeight:900}}/>
+                </div>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Statut</p>
+                <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                  {['', 'À venir', 'Mi-temps', 'Match terminé'].map(s => (
+                    <button key={s || 'aucun'} type="button" onClick={() => setStatutMatch(s)} style={{
+                      padding:'8px 14px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                      border: statutMatch === s ? '2px solid '+VIOLET : '1px solid #333',
+                      background: statutMatch === s ? VIOLET : '#1e1e1e',
+                      color: statutMatch === s ? '#fff' : '#9ca3af'
+                    }}>{s === '' ? 'Aucun' : s}</button>
+                  ))}
                 </div>
               </div>
             )}
