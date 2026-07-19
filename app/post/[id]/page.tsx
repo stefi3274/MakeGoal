@@ -39,12 +39,22 @@ const DRAPEAUX: Record<string, string> = {
 };
 const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
+const couleurStatut = (s: string) => {
+  if (s === 'Mi-temps') return '#ef4444';
+  if (s === 'Match terminé') return '#111111';
+  if (s === 'À venir') return '#3b82f6';
+  return '#bf00ff';
+};
+
 
 type Post = {
   id: string; titre: string; contenu: string | null;
   langue: string; source_nom: string | null; source_url: string | null;
   tags: string[] | null;
   pays1: string | null; pays2: string | null;
+  ligue: string | null; ligue_logo: string | null;
+  equipe1: string | null; equipe2: string | null;
+  score1: number | null; score2: number | null; statut_match: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 
@@ -129,19 +139,43 @@ export default function PostPage() {
               </div>
             )}
 
-            {post.pays1 && post.pays2 && (
-              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'20px',margin:'8px 0 24px',padding:'20px',background:'#faf5ff',borderRadius:'16px'}}>
-                <div style={{textAlign:'center',flex:1}}>
-                  <div style={{fontSize:'56px',lineHeight:1}}>{drapeau(post.pays1)}</div>
-                  <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.pays1}</div>
+            {(post.pays1 && post.pays2) || (post.equipe1 && post.equipe2) ? (
+              <div style={{margin:'8px 0 24px',padding:'20px',background:'#faf5ff',borderRadius:'16px'}}>
+                {(post.ligue || post.ligue_logo) && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'16px'}}>
+                    {post.ligue_logo && <img src={post.ligue_logo} alt="" style={{height:'24px'}}/>}
+                    {post.ligue && <span style={{fontSize:'13px',fontWeight:700,color:'#6b7280',textTransform:'uppercase',letterSpacing:'0.5px'}}>{post.ligue}</span>}
+                  </div>
+                )}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'16px'}}>
+                  <div style={{textAlign:'center',flex:1}}>
+                    {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
+                    <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
+                  </div>
+                  {post.score1 !== null && post.score2 !== null ? (
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontWeight:900,fontSize:'40px',color:VIOLET,lineHeight:1}}>{post.score1}-{post.score2}</div>
+                    </div>
+                  ) : (
+                    <div style={{color:VIOLET,fontWeight:900,fontSize:'22px'}}>VS</div>
+                  )}
+                  <div style={{textAlign:'center',flex:1}}>
+                    {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
+                    <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
+                  </div>
                 </div>
-                <div style={{color:VIOLET,fontWeight:900,fontSize:'22px'}}>VS</div>
-                <div style={{textAlign:'center',flex:1}}>
-                  <div style={{fontSize:'56px',lineHeight:1}}>{drapeau(post.pays2)}</div>
-                  <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.pays2}</div>
-                </div>
+                {post.statut_match && (
+                  <div style={{textAlign:'center',marginTop:'16px'}}>
+                    <span style={{display:'inline-block',fontSize:'12px',fontWeight:900,color:'#fff',background:couleurStatut(post.statut_match),padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                      {post.statut_match === 'Mi-temps' && '⏸ '}
+                      {post.statut_match === 'Match terminé' && '✓ '}
+                      {post.statut_match === 'À venir' && '🔜 '}
+                      {post.statut_match}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+            ) : null}
 
             <div style={{width:'40px',height:'4px',background:VIOLET,borderRadius:'2px',marginBottom:'24px'}}/>
 
