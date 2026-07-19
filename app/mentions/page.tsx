@@ -53,7 +53,7 @@ export default function Mentions() {
         <section style={{marginBottom:'28px'}}>
           <h2 style={{fontWeight:900,fontSize:'20px',marginBottom:'8px'}}>Responsabilité</h2>
           <p style={{lineHeight:'1.7',fontSize:'15px',color:'#374151',margin:0}}>
-            MakeGoal fournit des informations et des pronostics à titre indicatif. SteFi Services ne peut être tenu responsable des pertes financières résultant de paris effectués sur la base de ces informations. Les paris sportifs comportent des risques et doivent être pratiqués avec modération.
+            MakeGoal est un média sportif qui publie des informations, analyses et contenus communautaires à titre informatif. SteFi Services met tout en œuvre pour la qualité de ses contenus mais ne peut garantir leur exactitude absolue. Les votes et pronostics de la communauté reflètent les opinions des membres et n&apos;engagent pas la responsabilité de l&apos;éditeur.
           </p>
         </section>
 
