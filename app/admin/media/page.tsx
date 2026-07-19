@@ -4,27 +4,19 @@ import { supabase } from '../../../lib/supabase';
 
 const VIOLET = '#bf00ff';
 
-const TAGS_DISPO = [
-  'Club', 'Sélection',
-  'Championnat', 'Coupe', 'Ligue des Champions', 'Euro', 'Éliminatoires', 'Copa America', 'CAN',
-  'Mi-temps', 'Match terminé', 'Statistiques',
-  'Transfert', 'En attente', 'Officiel'
+const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
+  { titre: 'Compétition', tags: ['Club', 'Sélection', 'Championnat', 'Coupe', 'Ligue des Champions', 'Coupe du Monde', 'Euro', 'Éliminatoires', 'Copa America', 'CAN'] },
+  { titre: 'Genre & catégorie', tags: ['Masculin', 'Féminin', 'U-17', 'U-20', 'Olympique'] },
+  { titre: 'Statut du match', tags: ['Match bientôt', 'Mi-temps', 'Match terminé', 'Statistiques'] },
+  { titre: 'Transfert', tags: ['Transfert', 'En attente', 'Officiel'] },
 ];
 
 type Article = {
-  id: string;
-  titre: string;
-  categorie: string;
-  type: string;
-  langue: string;
-  source_nom: string | null;
-  source_url: string | null;
-  tags: string[] | null;
-  image_couverture: string | null;
-  extrait: string | null;
-  contenu: string | null;
-  publie: boolean;
-  created_at: string;
+  id: string; titre: string; categorie: string; type: string; langue: string;
+  source_nom: string | null; source_url: string | null;
+  tags: string[] | null; pays1: string | null; pays2: string | null;
+  image_couverture: string | null; extrait: string | null; contenu: string | null;
+  publie: boolean; created_at: string;
 };
 
 export default function AdminMedia() {
@@ -49,6 +41,8 @@ export default function AdminMedia() {
   const [extrait, setExtrait] = useState('');
   const [contenu, setContenu] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [pays1, setPays1] = useState('');
+  const [pays2, setPays2] = useState('');
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
@@ -79,20 +73,23 @@ export default function AdminMedia() {
     setMessage('✅ Image uploadée !');
   };
 
-  const nouvelArticle = () => {
-    setEditId(null); setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
+  const resetForm = () => {
+    setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
     setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
-    setTags([]);
-    setVue('editer');
+    setTags([]); setPays1(''); setPays2('');
   };
+
+  const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
 
   const editerArticle = (a: Article) => {
     setEditId(a.id); setTitre(a.titre); setType(a.type || 'article'); setLangue(a.langue || 'fr');
     setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
-    setTags(a.tags || []);
+    setTags(a.tags || []); setPays1(a.pays1 || ''); setPays2(a.pays2 || '');
     setVue('editer');
   };
+
+  const toggleTag = (t: string) => setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const sauvegarder = async (publier: boolean) => {
     if (!titre) { setMessage('❌ Titre obligatoire.'); return; }
@@ -100,7 +97,7 @@ export default function AdminMedia() {
     const payload = {
       titre, type, langue, categorie,
       source_nom: sourceNom || null, source_url: sourceUrl || null,
-      tags,
+      tags, pays1: pays1 || null, pays2: pays2 || null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -132,61 +129,55 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
-  const toggleTag = (t: string) => {
-    setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
-  };
-
-  const inputStyle = {width:'100%',padding:'12px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'14px',boxSizing:'border-box' as const};
-  const labelStyle = {fontSize:'12px',color:'#9ca3af',display:'block' as const,marginBottom:'6px'};
+  const inputStyle = {width:'100%',padding:'12px',borderRadius:'10px',border:'1px solid #333',background:'#1e1e1e',color:'#fff',fontSize:'14px',boxSizing:'border-box' as const};
+  const labelStyle = {fontSize:'12px',color:'#9ca3af',display:'block' as const,marginBottom:'6px',fontWeight:700 as const,textTransform:'uppercase' as const,letterSpacing:'0.5px'};
+  const sectionStyle = {background:'#161616',border:'1px solid #2a2a2a',borderRadius:'14px',padding:'20px',marginBottom:'16px'};
 
   if (!connecte) {
     return (
-      <div style={{minHeight:'100vh',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
-        <div style={{background:'#1a1a1a',padding:'40px',borderRadius:'16px',width:'100%',maxWidth:'380px',border:'1px solid #333'}}>
-          <h1 style={{color:VIOLET,fontWeight:900,fontSize:'24px',marginBottom:'8px',textAlign:'center'}}>Admin Média</h1>
+      <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
+        <div style={{background:'#161616',padding:'40px',borderRadius:'20px',width:'100%',maxWidth:'380px',border:'1px solid #2a2a2a'}}>
+          <h1 style={{color:VIOLET,fontWeight:900,fontSize:'24px',marginBottom:'8px',textAlign:'center'}}>📰 Admin Média</h1>
           <p style={{color:'#6b7280',fontSize:'13px',textAlign:'center',marginBottom:'24px'}}>Accès réservé</p>
           {erreurAuth && <p style={{color:'#ef4444',fontSize:'13px',marginBottom:'12px',textAlign:'center'}}>{erreurAuth}</p>}
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{width:'100%',padding:'12px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'14px',marginBottom:'12px',boxSizing:'border-box'}}/>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{width:'100%',padding:'12px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'14px',marginBottom:'16px',boxSizing:'border-box'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
-          <button onClick={seConnecter} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'8px',border:'none',cursor:'pointer',fontSize:'15px'}}>Se connecter</button>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{...inputStyle,marginBottom:'12px'}}/>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,marginBottom:'16px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
+          <button onClick={seConnecter} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'10px',border:'none',cursor:'pointer',fontSize:'15px'}}>Se connecter</button>
         </div>
       </div>
     );
   }
 
   const btnChoix = (actif: boolean) => ({
-    flex:1, padding:'10px', borderRadius:'8px', border:actif?'2px solid '+VIOLET:'1px solid #333',
-    background:actif?'#2a1a3a':'#222', color:actif?'#fff':'#9ca3af', cursor:'pointer', fontWeight:700, fontSize:'13px'
+    flex:1, padding:'12px', borderRadius:'10px', border:actif?'2px solid '+VIOLET:'1px solid #333',
+    background:actif?'#2a1a3a':'#1e1e1e', color:actif?'#fff':'#9ca3af', cursor:'pointer', fontWeight:700, fontSize:'13px'
   });
 
   return (
-    <div style={{minHeight:'100vh',background:'#0f0f0f',fontFamily:'sans-serif'}}>
-      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222'}}>
+    <div style={{minHeight:'100vh',background:'#0a0a0a',fontFamily:'sans-serif'}}>
+      <header style={{background:'#111',padding:'14px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222',position:'sticky',top:0,zIndex:10}}>
         <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>📰 Admin Média</h1>
         <div style={{display:'flex',gap:'8px'}}>
-          <a href="/admin" style={{background:'#333',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin</a>
-          <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
-          <button onClick={nouvelArticle} style={{background:vue==='editer'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
+          <a href="/admin" style={{background:'#2a2a2a',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin</a>
+          <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#2a2a2a',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
+          <button onClick={nouvelArticle} style={{background:vue==='editer'?VIOLET:'#2a2a2a',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
         </div>
       </header>
 
       {message && <div style={{padding:'12px 24px',background:message.includes('❌')?'#7f1d1d':'#064e3b',color:message.includes('❌')?'#fca5a5':'#6ee7b7',fontWeight:700,fontSize:'14px'}}>{message}</div>}
 
-      <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 16px'}}>
+      <main style={{maxWidth:'760px',margin:'0 auto',padding:'24px 16px'}}>
 
         {vue === 'editer' && (
-          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
-            <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'20px'}}>{editId ? 'Modifier' : 'Nouveau contenu'}</h2>
+          <div>
+            <h2 style={{color:'#fff',fontWeight:900,fontSize:'22px',marginBottom:'20px'}}>{editId ? '✏️ Modifier' : '✨ Nouveau contenu'}</h2>
 
-            <div style={{marginBottom:'16px'}}>
+            <div style={sectionStyle}>
               <label style={labelStyle}>Format</label>
-              <div style={{display:'flex',gap:'8px'}}>
+              <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
                 <button onClick={() => setType('article')} style={btnChoix(type==='article')}>📄 Article (long)</button>
-                <button onClick={() => setType('post')} style={btnChoix(type==='post')}>⚡ Post (bref, style Romano)</button>
+                <button onClick={() => setType('post')} style={btnChoix(type==='post')}>⚡ Post (bref)</button>
               </div>
-            </div>
-
-            <div style={{marginBottom:'16px'}}>
               <label style={labelStyle}>Langue</label>
               <div style={{display:'flex',gap:'8px'}}>
                 <button onClick={() => setLangue('fr')} style={btnChoix(langue==='fr')}>🇫🇷 Français</button>
@@ -194,61 +185,79 @@ export default function AdminMedia() {
               </div>
             </div>
 
-            <div style={{marginBottom:'16px'}}>
+            <div style={sectionStyle}>
               <label style={labelStyle}>Titre *</label>
-              <input value={titre} onChange={e => setTitre(e.target.value)} placeholder={type==='post'?'L\'info percutante':'Titre de l\'article'} style={inputStyle}/>
-            </div>
-
-            <div style={{marginBottom:'16px'}}>
+              <input value={titre} onChange={e => setTitre(e.target.value)} placeholder={type==='post'?"L'info percutante":"Titre de l'article"} style={{...inputStyle,marginBottom:'16px',fontSize:'16px',fontWeight:700}}/>
               <label style={labelStyle}>Catégorie</label>
               <select value={categorie} onChange={e => setCategorie(e.target.value)} style={inputStyle}>
                 <option value="Actualités">Actualités</option>
                 <option value="Revue de presse">Revue de presse</option>
+                <option value="Ponctuel">Ponctuel</option>
               </select>
             </div>
 
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
-              <div><label style={labelStyle}>Source (nom)</label><input value={sourceNom} onChange={e => setSourceNom(e.target.value)} placeholder="Fabrizio Romano, L'Équipe..." style={inputStyle}/></div>
-              <div><label style={labelStyle}>Lien source (optionnel)</label><input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://..." style={inputStyle}/></div>
+            {type === 'post' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>⚽ Affiche de match (optionnel)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Pour un post "Qui va gagner ?". Tapez les pays, les drapeaux s'afficheront en grand.</p>
+                <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                  <input value={pays1} onChange={e => setPays1(e.target.value)} placeholder="France" style={inputStyle}/>
+                  <span style={{color:VIOLET,fontWeight:900}}>VS</span>
+                  <input value={pays2} onChange={e => setPays2(e.target.value)} placeholder="Haïti" style={inputStyle}/>
+                </div>
+              </div>
+            )}
+
+            <div style={sectionStyle}>
+              <label style={labelStyle}>🏷️ Tags</label>
+              {TAGS_GROUPES.map(groupe => (
+                <div key={groupe.titre} style={{marginBottom:'14px'}}>
+                  <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>{groupe.titre}</p>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                    {groupe.tags.map(t => (
+                      <button key={t} type="button" onClick={() => toggleTag(t)} style={{
+                        padding:'6px 12px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                        border: tags.includes(t) ? '2px solid '+VIOLET : '1px solid #333',
+                        background: tags.includes(t) ? VIOLET : '#1e1e1e',
+                        color: tags.includes(t) ? '#fff' : '#9ca3af'
+                      }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Tags (cliquez pour ajouter)</label>
-              <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
-                {TAGS_DISPO.map(t => (
-                  <button key={t} type="button" onClick={() => toggleTag(t)} style={{
-                    padding:'6px 12px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                    border: tags.includes(t) ? '2px solid '+VIOLET : '1px solid #333',
-                    background: tags.includes(t) ? VIOLET : '#222',
-                    color: tags.includes(t) ? '#fff' : '#9ca3af'
-                  }}>{t}</button>
-                ))}
+            <div style={sectionStyle}>
+              <label style={labelStyle}>📎 Source (optionnel)</label>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                <input value={sourceNom} onChange={e => setSourceNom(e.target.value)} placeholder="Fabrizio Romano, L'Équipe..." style={inputStyle}/>
+                <input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://... (lien)" style={inputStyle}/>
               </div>
             </div>
 
-            <div style={{marginBottom:'16px'}}>
-              <label style={labelStyle}>Image {type==='post'?'(optionnelle)':'de couverture'}</label>
+            <div style={sectionStyle}>
+              <label style={labelStyle}>🖼️ Image {type==='post'?'(optionnelle)':'de couverture'}</label>
               <input type="file" accept="image/*" onChange={uploadImage} style={{...inputStyle,padding:'8px'}}/>
               {uploading && <p style={{color:'#f59e0b',fontSize:'12px',margin:'8px 0 0'}}>⏳ Upload...</p>}
-              {imageCouverture && <img src={imageCouverture} alt="" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'8px',marginTop:'12px'}}/>}
+              {imageCouverture && <img src={imageCouverture} alt="" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'10px',marginTop:'12px'}}/>}
             </div>
 
             {type === 'article' && (
-              <div style={{marginBottom:'16px'}}>
+              <div style={sectionStyle}>
                 <label style={labelStyle}>Extrait (résumé pour la liste)</label>
                 <textarea value={extrait} onChange={e => setExtrait(e.target.value)} rows={2} placeholder="Résumé court..." style={{...inputStyle,resize:'vertical'}}/>
               </div>
             )}
 
-            <div style={{marginBottom:'20px'}}>
-              <label style={labelStyle}>{type==='post' ? 'Le texte du post' : 'Contenu (Markdown)'}</label>
+            <div style={sectionStyle}>
+              <label style={labelStyle}>{type==='post' ? '✍️ Le texte du post' : '✍️ Contenu (Markdown)'}</label>
               {type === 'article' && <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px'}}>## titre, **gras**, *italique*, ![img](url), [lien](url)</p>}
               <textarea value={contenu} onChange={e => setContenu(e.target.value)} rows={type==='post'?6:16} placeholder={type==='post'?'Écrivez votre brève percutante...':'Écrivez votre article...'} style={{...inputStyle,resize:'vertical',lineHeight:'1.6',fontFamily:type==='article'?'monospace':'inherit'}}/>
             </div>
 
-            <div style={{display:'flex',gap:'12px'}}>
-              <button onClick={() => sauvegarder(false)} disabled={saving} style={{flex:1,padding:'14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>💾 Brouillon</button>
-              <button onClick={() => sauvegarder(true)} disabled={saving} style={{flex:1,padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{saving ? '...' : '🚀 Publier'}</button>
+            <div style={{display:'flex',gap:'12px',position:'sticky',bottom:'16px'}}>
+              <button onClick={() => sauvegarder(false)} disabled={saving} style={{flex:1,padding:'16px',background:'#374151',color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>💾 Brouillon</button>
+              <button onClick={() => sauvegarder(true)} disabled={saving} style={{flex:2,padding:'16px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:900,fontSize:'15px',cursor:'pointer',boxShadow:'0 4px 16px rgba(191,0,255,0.4)'}}>{saving ? '...' : '🚀 Publier'}</button>
             </div>
           </div>
         )}
@@ -257,12 +266,13 @@ export default function AdminMedia() {
           <>
             {articles.length === 0 && <p style={{color:'#6b7280'}}>Aucun contenu.</p>}
             {articles.map(a => (
-              <div key={a.id} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'16px',marginBottom:'12px',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}}>
-                {a.image_couverture && <img src={a.image_couverture} alt={a.titre} style={{width:'80px',height:'60px',objectFit:'cover',borderRadius:'8px'}}/>}
+              <div key={a.id} style={{background:'#161616',border:'1px solid #2a2a2a',borderRadius:'14px',padding:'16px',marginBottom:'12px',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}}>
+                {a.image_couverture && <img src={a.image_couverture} alt={a.titre} style={{width:'80px',height:'60px',objectFit:'cover',borderRadius:'10px'}}/>}
                 <div style={{flex:1,minWidth:'200px'}}>
-                  <div style={{display:'flex',gap:'6px',marginBottom:'4px',flexWrap:'wrap'}}>
-                    <span style={{fontSize:'10px',background:a.type==='post'?VIOLET:'#374151',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.type==='post'?'⚡ Post':'📄 Article'}</span>
-                    <span style={{fontSize:'10px',background:'#222',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.langue==='kreyol'?'🇭🇹 Kreyòl':'🇫🇷 FR'}</span>
+                  <div style={{display:'flex',gap:'6px',marginBottom:'6px',flexWrap:'wrap'}}>
+                    <span style={{fontSize:'10px',background:a.type==='post'?VIOLET:'#374151',color:'#fff',padding:'2px 8px',borderRadius:'999px',fontWeight:700}}>{a.type==='post'?'⚡ Post':'📄 Article'}</span>
+                    <span style={{fontSize:'10px',background:'#1e1e1e',color:'#fff',padding:'2px 8px',borderRadius:'999px'}}>{a.langue==='kreyol'?'🇭🇹 Kreyòl':'🇫🇷 FR'}</span>
+                    <span style={{fontSize:'10px',background:'#1e1e1e',color:'#9ca3af',padding:'2px 8px',borderRadius:'999px'}}>{a.categorie}</span>
                   </div>
                   <p style={{color:'#fff',fontWeight:700,margin:'4px 0 2px',fontSize:'15px'}}>{a.titre}</p>
                   {a.source_nom && <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>Source : {a.source_nom}</p>}
