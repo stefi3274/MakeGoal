@@ -54,13 +54,29 @@ export default function AdminMatchs() {
 
   const editerMatch = (m: Match) => {
     setEditId(m.id); setEquipe1(m.equipe1); setEquipe2(m.equipe2);
-    setCompetition(m.competition || ''); setDateMatch(m.date_match ? m.date_match.slice(0,16) : '');
+    setCompetition(m.competition || ''); setDateMatch(m.date_match ? versLocal(m.date_match) : '');
     setVue('nouveau');
+  };
+
+  // Convertit une date UTC stockée vers l'heure d'Haïti pour pré-remplir le champ (format datetime-local)
+  const versLocal = (utc: string) => {
+    const d = new Date(utc);
+    // décale de -4h pour obtenir l'heure d'Haïti puis formate en YYYY-MM-DDTHH:mm
+    const haiti = new Date(d.getTime() - 4 * 3600 * 1000);
+    return haiti.toISOString().slice(0, 16);
+  };
+
+  // Haïti est à UTC-4. La saisie datetime-local n'a pas de fuseau : on l'ancre à -04:00.
+  const versUTC = (local: string) => {
+    if (!local) return local;
+    // local = "2026-07-19T15:00" -> on force le fuseau Haïti puis on convertit en ISO UTC
+    const d = new Date(local + ':00-04:00');
+    return d.toISOString();
   };
 
   const sauvegarder = async () => {
     if (!equipe1 || !equipe2 || !dateMatch) { setMessage('❌ Équipes et date obligatoires.'); return; }
-    const payload = { equipe1, equipe2, competition: competition || null, date_match: dateMatch };
+    const payload = { equipe1, equipe2, competition: competition || null, date_match: versUTC(dateMatch) };
     if (editId) {
       const { error } = await supabase.from('matchs').update(payload).eq('id', editId);
       if (error) { setMessage('❌ ' + error.message); return; }
