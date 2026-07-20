@@ -4,6 +4,16 @@ import { supabase } from '../../../lib/supabase';
 
 const VIOLET = '#bf00ff';
 
+const DISTINCTIONS = [
+  'Ballon d\'or',
+  'Joueur du mois', 'Joueur de la semaine', 'Homme du match',
+  'Meilleur buteur', 'Meilleur passeur', 'Meilleur gardien',
+  'Meilleur jeune / Révélation', 'Meilleur entraîneur', 'MVP du tournoi',
+  'Équipe de la semaine', 'Équipe du mois', 'Équipe du tournoi',
+  'Meilleure attaque', 'Meilleure défense', 'Équipe fair-play',
+  'Autre'
+];
+
 const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
   { titre: 'Compétition', tags: ['Club', 'Sélection', 'Championnat', 'Coupe', 'Ligue des Champions', 'Coupe du Monde', 'Euro', 'Éliminatoires', 'Copa America', 'CAN'] },
   { titre: 'Genre & catégorie', tags: ['Masculin', 'Féminin', 'U-17', 'U-20', 'Olympique'] },
@@ -18,6 +28,7 @@ type Article = {
   ligue: string | null; ligue_logo: string | null;
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
+  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -54,6 +65,11 @@ export default function AdminMedia() {
   const [score2, setScore2] = useState('');
   const [statutMatch, setStatutMatch] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [distinctionType, setDistinctionType] = useState('');
+  const [distinctionAutre, setDistinctionAutre] = useState('');
+  const [laureat, setLaureat] = useState('');
+  const [distinctionNote, setDistinctionNote] = useState('');
+  const [distinctionStats, setDistinctionStats] = useState('');
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
@@ -102,6 +118,7 @@ export default function AdminMedia() {
     setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
+    setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -116,6 +133,10 @@ export default function AdminMedia() {
     setScore1(a.score1 !== null && a.score1 !== undefined ? String(a.score1) : '');
     setScore2(a.score2 !== null && a.score2 !== undefined ? String(a.score2) : '');
     setStatutMatch(a.statut_match || '');
+    const dt = a.distinction_type || '';
+    if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
+    else { setDistinctionType(dt); setDistinctionAutre(''); }
+    setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setVue('editer');
   };
 
@@ -134,6 +155,10 @@ export default function AdminMedia() {
       score2: score2 !== '' ? parseInt(score2) : null,
       statut_match: statutMatch || null,
       statut_change_at: statutMatch ? new Date().toISOString() : null,
+      distinction_type: distinctionType === 'Autre' ? (distinctionAutre || null) : (distinctionType || null),
+      laureat: laureat || null,
+      distinction_note: distinctionNote || null,
+      distinction_stats: distinctionStats || null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -277,6 +302,36 @@ export default function AdminMedia() {
                     }}>{s === '' ? 'Aucun' : s}</button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {type === 'post' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🏆 Distinction (optionnel)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Pour un post récompense : joueur du mois, équipe de la semaine...</p>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Type de distinction</p>
+                <select value={distinctionType} onChange={e => setDistinctionType(e.target.value)} style={{...inputStyle,marginBottom:'12px'}}>
+                  <option value="">— Aucune —</option>
+                  {DISTINCTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+
+                {distinctionType === 'Autre' && (
+                  <input value={distinctionAutre} onChange={e => setDistinctionAutre(e.target.value)} placeholder="Votre distinction (ex: Meilleur gardien de la CAN)" style={{...inputStyle,marginBottom:'12px'}}/>
+                )}
+
+                {distinctionType && (
+                  <>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Lauréat (joueur ou équipe)</p>
+                    <input value={laureat} onChange={e => setLaureat(e.target.value)} placeholder="Nom du joueur ou de l'équipe" style={{...inputStyle,marginBottom:'12px'}}/>
+
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Stats / chiffres (optionnel)</p>
+                    <input value={distinctionStats} onChange={e => setDistinctionStats(e.target.value)} placeholder="Ex: 12 buts, 5 passes décisives" style={{...inputStyle,marginBottom:'12px'}}/>
+
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Note / justification (optionnel)</p>
+                    <textarea value={distinctionNote} onChange={e => setDistinctionNote(e.target.value)} rows={2} placeholder="Pourquoi cette distinction..." style={{...inputStyle,resize:'vertical'}}/>
+                  </>
+                )}
               </div>
             )}
 

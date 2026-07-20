@@ -55,6 +55,7 @@ type Post = {
   ligue: string | null; ligue_logo: string | null;
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
+  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 type Commentaire = {
@@ -257,6 +258,18 @@ export default function PostPage() {
                 )}
               </div>
             ) : null}
+
+            {post.distinction_type && (
+              <div style={{margin:'8px 0 24px',padding:'24px',background:'linear-gradient(135deg,#fef9e7,#faf5ff)',borderRadius:'16px',border:'2px solid #ffd700',textAlign:'center'}}>
+                <div style={{fontSize:'40px',lineHeight:1,marginBottom:'8px'}}>🏆</div>
+                <div style={{fontSize:'13px',fontWeight:900,color:'#b8860b',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>{post.distinction_type}</div>
+                {post.laureat && <div style={{fontSize:'26px',fontWeight:900,color:'#111',marginBottom:'8px'}}>{post.laureat}</div>}
+                {post.distinction_stats && (
+                  <div style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'14px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'10px'}}>📊 {post.distinction_stats}</div>
+                )}
+                {post.distinction_note && <p style={{fontSize:'14px',color:'#6b7280',fontStyle:'italic',margin:'8px 0 0',lineHeight:'1.5'}}>{post.distinction_note}</p>}
+              </div>
+            )}
 
             <div style={{width:'40px',height:'4px',background:VIOLET,borderRadius:'2px',marginBottom:'24px'}}/>
 
