@@ -39,6 +39,17 @@ const DRAPEAUX: Record<string, string> = {
 };
 const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
+
+const FORMATIONS: Record<string, { x: number; y: number }[]> = {
+  '4-4-2': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},{x:38,y:20},{x:62,y:20}],
+  '4-3-3': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:30,y:48},{x:50,y:50},{x:70,y:48},{x:22,y:22},{x:50,y:18},{x:78,y:22}],
+  '4-2-3-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:36,y:54},{x:64,y:54},{x:22,y:32},{x:50,y:34},{x:78,y:32},{x:50,y:14}],
+  '3-5-2': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:12,y:50},{x:34,y:50},{x:50,y:52},{x:66,y:50},{x:88,y:50},{x:38,y:22},{x:62,y:22}],
+  '3-4-3': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:22,y:22},{x:50,y:18},{x:78,y:22}],
+  '5-3-2': [{x:50,y:92},{x:12,y:70},{x:31,y:74},{x:50,y:76},{x:69,y:74},{x:88,y:70},{x:30,y:48},{x:50,y:50},{x:70,y:48},{x:38,y:22},{x:62,y:22}],
+  '4-4-1-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:50,y:30},{x:50,y:12}]
+};
+
 const couleurStatut = (s: string) => {
   if (s === 'Mi-temps') return '#ef4444';
   if (s === 'Match terminé') return '#111111';
@@ -56,6 +67,7 @@ type Post = {
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
+  formation: string | null; onze: { nom: string; equipe: string }[] | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 type Commentaire = {
@@ -268,6 +280,35 @@ export default function PostPage() {
                   <div style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'14px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'10px'}}>📊 {post.distinction_stats}</div>
                 )}
                 {post.distinction_note && <p style={{fontSize:'14px',color:'#6b7280',fontStyle:'italic',margin:'8px 0 0',lineHeight:'1.5'}}>{post.distinction_note}</p>}
+              </div>
+            )}
+
+            {post.formation && post.onze && FORMATIONS[post.formation] && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'10px'}}>
+                  <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>Formation {post.formation}</span>
+                </div>
+                <div style={{position:'relative',width:'100%',paddingBottom:'125%',background:'linear-gradient(#2d7a3e,#1e5c2e)',borderRadius:'16px',overflow:'hidden'}}>
+                  <div style={{position:'absolute',top:'50%',left:0,right:0,height:'2px',background:'rgba(255,255,255,0.3)'}}/>
+                  <div style={{position:'absolute',top:'50%',left:'50%',width:'80px',height:'80px',border:'2px solid rgba(255,255,255,0.3)',borderRadius:'50%',transform:'translate(-50%,-50%)'}}/>
+                  <div style={{position:'absolute',bottom:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.3)',borderBottom:'none'}}/>
+                  <div style={{position:'absolute',top:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.3)',borderTop:'none'}}/>
+                  {FORMATIONS[post.formation].map((pos, i) => {
+                    const j = post.onze![i];
+                    if (!j) return null;
+                    const dr = drapeau(j.equipe);
+                    const estPays = dr !== '🏳️';
+                    return (
+                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:pos.y+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'80px'}}>
+                        <div style={{width:'30px',height:'30px',background:'#fff',borderRadius:'50%',margin:'0 auto 4px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',fontWeight:900,color:VIOLET,boxShadow:'0 2px 6px rgba(0,0,0,0.3)'}}>{i+1}</div>
+                        <div style={{background:'rgba(0,0,0,0.6)',borderRadius:'6px',padding:'2px 4px'}}>
+                          <div style={{color:'#fff',fontSize:'10px',fontWeight:900,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{j.nom}</div>
+                          {j.equipe && <div style={{color:'#e5e7eb',fontSize:'9px',lineHeight:1.3}}>{estPays ? dr : j.equipe}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

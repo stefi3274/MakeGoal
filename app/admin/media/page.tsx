@@ -4,6 +4,55 @@ import { supabase } from '../../../lib/supabase';
 
 const VIOLET = '#bf00ff';
 
+
+const FORMATIONS: Record<string, { x: number; y: number }[]> = {
+  '4-4-2': [
+    {x:50,y:92},
+    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
+    {x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},
+    {x:38,y:20},{x:62,y:20}
+  ],
+  '4-3-3': [
+    {x:50,y:92},
+    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
+    {x:30,y:48},{x:50,y:50},{x:70,y:48},
+    {x:22,y:22},{x:50,y:18},{x:78,y:22}
+  ],
+  '4-2-3-1': [
+    {x:50,y:92},
+    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
+    {x:36,y:54},{x:64,y:54},
+    {x:22,y:32},{x:50,y:34},{x:78,y:32},
+    {x:50,y:14}
+  ],
+  '3-5-2': [
+    {x:50,y:92},
+    {x:28,y:74},{x:50,y:76},{x:72,y:74},
+    {x:12,y:50},{x:34,y:50},{x:50,y:52},{x:66,y:50},{x:88,y:50},
+    {x:38,y:22},{x:62,y:22}
+  ],
+  '3-4-3': [
+    {x:50,y:92},
+    {x:28,y:74},{x:50,y:76},{x:72,y:74},
+    {x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},
+    {x:22,y:22},{x:50,y:18},{x:78,y:22}
+  ],
+  '5-3-2': [
+    {x:50,y:92},
+    {x:12,y:70},{x:31,y:74},{x:50,y:76},{x:69,y:74},{x:88,y:70},
+    {x:30,y:48},{x:50,y:50},{x:70,y:48},
+    {x:38,y:22},{x:62,y:22}
+  ],
+  '4-4-1-1': [
+    {x:50,y:92},
+    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
+    {x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},
+    {x:50,y:30},
+    {x:50,y:12}
+  ]
+};
+const FORMATIONS_LISTE = Object.keys(FORMATIONS);
+
 const DISTINCTIONS = [
   'Ballon d\'or',
   'Joueur du mois', 'Joueur de la semaine', 'Homme du match',
@@ -29,6 +78,7 @@ type Article = {
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
+  formation: string | null; onze: { nom: string; equipe: string }[] | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -70,6 +120,8 @@ export default function AdminMedia() {
   const [laureat, setLaureat] = useState('');
   const [distinctionNote, setDistinctionNote] = useState('');
   const [distinctionStats, setDistinctionStats] = useState('');
+  const [formation, setFormation] = useState('');
+  const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
@@ -119,6 +171,7 @@ export default function AdminMedia() {
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
+    setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -137,7 +190,14 @@ export default function AdminMedia() {
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
+    setFormation(a.formation || '');
+    if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
+    else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setVue('editer');
+  };
+
+  const setJoueur = (i: number, champ: 'nom' | 'equipe', val: string) => {
+    setOnze(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   };
 
   const toggleTag = (t: string) => setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
@@ -159,6 +219,8 @@ export default function AdminMedia() {
       laureat: laureat || null,
       distinction_note: distinctionNote || null,
       distinction_stats: distinctionStats || null,
+      formation: formation || null,
+      onze: formation ? onze : null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -331,6 +393,34 @@ export default function AdminMedia() {
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Note / justification (optionnel)</p>
                     <textarea value={distinctionNote} onChange={e => setDistinctionNote(e.target.value)} rows={2} placeholder="Pourquoi cette distinction..." style={{...inputStyle,resize:'vertical'}}/>
                   </>
+                )}
+              </div>
+            )}
+
+            {type === 'post' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>👥 Onze type (optionnel)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Équipe de la semaine / du tournoi. Choisissez la formation puis remplissez les 11 joueurs.</p>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Formation</p>
+                <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
+                  <button type="button" onClick={() => setFormation('')} style={{padding:'8px 14px',borderRadius:'999px',cursor:'pointer',fontSize:'12px',fontWeight:700,border:formation===''?'2px solid '+VIOLET:'1px solid #333',background:formation===''?VIOLET:'#1e1e1e',color:formation===''?'#fff':'#9ca3af'}}>Aucune</button>
+                  {FORMATIONS_LISTE.map(f => (
+                    <button key={f} type="button" onClick={() => setFormation(f)} style={{padding:'8px 14px',borderRadius:'999px',cursor:'pointer',fontSize:'12px',fontWeight:700,border:formation===f?'2px solid '+VIOLET:'1px solid #333',background:formation===f?VIOLET:'#1e1e1e',color:formation===f?'#fff':'#9ca3af'}}>{f}</button>
+                  ))}
+                </div>
+
+                {formation && (
+                  <div>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Les 11 joueurs (n°1 = gardien)</p>
+                    {onze.map((j, i) => (
+                      <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                        <span style={{color:VIOLET,fontWeight:900,fontSize:'13px',width:'22px'}}>{i+1}</span>
+                        <input value={j.nom} onChange={e => setJoueur(i,'nom',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:2}}/>
+                        <input value={j.equipe} onChange={e => setJoueur(i,'equipe',e.target.value)} placeholder="Équipe / Pays" style={{...inputStyle,flex:2}}/>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
