@@ -5,14 +5,14 @@ import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import { postVisible } from '../lib/postVisible';
+import { postVisible, matchVisible } from '../lib/postVisible';
 
 const VIOLET = '#bf00ff';
 
 type Article = {
   id: string; titre: string; categorie: string;
   type: string; langue: string;
-  statut_match: string | null; statut_change_at: string | null;
+  statut_match: string | null; statut_change_at: string | null; relance_at: string | null;
   image_couverture: string | null; extrait: string | null;
   auteur: string; created_at: string;
 };
@@ -43,12 +43,16 @@ export default function Home() {
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
   const chargerTout = async () => {
-    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
+    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, relance_at, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
     if (arts) setArticles(arts.filter(postVisible));
     const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
-    if (mts) { setMatchs(mts); mts.forEach(m => chargerStats(m.id)); }
+    if (mts) { const visibles = mts.filter(m => matchVisible(m.date_match)); setMatchs(visibles); visibles.forEach(m => chargerStats(m.id)); }
     const { data: c } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();
-    if (c) setConcours(c);
+    if (c) {
+      // Le concours disparaît quand son dernier match + 2h est passé
+      const { data: cm } = await supabase.from('concours_matchs').select('date_match').eq('concours_id', c.id).order('date_match', { ascending: false }).limit(1).single();
+      if (!cm || matchVisible(cm.date_match)) setConcours(c);
+    }
     setLoading(false);
   };
 

@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { matchVisible } from '../../lib/postVisible';
 
 const VIOLET = '#bf00ff';
 
@@ -35,7 +36,7 @@ export default function MatchsPage() {
 
   const chargerMatchs = async () => {
     const { data } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
-    if (data) { setMatchs(data); data.forEach(m => chargerStats(m.id)); }
+    if (data) { const visibles = data.filter(m => matchVisible(m.date_match)); setMatchs(visibles); visibles.forEach(m => chargerStats(m.id)); }
     setLoading(false);
   };
 

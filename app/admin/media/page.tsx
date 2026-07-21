@@ -79,6 +79,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
+  relance_at: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -86,6 +87,7 @@ type Article = {
 export default function AdminMedia() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [voirMdp, setVoirMdp] = useState(false);
   const [connecte, setConnecte] = useState(false);
   const [erreurAuth, setErreurAuth] = useState('');
   const [articles, setArticles] = useState<Article[]>([]);
@@ -252,6 +254,12 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
+  const relancer = async (a: Article) => {
+    await supabase.from('articles').update({ relance_at: new Date().toISOString(), publie: true }).eq('id', a.id);
+    setMessage('✅ Post relancé pour 1 semaine !');
+    chargerArticles();
+  };
+
   const inputStyle = {width:'100%',padding:'12px',borderRadius:'10px',border:'1px solid #333',background:'#1e1e1e',color:'#fff',fontSize:'14px',boxSizing:'border-box' as const};
   const labelStyle = {fontSize:'12px',color:'#9ca3af',display:'block' as const,marginBottom:'6px',fontWeight:700 as const,textTransform:'uppercase' as const,letterSpacing:'0.5px'};
   const sectionStyle = {background:'#161616',border:'1px solid #2a2a2a',borderRadius:'14px',padding:'20px',marginBottom:'16px'};
@@ -264,7 +272,10 @@ export default function AdminMedia() {
           <p style={{color:'#6b7280',fontSize:'13px',textAlign:'center',marginBottom:'24px'}}>Accès réservé</p>
           {erreurAuth && <p style={{color:'#ef4444',fontSize:'13px',marginBottom:'12px',textAlign:'center'}}>{erreurAuth}</p>}
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{...inputStyle,marginBottom:'12px'}}/>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,marginBottom:'16px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
+          <div style={{position:'relative',marginBottom:'16px'}}>
+            <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,paddingRight:'44px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
+            <button type="button" onClick={() => setVoirMdp(v => !v)} style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px'}}>{voirMdp ? '🙈' : '👁️'}</button>
+          </div>
           <button onClick={seConnecter} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'10px',border:'none',cursor:'pointer',fontSize:'15px'}}>Se connecter</button>
         </div>
       </div>
@@ -496,6 +507,7 @@ export default function AdminMedia() {
                 </div>
                 <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                   <button onClick={() => togglePublie(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:a.publie?'#10b981':'#374151',color:'#fff'}}>{a.publie ? '✓ Publié' : 'Brouillon'}</button>
+                  {a.type === 'post' && a.categorie === 'Ponctuel' && <button onClick={() => relancer(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #f59e0b',background:'transparent',color:'#f59e0b',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🔄 Relancer</button>}
                   <button onClick={() => editerArticle(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid '+VIOLET,background:'transparent',color:VIOLET,cursor:'pointer',fontWeight:700,fontSize:'11px'}}>✏️</button>
                   <button onClick={() => supprimer(a.id)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #ef4444',background:'transparent',color:'#ef4444',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🗑️</button>
                 </div>
