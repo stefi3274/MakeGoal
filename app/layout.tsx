@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MakeGoal — Pronostics Coupe du Monde 2026",
-  description: "Bonne analyse. Bons chiffres. Les meilleurs pronostics pour la Coupe du Monde 2026. Pariez intelligemment.",
+  title: "MakeGoal — N ap enfòme w",
+  description: "Média sportif haïtien : actualités, analyses, matchs et communauté.",
   openGraph: {
-    title: "MakeGoal — Pronostics Coupe du Monde 2026",
-    description: "Bonne analyse. Bons chiffres. Pariez intelligemment.",
+    title: "MakeGoal — N ap enfòme w",
+    description: "Média sportif haïtien : actualités, analyses, matchs et communauté.",
     url: "https://makegoal.vercel.app",
     siteName: "MakeGoal",
     images: [
@@ -34,8 +34,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "MakeGoal — Pronostics Coupe du Monde 2026",
-    description: "Bonne analyse. Bons chiffres. Pariez intelligemment.",
+    title: "MakeGoal — N ap enfòme w",
+    description: "Média sportif haïtien : actualités, analyses, matchs et communauté.",
     images: ["https://makegoal.vercel.app/og-image.jpg"],
   },
 };
