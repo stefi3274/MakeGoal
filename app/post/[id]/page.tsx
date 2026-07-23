@@ -50,6 +50,13 @@ const FORMATIONS: Record<string, { x: number; y: number }[]> = {
   '4-4-1-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:50,y:30},{x:50,y:12}]
 };
 
+const couleurLigne = (c: string | undefined) => {
+  if (c === 'vert') return '#10b981';
+  if (c === 'orange') return '#f59e0b';
+  if (c === 'rouge') return '#ef4444';
+  return 'transparent';
+};
+
 const couleurStatut = (s: string) => {
   if (s === 'Mi-temps') return '#ef4444';
   if (s === 'Match terminé') return '#111111';
@@ -68,6 +75,8 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
+  classement_type: string | null; classement_titre: string | null;
+  classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 type Commentaire = {
@@ -308,6 +317,32 @@ export default function PostPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {post.classement_type && post.classement && post.classement.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                {post.classement_titre && (
+                  <div style={{textAlign:'center',marginBottom:'12px'}}>
+                    <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px'}}>📊 {post.classement_titre}</span>
+                  </div>
+                )}
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'12px',overflow:'hidden'}}>
+                  <div style={{display:'flex',background:'#faf5ff',padding:'8px 10px 8px 14px',fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                    <span style={{width:'28px'}}>#</span>
+                    <span style={{flex:2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
+                    <span style={{flex:1.5}}>{post.classement_type === 'equipes' ? 'J' : 'Équipe'}</span>
+                    <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : 'Nb'}</span>
+                  </div>
+                  {post.classement.map((l, i) => (
+                    <div key={i} style={{display:'flex',padding:'9px 10px',fontSize:'13px',borderTop:'1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd',alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
+                      <span style={{width:'28px',fontWeight:900,color:i<3?VIOLET:'#9ca3af'}}>{l.pos}</span>
+                      <span style={{flex:2,fontWeight:700,color:'#111'}}>{l.nom}</span>
+                      <span style={{flex:1.5,color:'#6b7280',fontSize:'12px'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
+                      <span style={{flex:1,textAlign:'right',fontWeight:900,color:VIOLET}}>{l.val}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

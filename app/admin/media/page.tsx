@@ -80,6 +80,8 @@ type Article = {
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   relance_at: string | null;
+  classement_type: string | null; classement_titre: string | null;
+  classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -122,6 +124,11 @@ export default function AdminMedia() {
   const [laureat, setLaureat] = useState('');
   const [distinctionNote, setDistinctionNote] = useState('');
   const [distinctionStats, setDistinctionStats] = useState('');
+  const [classementType, setClassementType] = useState('');
+  const [classementTitre, setClassementTitre] = useState('');
+  const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; val: string; couleur: string }[]>(
+    Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''}))
+  );
   const [formation, setFormation] = useState('');
   const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
 
@@ -174,6 +181,8 @@ export default function AdminMedia() {
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
+    setClassementType(''); setClassementTitre('');
+    setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -192,11 +201,27 @@ export default function AdminMedia() {
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
+    setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
+    if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
+    else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
     setFormation(a.formation || '');
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setVue('editer');
   };
+
+  const setLigne = (i: number, champ: 'pos' | 'nom' | 'extra' | 'val' | 'couleur', val: string) => {
+    setClassement(prev => prev.map((l, idx) => idx === i ? { ...l, [champ]: val } : l));
+  };
+
+  const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', val:'', couleur:'' }]);
+
+  const COULEURS_LIGNE = [
+    { cle: '', label: '—', hex: 'transparent' },
+    { cle: 'vert', label: 'Qualifié', hex: '#10b981' },
+    { cle: 'orange', label: 'Barrage', hex: '#f59e0b' },
+    { cle: 'rouge', label: 'Éliminé', hex: '#ef4444' },
+  ];
 
   const setJoueur = (i: number, champ: 'nom' | 'equipe', val: string) => {
     setOnze(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
@@ -207,6 +232,13 @@ export default function AdminMedia() {
   const sauvegarder = async (publier: boolean) => {
     if (!titre) { setMessage('❌ Titre obligatoire.'); return; }
     setSaving(true); setMessage('');
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) {
+      setSaving(false);
+      setMessage('❌ Session expirée. Reconnectez-vous.');
+      setConnecte(false);
+      return;
+    }
     const payload = {
       titre, type, langue, categorie,
       source_nom: sourceNom || null, source_url: sourceUrl || null,
@@ -223,6 +255,9 @@ export default function AdminMedia() {
       distinction_stats: distinctionStats || null,
       formation: formation || null,
       onze: formation ? onze : null,
+      classement_type: classementType || null,
+      classement_titre: classementTitre || null,
+      classement: classementType ? classement.filter(l => l.nom) : null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -327,6 +362,7 @@ export default function AdminMedia() {
                 <option value="Actualités">Actualités</option>
                 <option value="Revue de presse">Revue de presse</option>
                 <option value="Ponctuel">Ponctuel</option>
+                <option value="Classement">Classement</option>
               </select>
             </div>
 
@@ -404,6 +440,59 @@ export default function AdminMedia() {
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Note / justification (optionnel)</p>
                     <textarea value={distinctionNote} onChange={e => setDistinctionNote(e.target.value)} rows={2} placeholder="Pourquoi cette distinction..." style={{...inputStyle,resize:'vertical'}}/>
                   </>
+                )}
+              </div>
+            )}
+
+            {type === 'post' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📊 Classement (optionnel)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Classement d'équipes (groupe, FIFA, championnat) ou de joueurs (buteurs, passeurs).</p>
+
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+                  <button type="button" onClick={() => setClassementType('')} style={btnChoix(classementType==='')}>Aucun</button>
+                  <button type="button" onClick={() => setClassementType('equipes')} style={btnChoix(classementType==='equipes')}>🛡️ Équipes</button>
+                  <button type="button" onClick={() => setClassementType('joueurs')} style={btnChoix(classementType==='joueurs')}>👤 Joueurs</button>
+                </div>
+
+                {classementType && (
+                  <div>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
+                    <input value={classementTitre} onChange={e => setClassementTitre(e.target.value)} placeholder={classementType==='equipes'?'Ex: Groupe A / Classement FIFA':'Ex: Meilleurs buteurs Ligue 1'} style={{...inputStyle,marginBottom:'14px'}}/>
+
+                    <div style={{display:'flex',gap:'6px',marginBottom:'6px',fontSize:'10px',color:'#6b7280',fontWeight:700,textTransform:'uppercase'}}>
+                      <span style={{width:'34px'}}>Pos</span>
+                      <span style={{flex:2}}>{classementType==='equipes'?'Équipe':'Joueur'}</span>
+                      <span style={{flex:1.5}}>{classementType==='equipes'?'Joués':'Équipe'}</span>
+                      <span style={{flex:1}}>{classementType==='equipes'?'Points':'Buts/Passes'}</span>
+                    </div>
+
+                    {classement.map((l, i) => (
+                      <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                        <div style={{display:'flex',gap:'2px'}}>
+                          {COULEURS_LIGNE.map(col => (
+                            <button key={col.cle} type="button" title={col.label} onClick={() => setLigne(i,'couleur',col.cle)} style={{
+                              width:'16px',height:'26px',borderRadius:'4px',cursor:'pointer',padding:0,
+                              background: col.hex === 'transparent' ? '#1e1e1e' : col.hex,
+                              border: l.couleur === col.cle ? '2px solid #fff' : '1px solid #333'
+                            }}/>
+                          ))}
+                        </div>
+                        <input value={l.pos} onChange={e => setLigne(i,'pos',e.target.value)} style={{...inputStyle,width:'34px',padding:'8px 4px',textAlign:'center'}}/>
+                        <input value={l.nom} onChange={e => setLigne(i,'nom',e.target.value)} placeholder={classementType==='equipes'?'Équipe':'Joueur'} style={{...inputStyle,flex:2,padding:'8px'}}/>
+                        <input value={l.extra} onChange={e => setLigne(i,'extra',e.target.value)} placeholder={classementType==='equipes'?'Joués':'Équipe'} style={{...inputStyle,flex:1.5,padding:'8px'}}/>
+                        <input value={l.val} onChange={e => setLigne(i,'val',e.target.value)} placeholder={classementType==='equipes'?'Pts':'Nb'} style={{...inputStyle,flex:1,padding:'8px'}}/>
+                      </div>
+                    ))}
+                    <div style={{display:'flex',gap:'12px',marginTop:'10px',flexWrap:'wrap'}}>
+                      {COULEURS_LIGNE.filter(c2 => c2.cle).map(col => (
+                        <span key={col.cle} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'11px',color:'#9ca3af'}}>
+                          <span style={{width:'10px',height:'10px',borderRadius:'2px',background:col.hex,display:'inline-block'}}/>{col.label}
+                        </span>
+                      ))}
+                    </div>
+                    <button type="button" onClick={ajouterLigne} style={{marginTop:'10px',padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter une ligne</button>
+                  </div>
                 )}
               </div>
             )}
