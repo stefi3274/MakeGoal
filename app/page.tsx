@@ -98,6 +98,8 @@ export default function Home() {
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const formatMatch = (d: string) => new Date(d).toLocaleString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/Port-au-Prince' });
   const articlesFiltres = filtre === 'Tous' ? articles : articles.filter(a => a.categorie === filtre);
+  const vedette = articlesFiltres.length > 0 ? articlesFiltres[0] : null;
+  const autresArticles = vedette ? articlesFiltres.slice(1) : articlesFiltres;
   const couleurCat = (cat: string) => cat === 'Actualités' ? '#3b82f6' : '#f59e0b';
 
   // Calcul du Pouls de la communauté
@@ -238,8 +240,30 @@ export default function Home() {
               </div>
             )}
 
+            {!loading && vedette && (
+              <a href={(vedette.type === 'post' ? '/post/' : '/media/') + vedette.id} style={{textDecoration:'none',color:'inherit',display:'block',marginBottom:'24px'}}>
+                <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'20px',overflow:'hidden',boxShadow:'0 4px 20px rgba(0,0,0,0.08)',cursor:'pointer'}}>
+                  {vedette.image_couverture ? (
+                    <img src={vedette.image_couverture} alt={vedette.titre} style={{width:'100%',height:'280px',objectFit:'cover'}}/>
+                  ) : (
+                    <div style={{width:'100%',height:'280px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'56px'}}>{vedette.type === 'post' ? '⚡' : '⚽'}</span></div>
+                  )}
+                  <div style={{padding:'24px'}}>
+                    <div style={{display:'flex',gap:'6px',marginBottom:'10px',flexWrap:'wrap'}}>
+                      <span style={{fontSize:'11px',fontWeight:900,color:'#fff',background:'#111',padding:'4px 12px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>★ À la une</span>
+                      <span style={{fontSize:'11px',fontWeight:700,color:'#fff',background:couleurCat(vedette.categorie),padding:'4px 12px',borderRadius:'999px'}}>{vedette.categorie}</span>
+                      <span style={{fontSize:'11px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'4px 12px',borderRadius:'999px'}}>{vedette.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
+                    </div>
+                    <h2 style={{fontWeight:900,fontSize:'clamp(20px,3vw,28px)',margin:'0 0 10px',lineHeight:'1.25'}}>{vedette.titre}</h2>
+                    {vedette.extrait && <p style={{color:'#6b7280',fontSize:'15px',margin:'0 0 12px',lineHeight:'1.6'}}>{vedette.extrait}</p>}
+                    <p style={{color:'#9ca3af',fontSize:'12px',margin:0}}>{vedette.auteur} · {formatDate(vedette.created_at)}</p>
+                  </div>
+                </div>
+              </a>
+            )}
+
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'20px'}}>
-              {!loading && articlesFiltres.map(a => (
+              {!loading && autresArticles.map(a => (
                 <a key={a.id} href={(a.type === 'post' ? '/post/' : '/media/') + a.id} style={{textDecoration:'none',color:'inherit'}}>
                   <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',height:'100%',display:'flex',flexDirection:'column',cursor:'pointer'}}>
                     {a.image_couverture ? (
