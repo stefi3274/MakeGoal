@@ -124,6 +124,7 @@ export default function AdminMedia() {
   const [laureat, setLaureat] = useState('');
   const [distinctionNote, setDistinctionNote] = useState('');
   const [distinctionStats, setDistinctionStats] = useState('');
+  const [modePost, setModePost] = useState('simple');
   const [classementType, setClassementType] = useState('');
   const [classementTitre, setClassementTitre] = useState('');
   const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; val: string; couleur: string }[]>(
@@ -181,7 +182,7 @@ export default function AdminMedia() {
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
-    setClassementType(''); setClassementTitre('');
+    setModePost('simple'); setClassementType(''); setClassementTitre('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
   };
 
@@ -201,6 +202,11 @@ export default function AdminMedia() {
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
+    if (a.formation) setModePost('onze');
+    else if (a.classement_type) setModePost('classement');
+    else if (a.distinction_type) setModePost('distinction');
+    else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
+    else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
     if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
@@ -348,10 +354,23 @@ export default function AdminMedia() {
                 <button onClick={() => setType('post')} style={btnChoix(type==='post')}>⚡ Post (bref)</button>
               </div>
               <label style={labelStyle}>Langue</label>
-              <div style={{display:'flex',gap:'8px'}}>
+              <div style={{display:'flex',gap:'8px',marginBottom: type === 'post' ? '16px' : '0'}}>
                 <button onClick={() => setLangue('fr')} style={btnChoix(langue==='fr')}>🇫🇷 Français</button>
                 <button onClick={() => setLangue('kreyol')} style={btnChoix(langue==='kreyol')}>🇭🇹 Kreyòl</button>
               </div>
+
+              {type === 'post' && (
+                <>
+                  <label style={labelStyle}>Type de post</label>
+                  <select value={modePost} onChange={e => setModePost(e.target.value)} style={inputStyle}>
+                    <option value="simple">✍️ Simple (texte / image)</option>
+                    <option value="match">⚽ Affiche de match</option>
+                    <option value="distinction">🏆 Distinction</option>
+                    <option value="classement">📊 Classement</option>
+                    <option value="onze">👥 Onze type</option>
+                  </select>
+                </>
+              )}
             </div>
 
             <div style={sectionStyle}>
@@ -366,9 +385,9 @@ export default function AdminMedia() {
               </select>
             </div>
 
-            {type === 'post' && (
+            {type === 'post' && modePost === 'match' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>⚽ Affiche de match (optionnel)</label>
+                <label style={labelStyle}>⚽ Affiche de match</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Pour un post match. Remplissez ce que vous voulez afficher.</p>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ligue / compétition</p>
@@ -414,9 +433,9 @@ export default function AdminMedia() {
               </div>
             )}
 
-            {type === 'post' && (
+            {type === 'post' && modePost === 'distinction' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>🏆 Distinction (optionnel)</label>
+                <label style={labelStyle}>🏆 Distinction</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Pour un post récompense : joueur du mois, équipe de la semaine...</p>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Type de distinction</p>
@@ -444,9 +463,9 @@ export default function AdminMedia() {
               </div>
             )}
 
-            {type === 'post' && (
+            {type === 'post' && modePost === 'classement' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>📊 Classement (optionnel)</label>
+                <label style={labelStyle}>📊 Classement</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Classement d'équipes (groupe, FIFA, championnat) ou de joueurs (buteurs, passeurs).</p>
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
@@ -497,9 +516,9 @@ export default function AdminMedia() {
               </div>
             )}
 
-            {type === 'post' && (
+            {type === 'post' && modePost === 'onze' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>👥 Onze type (optionnel)</label>
+                <label style={labelStyle}>👥 Onze type</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Équipe de la semaine / du tournoi. Choisissez la formation puis remplissez les 11 joueurs.</p>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Formation</p>
@@ -527,21 +546,27 @@ export default function AdminMedia() {
 
             <div style={sectionStyle}>
               <label style={labelStyle}>🏷️ Tags</label>
-              {TAGS_GROUPES.map(groupe => (
-                <div key={groupe.titre} style={{marginBottom:'14px'}}>
-                  <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>{groupe.titre}</p>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
-                    {groupe.tags.map(t => (
-                      <button key={t} type="button" onClick={() => toggleTag(t)} style={{
-                        padding:'6px 12px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                        border: tags.includes(t) ? '2px solid '+VIOLET : '1px solid #333',
-                        background: tags.includes(t) ? VIOLET : '#1e1e1e',
-                        color: tags.includes(t) ? '#fff' : '#9ca3af'
-                      }}>{t}</button>
-                    ))}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                {TAGS_GROUPES.map(groupe => (
+                  <div key={groupe.titre}>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>{groupe.titre}</p>
+                    <select value="" onChange={e => { if (e.target.value) toggleTag(e.target.value); }} style={{...inputStyle,padding:'10px'}}>
+                      <option value="">+ Ajouter…</option>
+                      {groupe.tags.filter(t => !tags.includes(t)).map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </div>
+                ))}
+              </div>
+              {tags.length > 0 && (
+                <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'12px'}}>
+                  {tags.map(t => (
+                    <button key={t} type="button" onClick={() => toggleTag(t)} title="Retirer" style={{
+                      padding:'6px 12px', borderRadius:'999px', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                      border:'2px solid '+VIOLET, background:VIOLET, color:'#fff'
+                    }}>{t} ✕</button>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
 
             <div style={sectionStyle}>
