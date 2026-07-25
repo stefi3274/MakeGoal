@@ -100,9 +100,15 @@ export default function AdminConcours() {
 
   const supprimerConcours = async (id: string) => {
     if (!confirm('Supprimer ce concours et toutes ses participations ?')) return;
-    await supabase.from('participations').delete().eq('concours_id', id);
+    const { data: matchs } = await supabase.from('concours_matchs').select('id').eq('concours_id', id);
+    const matchIds = (matchs || []).map(m => m.id);
+    if (matchIds.length > 0) {
+      await supabase.from('participations_matchs').delete().in('concours_match_id', matchIds);
+    }
+    await supabase.from('concours_matchs').delete().eq('concours_id', id);
     await supabase.from('parrainages').delete().eq('concours_id', id);
-    await supabase.from('concours').delete().eq('id', id);
+    const { error } = await supabase.from('concours').delete().eq('id', id);
+    if (error) { alert('Erreur : ' + error.message); return; }
     chargerConcours();
   };
 
