@@ -30,6 +30,7 @@ export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
+  const [compteurs, setCompteurs] = useState<Record<string, { likes: number; comms: number }>>({});
   const [matchs, setMatchs] = useState<Match[]>([]);
   const [concours, setConcours] = useState<Concours | null>(null);
   const [stats, setStats] = useState<Record<string, VoteStat>>({});
@@ -44,7 +45,11 @@ export default function Home() {
 
   const chargerTout = async () => {
     const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, relance_at, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
-    if (arts) setArticles(arts.filter(postVisible));
+    if (arts) {
+      const visibles = arts.filter(postVisible);
+      setArticles(visibles);
+      chargerCompteurs(visibles.map(a => a.id));
+    }
     const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
     if (mts) { const visibles = mts.filter(m => matchVisible(m.date_match)); setMatchs(visibles); visibles.forEach(m => chargerStats(m.id)); }
     const { data: c } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();
@@ -93,6 +98,17 @@ export default function Home() {
     await fetch('/api/newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     setNewsletterMsg('Merci ! Vous êtes inscrit avec succès.');
     setEmail('');
+  };
+
+  const chargerCompteurs = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const { data: likes } = await supabase.from('article_likes').select('article_id').in('article_id', ids);
+    const { data: comms } = await supabase.from('commentaires').select('article_id').in('article_id', ids);
+    const map: Record<string, { likes: number; comms: number }> = {};
+    ids.forEach(id => { map[id] = { likes: 0, comms: 0 }; });
+    (likes || []).forEach(l => { if (map[l.article_id]) map[l.article_id].likes++; });
+    (comms || []).forEach(cm => { if (map[cm.article_id]) map[cm.article_id].comms++; });
+    setCompteurs(map);
   };
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -171,7 +187,7 @@ export default function Home() {
 
       <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'40px 24px',textAlign:'center'}}>
         <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,44px)',margin:'0 0 8px'}}>📰 MakeGoal</h1>
-        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'17px',margin:0,fontWeight:600}}>Votre média football : actus, analyses et pronostics.</p>
+        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'17px',margin:0,fontWeight:600}}>Aktialite, analiz ak kominote — N ap enfòme w.</p>
       </div>
 
       <main style={{maxWidth:'1100px',margin:'0 auto',padding:'32px 16px'}}>
@@ -279,7 +295,11 @@ export default function Home() {
                       </div>
                       <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>
                       {a.extrait && <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 10px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
-                      <p style={{color:'#9ca3af',fontSize:'11px',margin:0}}>{a.auteur} · {formatDate(a.created_at)}</p>
+                      <p style={{color:'#9ca3af',fontSize:'11px',margin:'0 0 8px'}}>{a.auteur} · {formatDate(a.created_at)}</p>
+                      <div style={{display:'flex',gap:'14px',color:'#9ca3af',fontSize:'12px',fontWeight:700,marginTop:'auto'}}>
+                        <span>❤️ {compteurs[a.id]?.likes ?? 0}</span>
+                        <span>💬 {compteurs[a.id]?.comms ?? 0}</span>
+                      </div>
                     </div>
                   </div>
                 </a>
