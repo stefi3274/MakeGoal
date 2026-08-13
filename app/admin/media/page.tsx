@@ -222,6 +222,25 @@ export default function AdminMedia() {
 
   const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', val:'', couleur:'' }]);
 
+  const collerClassement = (texte: string) => {
+    const lignes = texte.split('\n').map(l => l.trim()).filter(Boolean);
+    const nouvelles: { pos: string; nom: string; extra: string; val: string; couleur: string }[] = [];
+    lignes.forEach((ligne, idx) => {
+      const parts = ligne.split(' - ').map(p => p.trim());
+      if (parts.length >= 3) {
+        // Joueur - Équipe - Chiffre
+        nouvelles.push({ pos: String(idx+1), nom: parts[0], extra: parts[1], val: parts[2], couleur: '' });
+      } else if (parts.length === 2) {
+        // Joueur - Chiffre (sans équipe)
+        nouvelles.push({ pos: String(idx+1), nom: parts[0], extra: '', val: parts[1], couleur: '' });
+      }
+    });
+    if (nouvelles.length > 0) {
+      setClassement(nouvelles);
+      setClassementType('joueurs');
+    }
+  };
+
   const COULEURS_LIGNE = [
     { cle: '', label: '—', hex: 'transparent' },
     { cle: 'vert', label: 'Qualifié', hex: '#10b981' },
@@ -473,6 +492,16 @@ export default function AdminMedia() {
                   <button type="button" onClick={() => setClassementType('equipes')} style={btnChoix(classementType==='equipes')}>🛡️ Équipes</button>
                   <button type="button" onClick={() => setClassementType('joueurs')} style={btnChoix(classementType==='joueurs')}>👤 Joueurs</button>
                 </div>
+
+                <details style={{marginBottom:'14px',background:'#141414',borderRadius:'8px',padding:'12px',border:'1px solid #2a2a2a'}}>
+                  <summary style={{color:'#c46bff',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>📋 Coller une liste (buteurs, passeurs...)</summary>
+                  <p style={{fontSize:'11px',color:'#6b7280',margin:'10px 0 6px'}}>Un joueur par ligne, format : Joueur - Équipe - Nombre</p>
+                  <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'11px',padding:'10px',borderRadius:'6px',lineHeight:'1.5',overflow:'auto'}}>{`Mbappé - Real Madrid - 12
+Haaland - Man City - 11
+Kane - Bayern - 10`}</pre>
+                  <textarea onChange={e => collerClassement(e.target.value)} rows={6} placeholder="Collez la liste ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',fontSize:'12px',marginTop:'6px'}}/>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'6px 0 0'}}>Le tableau ci-dessous se remplit automatiquement. Ajoutez ensuite le titre (ex : Meilleurs buteurs Ligue 1).</p>
+                </details>
 
                 {classementType && (
                   <div>

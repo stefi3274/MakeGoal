@@ -24,7 +24,9 @@ export default function AdminMatchs() {
   const [erreurAuth, setErreurAuth] = useState('');
   const [matchs, setMatchs] = useState<Match[]>([]);
   const [message, setMessage] = useState('');
-  const [vue, setVue] = useState<'liste' | 'nouveau'>('liste');
+  const [vue, setVue] = useState<'liste' | 'nouveau' | 'lot'>('liste');
+  const [texteLot, setTexteLot] = useState('');
+  const [importLot, setImportLot] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
   const [equipe1, setEquipe1] = useState('');
@@ -73,6 +75,58 @@ export default function AdminMatchs() {
     // local = "2026-07-19T15:00" -> on force le fuseau Haïti puis on convertit en ISO UTC
     const d = new Date(local + ':00-04:00');
     return d.toISOString();
+  };
+
+  // Convertit "AAAA-MM-JJ HH:MM" (heure Haïti) en ISO UTC
+  const texteVersUTC = (s: string) => {
+    const iso = s.trim().replace(' ', 'T');
+    const d = new Date(iso + ':00-04:00');
+    return d.toISOString();
+  };
+
+  const importerLot = async () => {
+    setImportLot(true); setMessage('');
+    const lignes = texteLot.split('\n').map(l => l.trim());
+    let competitionCourante = '';
+    const aCreer: { equipe1: string; equipe2: string; competition: string; date_match: string }[] = [];
+    const erreurs: string[] = [];
+
+    for (const ligne of lignes) {
+      if (!ligne) continue;
+      const parts = ligne.split(' - ').map(p => p.trim());
+      // Ligne d'en-tête : "Journée 5 - Ligue 1" (2 parties, pas de date à la fin)
+      const derniere = parts[parts.length - 1];
+      const ressembleDate = /\d{4}-\d{2}-\d{2}/.test(derniere);
+      if (!ressembleDate) {
+        competitionCourante = ligne;
+        continue;
+      }
+      // Ligne de match : "Equipe1 - Equipe2 - 2026-08-15 15:00"
+      if (parts.length < 3) { erreurs.push(ligne); continue; }
+      const dateStr = parts[parts.length - 1];
+      const equipe2 = parts[parts.length - 2];
+      const equipe1 = parts.slice(0, parts.length - 2).join(' - ');
+      if (!equipe1 || !equipe2) { erreurs.push(ligne); continue; }
+      try {
+        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr) });
+      } catch { erreurs.push(ligne); }
+    }
+
+    if (aCreer.length === 0) {
+      setMessage('❌ Aucun match reconnu. Vérifiez le format.');
+      setImportLot(false);
+      return;
+    }
+
+    const { error } = await supabase.from('matchs').insert(aCreer);
+    setImportLot(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    let msg = '✅ ' + aCreer.length + ' match(s) créé(s) !';
+    if (erreurs.length > 0) msg += ' ' + erreurs.length + ' ligne(s) ignorée(s).';
+    setMessage(msg);
+    setTexteLot('');
+    chargerMatchs();
+    setTimeout(() => setVue('liste'), 1800);
   };
 
   const sauvegarder = async () => {
@@ -140,7 +194,8 @@ export default function AdminMatchs() {
         <div style={{display:'flex',gap:'8px'}}>
           <a href="/admin" style={{background:'#333',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin</a>
           <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
-          <button onClick={nouveauMatch} style={{background:vue==='nouveau'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau match</button>
+          <button onClick={nouveauMatch} style={{background:vue==='nouveau'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
+          <button onClick={() => setVue('lot')} style={{background:vue==='lot'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>📋 Coller en lot</button>
         </div>
       </header>
 
@@ -158,6 +213,22 @@ export default function AdminMatchs() {
             <div style={{marginBottom:'16px'}}><label style={labelStyle}>Compétition</label><input value={competition} onChange={e => setCompetition(e.target.value)} placeholder="Coupe du Monde 2026" style={inputStyle}/></div>
             <div style={{marginBottom:'20px'}}><label style={labelStyle}>Date et heure</label><input type="datetime-local" value={dateMatch} onChange={e => setDateMatch(e.target.value)} style={inputStyle}/></div>
             <button onClick={sauvegarder} style={{width:'100%',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{editId ? 'Enregistrer' : 'Créer le match'}</button>
+          </div>
+        )}
+
+        {vue === 'lot' && (
+          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
+            <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'8px'}}>📋 Coller plusieurs matchs</h2>
+            <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'8px'}}>Une ligne de titre par compétition, puis un match par ligne. Ligne vide entre deux compétitions.</p>
+            <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'12px',padding:'12px',borderRadius:'8px',overflow:'auto',lineHeight:'1.5'}}>{`Journée 5 - Ligue 1
+Marseille - Lyon - 2026-08-15 15:00
+PSG - Monaco - 2026-08-15 17:00
+
+Journée 3 - Premier League
+Arsenal - Chelsea - 2026-08-16 14:00`}</pre>
+            <p style={{color:'#6b7280',fontSize:'11px',margin:'8px 0 12px'}}>Format d'un match : Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM (heure d'Haïti)</p>
+            <textarea value={texteLot} onChange={e => setTexteLot(e.target.value)} rows={12} placeholder="Collez vos matchs ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',lineHeight:'1.6'}}/>
+            <button onClick={importerLot} disabled={importLot} style={{width:'100%',marginTop:'16px',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{importLot ? '⏳ Import...' : '🚀 Créer tous les matchs'}</button>
           </div>
         )}
 
