@@ -77,6 +77,7 @@ type Post = {
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
+  pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
 type Commentaire = {
@@ -345,6 +346,19 @@ export default function PostPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {post.pub_actif && (post.pub_nom || post.pub_logo) && (
+              <a href={post.pub_lien || '#'} target="_blank" rel="noopener noreferrer" style={{textDecoration:'none',display:'block',margin:'0 0 20px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'14px',background:'linear-gradient(135deg,#faf5ff,#f3e8ff)',border:'1px solid #e9d5ff',borderRadius:'14px',padding:'14px 18px'}}>
+                  {post.pub_logo && <img src={post.pub_logo} alt={post.pub_nom || 'pub'} style={{height:'48px',width:'48px',objectFit:'contain',borderRadius:'8px',background:'#fff',padding:'4px'}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontSize:'10px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 2px'}}>Sponsorisé</p>
+                    <p style={{fontSize:'15px',fontWeight:700,color:'#111',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.pub_nom}</p>
+                  </div>
+                  {post.pub_lien && <span style={{fontSize:'20px',color:VIOLET}}>→</span>}
+                </div>
+              </a>
             )}
 
             <div style={{width:'40px',height:'4px',background:VIOLET,borderRadius:'2px',marginBottom:'24px'}}/>

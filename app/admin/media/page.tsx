@@ -82,6 +82,7 @@ type Article = {
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
+  pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
 };
@@ -125,6 +126,11 @@ export default function AdminMedia() {
   const [distinctionNote, setDistinctionNote] = useState('');
   const [distinctionStats, setDistinctionStats] = useState('');
   const [modePost, setModePost] = useState('simple');
+  const [pubActif, setPubActif] = useState(false);
+  const [pubNom, setPubNom] = useState('');
+  const [pubLogo, setPubLogo] = useState('');
+  const [pubLien, setPubLien] = useState('');
+  const [uploadingPub, setUploadingPub] = useState(false);
   const [classementType, setClassementType] = useState('');
   const [classementTitre, setClassementTitre] = useState('');
   const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; val: string; couleur: string }[]>(
@@ -162,6 +168,19 @@ export default function AdminMedia() {
     setMessage('✅ Image uploadée !');
   };
 
+  const uploadPubLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPub(true); setMessage('');
+    const nom = 'pub-' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const { error } = await supabase.storage.from('articles').upload(nom, file);
+    if (error) { setMessage('❌ Upload logo pub : ' + error.message); setUploadingPub(false); return; }
+    const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+    setPubLogo(data.publicUrl);
+    setUploadingPub(false);
+    setMessage('✅ Logo pub uploadé !');
+  };
+
   const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -183,6 +202,7 @@ export default function AdminMedia() {
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setModePost('simple'); setClassementType(''); setClassementTitre('');
+    setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
   };
 
@@ -202,7 +222,9 @@ export default function AdminMedia() {
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
-    if (a.formation) setModePost('onze');
+    setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue) setModePost('sponsorise');
+    else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
@@ -221,25 +243,6 @@ export default function AdminMedia() {
   };
 
   const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', val:'', couleur:'' }]);
-
-  const collerClassement = (texte: string) => {
-    const lignes = texte.split('\n').map(l => l.trim()).filter(Boolean);
-    const nouvelles: { pos: string; nom: string; extra: string; val: string; couleur: string }[] = [];
-    lignes.forEach((ligne, idx) => {
-      const parts = ligne.split(' - ').map(p => p.trim());
-      if (parts.length >= 3) {
-        // Joueur - Équipe - Chiffre
-        nouvelles.push({ pos: String(idx+1), nom: parts[0], extra: parts[1], val: parts[2], couleur: '' });
-      } else if (parts.length === 2) {
-        // Joueur - Chiffre (sans équipe)
-        nouvelles.push({ pos: String(idx+1), nom: parts[0], extra: '', val: parts[1], couleur: '' });
-      }
-    });
-    if (nouvelles.length > 0) {
-      setClassement(nouvelles);
-      setClassementType('joueurs');
-    }
-  };
 
   const COULEURS_LIGNE = [
     { cle: '', label: '—', hex: 'transparent' },
@@ -283,6 +286,10 @@ export default function AdminMedia() {
       classement_type: classementType || null,
       classement_titre: classementTitre || null,
       classement: classementType ? classement.filter(l => l.nom) : null,
+      pub_actif: pubActif || modePost === 'sponsorise',
+      pub_nom: pubNom || null,
+      pub_logo: pubLogo || null,
+      pub_lien: pubLien || null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
@@ -387,6 +394,7 @@ export default function AdminMedia() {
                     <option value="distinction">🏆 Distinction</option>
                     <option value="classement">📊 Classement</option>
                     <option value="onze">👥 Onze type</option>
+                    <option value="sponsorise">📣 Sponsorisé (pub)</option>
                   </select>
                 </>
               )}
@@ -493,16 +501,6 @@ export default function AdminMedia() {
                   <button type="button" onClick={() => setClassementType('joueurs')} style={btnChoix(classementType==='joueurs')}>👤 Joueurs</button>
                 </div>
 
-                <details style={{marginBottom:'14px',background:'#141414',borderRadius:'8px',padding:'12px',border:'1px solid #2a2a2a'}}>
-                  <summary style={{color:'#c46bff',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>📋 Coller une liste (buteurs, passeurs...)</summary>
-                  <p style={{fontSize:'11px',color:'#6b7280',margin:'10px 0 6px'}}>Un joueur par ligne, format : Joueur - Équipe - Nombre</p>
-                  <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'11px',padding:'10px',borderRadius:'6px',lineHeight:'1.5',overflow:'auto'}}>{`Mbappé - Real Madrid - 12
-Haaland - Man City - 11
-Kane - Bayern - 10`}</pre>
-                  <textarea onChange={e => collerClassement(e.target.value)} rows={6} placeholder="Collez la liste ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',fontSize:'12px',marginTop:'6px'}}/>
-                  <p style={{fontSize:'10px',color:'#6b7280',margin:'6px 0 0'}}>Le tableau ci-dessous se remplit automatiquement. Ajoutez ensuite le titre (ex : Meilleurs buteurs Ligue 1).</p>
-                </details>
-
                 {classementType && (
                   <div>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
@@ -570,6 +568,44 @@ Kane - Bayern - 10`}</pre>
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'sponsorise' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📣 Post sponsorisé</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Un post 100% publicité : logo du produit, nom et lien.</p>
+                <label style={{...labelStyle,fontSize:'12px'}}>Nom du produit / marque</label>
+                <input value={pubNom} onChange={e => setPubNom(e.target.value)} placeholder="Ex: Digicel, Natcom..." style={{...inputStyle,marginBottom:'12px'}}/>
+                <label style={{...labelStyle,fontSize:'12px'}}>Lien (site, page, WhatsApp...)</label>
+                <input value={pubLien} onChange={e => setPubLien(e.target.value)} placeholder="https://..." style={{...inputStyle,marginBottom:'12px'}}/>
+                <label style={{...labelStyle,fontSize:'12px'}}>Logo du produit</label>
+                <input type="file" accept="image/*" onChange={uploadPubLogo} style={{color:'#9ca3af',fontSize:'13px'}}/>
+                {uploadingPub && <p style={{color:'#c46bff',fontSize:'12px'}}>Upload...</p>}
+                {pubLogo && <img src={pubLogo} alt="logo" style={{maxHeight:'80px',marginTop:'10px',borderRadius:'8px',background:'#fff',padding:'6px'}}/>}
+              </div>
+            )}
+
+            {type === 'post' && modePost !== 'sponsorise' && (
+              <div style={sectionStyle}>
+                <details>
+                  <summary style={{color:'#c46bff',fontSize:'14px',fontWeight:700,cursor:'pointer'}}>📣 Ajouter un encart pub (optionnel)</summary>
+                  <div style={{marginTop:'14px'}}>
+                    <label style={{display:'flex',alignItems:'center',gap:'8px',color:'#e5e7eb',fontSize:'13px',marginBottom:'12px',cursor:'pointer'}}>
+                      <input type="checkbox" checked={pubActif} onChange={e => setPubActif(e.target.checked)} style={{width:'18px',height:'18px'}}/>
+                      Afficher un encart sponsorisé sur ce post
+                    </label>
+                    {pubActif && (
+                      <div>
+                        <input value={pubNom} onChange={e => setPubNom(e.target.value)} placeholder="Nom du produit / marque" style={{...inputStyle,marginBottom:'12px'}}/>
+                        <input value={pubLien} onChange={e => setPubLien(e.target.value)} placeholder="Lien https://..." style={{...inputStyle,marginBottom:'12px'}}/>
+                        <input type="file" accept="image/*" onChange={uploadPubLogo} style={{color:'#9ca3af',fontSize:'13px'}}/>
+                        {uploadingPub && <p style={{color:'#c46bff',fontSize:'12px'}}>Upload...</p>}
+                        {pubLogo && <img src={pubLogo} alt="logo" style={{maxHeight:'60px',marginTop:'10px',borderRadius:'8px',background:'#fff',padding:'6px'}}/>}
+                      </div>
+                    )}
+                  </div>
+                </details>
               </div>
             )}
 
