@@ -168,6 +168,7 @@ export default function AdminMedia() {
   const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; val: string; couleur: string }[]>(
     Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''}))
   );
+  const [classementTexteColle, setClassementTexteColle] = useState('');
   const [formation, setFormation] = useState('');
   const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
@@ -330,6 +331,7 @@ export default function AdminMedia() {
     setModePost('simple'); setClassementType(''); setClassementTitre('');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
+    setClassementTexteColle('');
     setMatchsJourSelection([]);
     setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]);
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
@@ -388,6 +390,23 @@ export default function AdminMedia() {
   };
 
   const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', val:'', couleur:'' }]);
+
+  const collerClassement = () => {
+    const lignes = classementTexteColle.split('\n').map(l => l.trim()).filter(l => l);
+    if (lignes.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
+    const parsees = lignes.map((l, i) => {
+      const parts = l.split('-').map(p => p.trim()).filter(p => p !== '');
+      return {
+        pos: String(i + 1),
+        nom: parts[0] || '',
+        extra: parts[1] || '',
+        val: parts[2] || '',
+        couleur: ''
+      };
+    });
+    setClassement(parsees);
+    setMessage('✅ Classement analysé (' + parsees.length + ' lignes). Vérifiez et corrigez si besoin.');
+  };
 
   const COULEURS_LIGNE = [
     { cle: '', label: '—', hex: 'transparent' },
@@ -793,6 +812,11 @@ export default function AdminMedia() {
                   <div>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
                     <input value={classementTitre} onChange={e => setClassementTitre(e.target.value)} placeholder={classementType==='equipes'?'Ex: Groupe A / Classement FIFA':'Ex: Meilleurs buteurs Ligue 1'} style={{...inputStyle,marginBottom:'14px'}}/>
+
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Coller le classement (une ligne par {classementType==='equipes'?'équipe':'joueur'})</p>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Format : {classementType==='equipes' ? 'Équipe - Joués - Points' : 'Joueur - Équipe - Buts/Passes'} (un tiret entre chaque valeur)</p>
+                    <textarea value={classementTexteColle} onChange={e => setClassementTexteColle(e.target.value)} placeholder={classementType==='equipes' ? 'France - 6 - 16\nArgentine - 6 - 15\nBrésil - 6 - 13' : 'Mbappé - France - 8\nMessi - Argentine - 7'} rows={6} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={collerClassement} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                     <div style={{display:'flex',gap:'6px',marginBottom:'6px',fontSize:'10px',color:'#6b7280',fontWeight:700,textTransform:'uppercase'}}>
                       <span style={{width:'34px'}}>Pos</span>
