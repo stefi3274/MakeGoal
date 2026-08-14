@@ -75,6 +75,25 @@ type MatchJour = {
   date_match: string; score1: number | null; score2: number | null;
 };
 
+type But = { equipe: string; joueur: string; minute: string; passeur: string };
+type CarteEvenement = { joueur: string; minute: string };
+
+type StatJoueur = { nom: string; equipe: string; valeurs: Record<string, string> };
+type StatsPoste = 'champ' | 'gardien';
+const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
+  champ: [
+    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
+    { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
+    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
+    { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
+  ],
+  gardien: [
+    { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
+    { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
+    { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
+  ]
+};
+
 type Match = {
   id: string; equipe1: string; equipe2: string; competition: string | null;
   date_match: string; score_home: number | null; score_away: number | null;
@@ -93,6 +112,8 @@ type Article = {
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   matchs_jour: MatchJour[] | null;
+  resultat_details: { buts: But[]; rouges: CarteEvenement[]; jaunes: CarteEvenement[] } | null;
+  stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
@@ -152,6 +173,16 @@ export default function AdminMedia() {
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
   const [matchsJourSelection, setMatchsJourSelection] = useState<MatchJour[]>([]);
 
+  const [resTexteColle, setResTexteColle] = useState('');
+  const [resButs, setResButs] = useState<But[]>([]);
+  const [resRouges, setResRouges] = useState<CarteEvenement[]>([]);
+  const [resJaunes, setResJaunes] = useState<CarteEvenement[]>([]);
+
+  const [statsMode, setStatsMode] = useState<'performance' | 'comparaison' | 'bilan'>('performance');
+  const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
+  const [statsNbMatchs, setStatsNbMatchs] = useState('');
+  const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
+
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
   useEffect(() => { if (connecte && modePost === 'matchsjour' && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
@@ -174,6 +205,68 @@ export default function AdminMedia() {
   const setScoreMatchJour = (id: string, champ: 'score1' | 'score2', val: string) => {
     setMatchsJourSelection(prev => prev.map(x => x.id === id ? { ...x, [champ]: val === '' ? null : parseInt(val) } : x));
   };
+
+  const analyserResultat = () => {
+    const lignes = resTexteColle.split('\n').map(l => l.trim());
+    let i = 0;
+    while (i < lignes.length && !lignes[i]) i++;
+    const header = lignes[i] || '';
+    const mHeader = header.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)$/);
+    if (mHeader) {
+      setEquipe1(mHeader[1].trim());
+      setScore1(mHeader[2]);
+      setScore2(mHeader[3]);
+      setEquipe2(mHeader[4].trim());
+    } else {
+      setMessage('❌ Première ligne non reconnue. Format attendu : "Equipe1 3 - 1 Equipe2"');
+      return;
+    }
+    const buts: But[] = [];
+    const rouges: CarteEvenement[] = [];
+    const jaunes: CarteEvenement[] = [];
+    let section: { type: 'but'; equipe: string } | { type: 'rouge' } | { type: 'jaune' } | null = null;
+    for (let k = i + 1; k < lignes.length; k++) {
+      const l = lignes[k];
+      if (!l) continue;
+      const mBut = l.match(/^buts?\s+(.+)$/i);
+      if (mBut) { section = { type: 'but', equipe: mBut[1].trim() }; continue; }
+      if (/^(cartons?\s+)?rouges?$/i.test(l)) { section = { type: 'rouge' }; continue; }
+      if (/^(cartons?\s+)?jaunes?$/i.test(l)) { section = { type: 'jaune' }; continue; }
+      const mJoueur = l.match(/^(.+?)\s+(\d{1,3})'?\s*(?:\((.+?)\))?$/);
+      if (mJoueur && section) {
+        const joueur = mJoueur[1].trim();
+        const minute = mJoueur[2];
+        const passeur = mJoueur[3] ? mJoueur[3].trim() : '';
+        if (section.type === 'but') buts.push({ equipe: section.equipe, joueur, minute, passeur });
+        else if (section.type === 'rouge') rouges.push({ joueur, minute });
+        else if (section.type === 'jaune') jaunes.push({ joueur, minute });
+      }
+    }
+    setResButs(buts); setResRouges(rouges); setResJaunes(jaunes);
+    setStatutMatch('Match terminé');
+    setMessage('✅ Résultat analysé. Vérifiez et corrigez si besoin avant de publier.');
+  };
+
+  const modifierBut = (i: number, champ: keyof But, val: string) => setResButs(prev => prev.map((b, idx) => idx === i ? { ...b, [champ]: val } : b));
+  const retirerBut = (i: number) => setResButs(prev => prev.filter((_, idx) => idx !== i));
+  const ajouterBut = () => setResButs(prev => [...prev, { equipe: equipe1 || '', joueur: '', minute: '', passeur: '' }]);
+  const modifierCarte = (liste: 'rouges' | 'jaunes', i: number, champ: keyof CarteEvenement, val: string) => {
+    const setter = liste === 'rouges' ? setResRouges : setResJaunes;
+    setter(prev => prev.map((c, idx) => idx === i ? { ...c, [champ]: val } : c));
+  };
+  const retirerCarte = (liste: 'rouges' | 'jaunes', i: number) => {
+    const setter = liste === 'rouges' ? setResRouges : setResJaunes;
+    setter(prev => prev.filter((_, idx) => idx !== i));
+  };
+  const ajouterCarte = (liste: 'rouges' | 'jaunes') => {
+    const setter = liste === 'rouges' ? setResRouges : setResJaunes;
+    setter(prev => [...prev, { joueur: '', minute: '' }]);
+  };
+
+  const ajouterJoueurStats = () => { if (statsJoueurs.length < 3) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', valeurs: {} }]); };
+  const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
+  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
+  const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
   const chargerArticles = async () => {
     const { data } = await supabase.from('articles').select('*').order('created_at', { ascending: false });
@@ -238,6 +331,9 @@ export default function AdminMedia() {
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
     setMatchsJourSelection([]);
+    setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]);
+    setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
+    setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -257,11 +353,13 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length)) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.stats_joueur && a.stats_joueur.joueurs?.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
+    else if (a.stats_joueur && a.stats_joueur.joueurs?.length) setModePost('stats');
     else if (a.matchs_jour && a.matchs_jour.length) setModePost('matchsjour');
+    else if (a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) setModePost('resultat');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
@@ -271,6 +369,17 @@ export default function AdminMedia() {
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
+    setResButs(a.resultat_details?.buts || []); setResRouges(a.resultat_details?.rouges || []); setResJaunes(a.resultat_details?.jaunes || []);
+    setResTexteColle('');
+    if (a.stats_joueur && a.stats_joueur.joueurs?.length) {
+      setStatsMode((a.stats_joueur.mode as any) || 'performance');
+      setStatsPoste(a.stats_joueur.poste || 'champ');
+      setStatsNbMatchs(a.stats_joueur.nbMatchs || '');
+      setStatsJoueurs(a.stats_joueur.joueurs);
+    } else {
+      setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
+      setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
+    }
     setVue('editer');
   };
 
@@ -323,6 +432,8 @@ export default function AdminMedia() {
       classement_titre: classementTitre || null,
       classement: classementType ? classement.filter(l => l.nom) : null,
       matchs_jour: modePost === 'matchsjour' ? matchsJourSelection : null,
+      resultat_details: modePost === 'resultat' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
+      stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
       pub_actif: pubActif || modePost === 'sponsorise',
       pub_nom: pubNom || null,
       pub_logo: pubLogo || null,
@@ -429,6 +540,8 @@ export default function AdminMedia() {
                     <option value="simple">✍️ Simple (texte / image)</option>
                     <option value="match">⚽ Affiche de match</option>
                     <option value="matchsjour">📅 Matchs du jour</option>
+                    <option value="resultat">📋 Résultat de match</option>
+                    <option value="stats">📈 Stats joueur</option>
                     <option value="distinction">🏆 Distinction</option>
                     <option value="classement">📊 Classement</option>
                     <option value="onze">👥 Onze type</option>
@@ -537,6 +650,101 @@ export default function AdminMedia() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'resultat' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📋 Résultat de match</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Collez le résultat au format : première ligne "Equipe1 3 - 1 Equipe2", puis des sections "Buts Equipe1" / "Rouges" / "Jaunes" (optionnel) suivies d'une ligne par joueur "Nom minute (passeur)".</p>
+                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={"Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n\nRouges\nAraújo 80"} rows={10} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <button type="button" onClick={analyserResultat} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'18px'}}>🔍 Analyser le texte</button>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Score (vérifiez / corrigez)</p>
+                <div style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'18px'}}>
+                  <input value={equipe1} onChange={e => setEquipe1(e.target.value)} placeholder="Équipe 1" style={{...inputStyle,flex:2}}/>
+                  <input type="number" value={score1} onChange={e => setScore1(e.target.value)} style={{...inputStyle,width:'50px',textAlign:'center'}}/>
+                  <span style={{color:'#6b7280'}}>-</span>
+                  <input type="number" value={score2} onChange={e => setScore2(e.target.value)} style={{...inputStyle,width:'50px',textAlign:'center'}}/>
+                  <input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="Équipe 2" style={{...inputStyle,flex:2}}/>
+                </div>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>⚽ Buts ({resButs.length})</p>
+                {resButs.map((b, i) => (
+                  <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                    <input value={b.equipe} onChange={e => modifierBut(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:1.3,padding:'8px'}}/>
+                    <input value={b.joueur} onChange={e => modifierBut(i,'joueur',e.target.value)} placeholder="Buteur" style={{...inputStyle,flex:1.5,padding:'8px'}}/>
+                    <input value={b.minute} onChange={e => modifierBut(i,'minute',e.target.value)} placeholder="Min" style={{...inputStyle,width:'50px',padding:'8px',textAlign:'center'}}/>
+                    <input value={b.passeur} onChange={e => modifierBut(i,'passeur',e.target.value)} placeholder="Passeur (optionnel)" style={{...inputStyle,flex:1.5,padding:'8px'}}/>
+                    <button onClick={() => retirerBut(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                  </div>
+                ))}
+                <button type="button" onClick={ajouterBut} style={{marginBottom:'18px',padding:'6px 14px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'11px',fontWeight:700}}>+ Ajouter un but</button>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>🟥 Cartons rouges ({resRouges.length})</p>
+                {resRouges.map((c, i) => (
+                  <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                    <input value={c.joueur} onChange={e => modifierCarte('rouges',i,'joueur',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                    <input value={c.minute} onChange={e => modifierCarte('rouges',i,'minute',e.target.value)} placeholder="Min" style={{...inputStyle,width:'50px',padding:'8px',textAlign:'center'}}/>
+                    <button onClick={() => retirerCarte('rouges',i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => ajouterCarte('rouges')} style={{marginBottom:'18px',padding:'6px 14px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'11px',fontWeight:700}}>+ Ajouter un rouge</button>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>🟨 Cartons jaunes ({resJaunes.length})</p>
+                {resJaunes.map((c, i) => (
+                  <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                    <input value={c.joueur} onChange={e => modifierCarte('jaunes',i,'joueur',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                    <input value={c.minute} onChange={e => modifierCarte('jaunes',i,'minute',e.target.value)} placeholder="Min" style={{...inputStyle,width:'50px',padding:'8px',textAlign:'center'}}/>
+                    <button onClick={() => retirerCarte('jaunes',i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => ajouterCarte('jaunes')} style={{padding:'6px 14px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'11px',fontWeight:700}}>+ Ajouter un jaune</button>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'stats' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📈 Stats joueur</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Performance d'un joueur, comparaison entre 2-3 joueurs, ou bilan cumulé sur plusieurs matchs.</p>
+
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
+                  <button type="button" onClick={() => setStatsMode('performance')} style={btnChoix(statsMode==='performance')}>👤 Performance</button>
+                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',valeurs:{}},{nom:'',equipe:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
+                  <button type="button" onClick={() => setStatsMode('bilan')} style={btnChoix(statsMode==='bilan')}>📊 Bilan cumulé</button>
+                </div>
+
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+                  <button type="button" onClick={() => setStatsPoste('champ')} style={btnChoix(statsPoste==='champ')}>🏃 Joueur de champ</button>
+                  <button type="button" onClick={() => setStatsPoste('gardien')} style={btnChoix(statsPoste==='gardien')}>🧤 Gardien</button>
+                </div>
+
+                {statsMode === 'bilan' && (
+                  <input value={statsNbMatchs} onChange={e => setStatsNbMatchs(e.target.value)} placeholder="Nombre de matchs (ex: 10)" style={{...inputStyle,marginBottom:'16px'}}/>
+                )}
+
+                {statsJoueurs.map((j, i) => (
+                  <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'12px'}}>
+                    <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
+                      <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.5}}/>
+                      <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:1}}/>
+                      {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
+                        <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
+                      )}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+                      {CHAMPS_STATS[statsPoste].map(c => (
+                        <div key={c.cle}>
+                          <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 4px'}}>{c.label}</p>
+                          <input value={j.valeurs[c.cle] || ''} onChange={e => modifierValeurStats(i,c.cle,e.target.value)} style={{...inputStyle,padding:'8px'}}/>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {statsMode === 'comparaison' && statsJoueurs.length < 3 && (
+                  <button type="button" onClick={ajouterJoueurStats} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un 3ᵉ joueur</button>
+                )}
               </div>
             )}
 

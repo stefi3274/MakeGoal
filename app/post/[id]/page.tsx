@@ -39,6 +39,20 @@ const DRAPEAUX: Record<string, string> = {
 };
 const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
+const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
+  champ: [
+    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
+    { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
+    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
+    { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
+  ],
+  gardien: [
+    { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
+    { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
+    { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
+  ]
+};
+
 
 const FORMATIONS: Record<string, { x: number; y: number }[]> = {
   '4-4-2': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},{x:38,y:20},{x:62,y:20}],
@@ -78,6 +92,8 @@ type Post = {
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
+  resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
+  stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
@@ -296,6 +312,63 @@ export default function PostPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {post.resultat_details && (post.resultat_details.buts?.length > 0 || post.resultat_details.rouges?.length > 0 || post.resultat_details.jaunes?.length > 0) && (
+              <div style={{margin:'8px 0 24px',padding:'18px',background:'#faf5ff',borderRadius:'16px'}}>
+                {post.resultat_details.buts && post.resultat_details.buts.length > 0 && (
+                  <div style={{marginBottom: (post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length) ? '14px' : 0}}>
+                    {Array.from(new Set(post.resultat_details.buts.map(b => b.equipe))).map(eq => (
+                      <div key={eq} style={{marginBottom:'10px'}}>
+                        <div style={{fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{eq}</div>
+                        {post.resultat_details!.buts.filter(b => b.equipe === eq).map((b, i) => (
+                          <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>
+                            ⚽ {b.joueur} <span style={{color:'#6b7280'}}>{b.minute}'</span>{b.passeur && <span style={{color:'#6b7280'}}> 🥾 {b.passeur}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {post.resultat_details.rouges && post.resultat_details.rouges.length > 0 && (
+                  <div style={{marginBottom: post.resultat_details.jaunes?.length ? '10px' : 0}}>
+                    {post.resultat_details.rouges.map((c, i) => (
+                      <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>🟥 {c.joueur} <span style={{color:'#6b7280'}}>{c.minute}'</span></div>
+                    ))}
+                  </div>
+                )}
+                {post.resultat_details.jaunes && post.resultat_details.jaunes.length > 0 && (
+                  <div>
+                    {post.resultat_details.jaunes.map((c, i) => (
+                      <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>🟨 {c.joueur} <span style={{color:'#6b7280'}}>{c.minute}'</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {post.stats_joueur && post.stats_joueur.joueurs && post.stats_joueur.joueurs.length > 0 && (
+              <div style={{margin:'8px 0 24px',padding:'18px',background:'#faf5ff',borderRadius:'16px'}}>
+                {post.stats_joueur.mode === 'bilan' && post.stats_joueur.nbMatchs && (
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>📊 Bilan sur {post.stats_joueur.nbMatchs} matchs</span>
+                  </div>
+                )}
+                <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
+                  {post.stats_joueur.joueurs.map((j, i) => (
+                    <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
+                      <div style={{fontWeight:900,fontSize:'15px',color:'#111',textAlign:'center'}}>{j.nom}</div>
+                      {j.equipe && <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>{j.equipe}</div>}
+                      {CHAMPS_STATS[post.stats_joueur!.poste || 'champ'].filter(c => j.valeurs?.[c.cle]).map(c => (
+                        <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
+                          <span style={{color:'#6b7280'}}>{c.label}</span>
+                          <span style={{fontWeight:900,color:'#111'}}>{j.valeurs[c.cle]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
