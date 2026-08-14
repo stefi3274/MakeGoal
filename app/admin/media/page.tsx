@@ -70,6 +70,16 @@ const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
   { titre: 'Transfert', tags: ['Transfert', 'En attente', 'Officiel'] },
 ];
 
+type MatchJour = {
+  id: string; equipe1: string; equipe2: string; competition: string | null;
+  date_match: string; score1: number | null; score2: number | null;
+};
+
+type Match = {
+  id: string; equipe1: string; equipe2: string; competition: string | null;
+  date_match: string; score_home: number | null; score_away: number | null;
+};
+
 type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
   source_nom: string | null; source_url: string | null;
@@ -82,6 +92,7 @@ type Article = {
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
+  matchs_jour: MatchJour[] | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string;
@@ -138,9 +149,31 @@ export default function AdminMedia() {
   );
   const [formation, setFormation] = useState('');
   const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
+  const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
+  const [matchsJourSelection, setMatchsJourSelection] = useState<MatchJour[]>([]);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
+  useEffect(() => { if (connecte && modePost === 'matchsjour' && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
+
+  const chargerMatchsDispo = async () => {
+    const { data } = await supabase.from('matchs').select('*').order('date_match', { ascending: true });
+    if (data) setMatchsDispo(data);
+  };
+
+  const toggleMatchJour = (m: Match) => {
+    setMatchsJourSelection(prev => {
+      const existe = prev.find(x => x.id === m.id);
+      if (existe) return prev.filter(x => x.id !== m.id);
+      return [...prev, { id: m.id, equipe1: m.equipe1, equipe2: m.equipe2, competition: m.competition, date_match: m.date_match, score1: m.score_home, score2: m.score_away }];
+    });
+  };
+
+  const retirerMatchJour = (id: string) => setMatchsJourSelection(prev => prev.filter(x => x.id !== id));
+
+  const setScoreMatchJour = (id: string, champ: 'score1' | 'score2', val: string) => {
+    setMatchsJourSelection(prev => prev.map(x => x.id === id ? { ...x, [champ]: val === '' ? null : parseInt(val) } : x));
+  };
 
   const chargerArticles = async () => {
     const { data } = await supabase.from('articles').select('*').order('created_at', { ascending: false });
@@ -204,6 +237,7 @@ export default function AdminMedia() {
     setModePost('simple'); setClassementType(''); setClassementTitre('');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
+    setMatchsJourSelection([]);
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -223,10 +257,11 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
+    else if (a.matchs_jour && a.matchs_jour.length) setModePost('matchsjour');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
@@ -235,6 +270,7 @@ export default function AdminMedia() {
     setFormation(a.formation || '');
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
+    setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
     setVue('editer');
   };
 
@@ -286,6 +322,7 @@ export default function AdminMedia() {
       classement_type: classementType || null,
       classement_titre: classementTitre || null,
       classement: classementType ? classement.filter(l => l.nom) : null,
+      matchs_jour: modePost === 'matchsjour' ? matchsJourSelection : null,
       pub_actif: pubActif || modePost === 'sponsorise',
       pub_nom: pubNom || null,
       pub_logo: pubLogo || null,
@@ -391,6 +428,7 @@ export default function AdminMedia() {
                   <select value={modePost} onChange={e => setModePost(e.target.value)} style={inputStyle}>
                     <option value="simple">✍️ Simple (texte / image)</option>
                     <option value="match">⚽ Affiche de match</option>
+                    <option value="matchsjour">📅 Matchs du jour</option>
                     <option value="distinction">🏆 Distinction</option>
                     <option value="classement">📊 Classement</option>
                     <option value="onze">👥 Onze type</option>
@@ -456,6 +494,48 @@ export default function AdminMedia() {
                       color: statutMatch === s ? '#fff' : '#9ca3af'
                     }}>{s === '' ? 'Aucun' : s}</button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'matchsjour' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📅 Matchs du jour</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Cochez les matchs à afficher sur une seule image. Les scores peuvent être ajoutés ou modifiés à tout moment en rééditant ce post.</p>
+
+                {matchsJourSelection.length > 0 && (
+                  <>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Sélectionnés ({matchsJourSelection.length}) — scores</p>
+                    {matchsJourSelection.map(m => (
+                      <div key={m.id} style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px',background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'10px'}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:'#fff',fontSize:'13px',fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1} vs {m.equipe2}</div>
+                          <div style={{color:'#6b7280',fontSize:'11px'}}>{m.competition ? m.competition + ' · ' : ''}{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
+                        </div>
+                        <input type="number" min={0} value={m.score1 ?? ''} onChange={e => setScoreMatchJour(m.id, 'score1', e.target.value)} placeholder="-" style={{...inputStyle,width:'52px',textAlign:'center',padding:'8px'}}/>
+                        <span style={{color:'#6b7280'}}>-</span>
+                        <input type="number" min={0} value={m.score2 ?? ''} onChange={e => setScoreMatchJour(m.id, 'score2', e.target.value)} placeholder="-" style={{...inputStyle,width:'52px',textAlign:'center',padding:'8px'}}/>
+                        <button onClick={() => retirerMatchJour(m.id)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'16px 0 8px',fontWeight:700}}>Matchs disponibles (liste admin/matchs)</p>
+                <div style={{maxHeight:'320px',overflowY:'auto',border:'1px solid #333',borderRadius:'10px'}}>
+                  {matchsDispo.length === 0 && <p style={{color:'#6b7280',fontSize:'12px',padding:'14px'}}>Aucun match trouvé. Ajoutez-en dans "Matchs".</p>}
+                  {matchsDispo.map(m => {
+                    const coche = matchsJourSelection.some(x => x.id === m.id);
+                    return (
+                      <label key={m.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderBottom:'1px solid #222',cursor:'pointer',background:coche?'#1e0033':'transparent'}}>
+                        <input type="checkbox" checked={coche} onChange={() => toggleMatchJour(m)}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:'#fff',fontSize:'13px',fontWeight:700}}>{m.equipe1} vs {m.equipe2}</div>
+                          <div style={{color:'#6b7280',fontSize:'11px'}}>{m.competition ? m.competition + ' · ' : ''}{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}

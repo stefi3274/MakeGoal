@@ -77,6 +77,7 @@ type Post = {
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   classement_type: string | null; classement_titre: string | null;
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
+  matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
@@ -280,6 +281,23 @@ export default function PostPage() {
                 )}
               </div>
             ) : null}
+
+            {post.matchs_jour && post.matchs_jour.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                {post.matchs_jour.map((m, i) => (
+                  <div key={m.id || i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'14px',borderRadius:'12px',background:i%2===0?'#faf5ff':'#fff',border:'1px solid #f3f4f6',marginBottom:'8px'}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      {m.competition && <div style={{fontSize:'10px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'2px'}}>{m.competition}</div>}
+                      <div style={{fontWeight:900,fontSize:'14px',color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1} vs {m.equipe2}</div>
+                      <div style={{fontSize:'11px',color:'#6b7280'}}>{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
+                    </div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:VIOLET,whiteSpace:'nowrap'}}>
+                      {m.score1 !== null && m.score2 !== null ? m.score1 + ' - ' + m.score2 : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {post.distinction_type && (
               <div style={{margin:'8px 0 24px',padding:'24px',background:'linear-gradient(135deg,#fef9e7,#faf5ff)',borderRadius:'16px',border:'2px solid #ffd700',textAlign:'center'}}>
