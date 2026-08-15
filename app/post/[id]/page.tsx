@@ -87,6 +87,7 @@ type Post = {
   ligue: string | null; ligue_logo: string | null;
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
+  heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   classement_type: string | null; classement_titre: string | null;
@@ -110,6 +111,15 @@ export default function PostPage() {
   const [loading, setLoading] = useState(true);
   const [format, setFormat] = useState<'carre' | 'vertical'>('carre');
   const [downloading, setDownloading] = useState(false);
+  const [lienCopie, setLienCopie] = useState(false);
+  const urlPost = typeof window !== 'undefined' ? window.location.href : '';
+
+  const copierLien = () => {
+    if (typeof navigator === 'undefined') return;
+    navigator.clipboard.writeText(urlPost);
+    setLienCopie(true);
+    setTimeout(() => setLienCopie(false), 2000);
+  };
   const cardRef = useRef<HTMLDivElement>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [likes, setLikes] = useState(0);
@@ -261,30 +271,36 @@ export default function PostPage() {
             )}
 
             {(post.pays1 && post.pays2) || (post.equipe1 && post.equipe2) ? (
-              <div style={{margin:'8px 0 24px',padding:'20px',background:'#faf5ff',borderRadius:'16px'}}>
+              <div style={{margin:'8px 0 24px',padding:'26px 22px',background:'linear-gradient(160deg,#faf5ff,#ffffff)',borderRadius:'20px',border:'1px solid #ece0ff'}}>
                 {(post.ligue || post.ligue_logo) && (
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'16px'}}>
-                    {post.ligue_logo && <img src={post.ligue_logo} alt="" style={{height:'24px'}}/>}
-                    {post.ligue && <span style={{fontSize:'13px',fontWeight:700,color:'#6b7280',textTransform:'uppercase',letterSpacing:'0.5px'}}>{post.ligue}</span>}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'20px'}}>
+                    {post.ligue_logo && <img src={post.ligue_logo} alt="" style={{height:'22px'}}/>}
+                    {post.ligue && <span style={{fontSize:'12px',fontWeight:900,color:'#6b21a8',textTransform:'uppercase',letterSpacing:'0.6px',background:'#fff',padding:'5px 14px',borderRadius:'999px',border:'1px solid #ece0ff'}}>{post.ligue}</span>}
                   </div>
                 )}
-                <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'16px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
-                    <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
+                    <div style={{fontWeight:900,fontSize:'16px',color:'#111',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
                   </div>
                   {post.score1 !== null && post.score2 !== null ? (
-                    <div style={{textAlign:'center'}}>
-                      <div style={{fontWeight:900,fontSize:'40px',color:VIOLET,lineHeight:1}}>{post.score1}-{post.score2}</div>
+                    <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px rgba(191,0,255,0.16)',border:'1px solid #ece0ff'}}>
+                      <div style={{fontWeight:900,fontSize:'32px',color:VIOLET,lineHeight:1}}>{post.score1}-{post.score2}</div>
                     </div>
                   ) : (
-                    <div style={{color:VIOLET,fontWeight:900,fontSize:'22px'}}>VS</div>
+                    <div style={{color:'#fff',fontWeight:900,fontSize:'15px',background:'linear-gradient(135deg,'+VIOLET+',#7c1fd9)',borderRadius:'50%',width:'46px',height:'46px',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 16px rgba(191,0,255,0.35)',flexShrink:0}}>VS</div>
                   )}
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
-                    <div style={{fontWeight:900,fontSize:'15px',color:'#111',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
+                    <div style={{fontWeight:900,fontSize:'16px',color:'#111',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
                   </div>
                 </div>
+                {(post.heure_match || post.stade) && (
+                  <div style={{display:'flex',justifyContent:'center',gap:'20px',flexWrap:'wrap',marginTop:'20px',paddingTop:'16px',borderTop:'1px solid #ece0ff'}}>
+                    {post.heure_match && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>🕐 {post.heure_match}</span>}
+                    {post.stade && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>📍 {post.stade}</span>}
+                  </div>
+                )}
                 {post.statut_match && (
                   <div style={{textAlign:'center',marginTop:'16px'}}>
                     <span style={{display:'inline-block',fontSize:'12px',fontWeight:900,color:'#fff',background:couleurStatut(post.statut_match),padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>
@@ -485,6 +501,14 @@ export default function PostPage() {
           }}>
             {downloading ? '⏳ Génération...' : '⬇️ Télécharger l\'image'}
           </button>
+
+          <div style={{display:'flex',justifyContent:'center',gap:'10px',flexWrap:'wrap',marginTop:'18px'}}>
+            <a href={'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(urlPost)} target="_blank" rel="noopener noreferrer" style={{background:'#1877f2',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>Facebook</a>
+            <a href={'https://wa.me/?text=' + encodeURIComponent((post.titre || 'MakeGoal') + ' ' + urlPost)} target="_blank" rel="noopener noreferrer" style={{background:'#25d366',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>WhatsApp</a>
+            <a href={'https://twitter.com/intent/tweet?url=' + encodeURIComponent(urlPost) + '&text=' + encodeURIComponent(post.titre || 'MakeGoal')} target="_blank" rel="noopener noreferrer" style={{background:'#111',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>X</a>
+            <button onClick={copierLien} style={{background:'#e5e7eb',color:'#374151',border:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer'}}>{lienCopie ? '✓ Copié' : '🔗 Copier le lien'}</button>
+          </div>
+
           {post.source_url && (
             <p style={{marginTop:'16px'}}>
               <a href={post.source_url} target="_blank" rel="noopener noreferrer" style={{color:VIOLET,fontSize:'14px',fontWeight:600}}>Voir la source originale →</a>

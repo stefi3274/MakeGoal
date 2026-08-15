@@ -13,6 +13,12 @@ export default function AdminApropos() {
   const [titre, setTitre] = useState('');
   const [texte, setTexte] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [facebook, setFacebook] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [tiktok, setTiktok] = useState('');
+  const [x, setX] = useState('');
+  const [youtube, setYoutube] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -25,6 +31,8 @@ export default function AdminApropos() {
       setTitre(data.titre || 'À propos de MakeGoal');
       setTexte(data.texte || '');
       setPhotoUrl(data.photo_url || '');
+      setFacebook(data.facebook || ''); setInstagram(data.instagram || ''); setTiktok(data.tiktok || '');
+      setX(data.x || ''); setYoutube(data.youtube || ''); setWhatsapp(data.whatsapp || '');
     }
   };
 
@@ -50,7 +58,10 @@ export default function AdminApropos() {
   const sauvegarder = async () => {
     setSaving(true); setMessage('');
     const { error } = await supabase.from('a_propos').update({
-      titre, texte, photo_url: photoUrl || null, updated_at: new Date().toISOString()
+      titre, texte, photo_url: photoUrl || null,
+      facebook: facebook || null, instagram: instagram || null, tiktok: tiktok || null,
+      x: x || null, youtube: youtube || null, whatsapp: whatsapp || null,
+      updated_at: new Date().toISOString()
     }).eq('id', 1);
     setSaving(false);
     if (error) setMessage('❌ ' + error.message);
@@ -105,6 +116,19 @@ export default function AdminApropos() {
           <div style={{marginBottom:'24px'}}>
             <label style={labelStyle}>Texte de présentation</label>
             <textarea value={texte} onChange={e => setTexte(e.target.value)} rows={10} placeholder="Présentez MakeGoal et vous-même..." style={{...inputStyle,resize:'vertical',lineHeight:'1.6'}}/>
+          </div>
+
+          <div style={{marginBottom:'24px',paddingTop:'20px',borderTop:'1px solid #333'}}>
+            <label style={{...labelStyle,fontSize:'14px',color:'#fff',fontWeight:700,marginBottom:'14px'}}>📱 Réseaux sociaux</label>
+            <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Affichés en icônes dans le pied de page du site. Laisser vide si non applicable.</p>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+              <div><label style={labelStyle}>Facebook</label><input value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="https://facebook.com/makegoal" style={inputStyle}/></div>
+              <div><label style={labelStyle}>Instagram</label><input value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="https://instagram.com/makegoal" style={inputStyle}/></div>
+              <div><label style={labelStyle}>TikTok</label><input value={tiktok} onChange={e => setTiktok(e.target.value)} placeholder="https://tiktok.com/@makegoal" style={inputStyle}/></div>
+              <div><label style={labelStyle}>X (Twitter)</label><input value={x} onChange={e => setX(e.target.value)} placeholder="https://x.com/makegoal" style={inputStyle}/></div>
+              <div><label style={labelStyle}>YouTube</label><input value={youtube} onChange={e => setYoutube(e.target.value)} placeholder="https://youtube.com/@makegoal" style={inputStyle}/></div>
+              <div><label style={labelStyle}>WhatsApp (chaîne/groupe)</label><input value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="https://wa.me/..." style={inputStyle}/></div>
+            </div>
           </div>
 
           <button onClick={sauvegarder} disabled={saving} style={{width:'100%',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>

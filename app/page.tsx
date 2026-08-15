@@ -37,6 +37,7 @@ export default function Home() {
   const [mesVotes, setMesVotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filtre, setFiltre] = useState('Tous');
+  const [matchsOuvert, setMatchsOuvert] = useState(false);
   const [email, setEmail] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
 
@@ -140,44 +141,54 @@ export default function Home() {
 
   const WidgetMatchs = () => (
     <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',padding:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
-        <h3 style={{fontWeight:900,fontSize:'16px',margin:0}}>⚽ Matchs à voter</h3>
-        <a href="/matchs" style={{color:VIOLET,fontSize:'12px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
-      </div>
-      {matchs.length === 0 && <p style={{color:'#9ca3af',fontSize:'13px',margin:0}}>Aucun match pour le moment.</p>}
-      {matchs.slice(0,4).map(m => {
-        const s = stats[m.id] || { '1':0,'X':0,'2':0,total:0 };
-        const monVote = mesVotes[m.id];
-        const termine = m.statut === 'termine';
-        return (
-          <div key={m.id} style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
-            <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 6px'}}>{formatMatch(m.date_match)}</p>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-              <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe1}</span>
-              {termine ? <span style={{fontWeight:900,fontSize:'14px',color:VIOLET}}>{m.score_home}-{m.score_away}</span> : <span style={{fontSize:'11px',color:'#9ca3af'}}>vs</span>}
-              <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe2}</span>
-            </div>
-            <div style={{display:'flex',gap:'4px'}}>
-              {([['1'],['X'],['2']] as const).map(([val]) => {
-                const pourcent = pct(s[val], s.total);
-                const actif = monVote === val;
-                return (
-                  <button key={val} disabled={termine} onClick={() => voter(m.id, val)} style={{
-                    flex:1, position:'relative', overflow:'hidden',
-                    padding:'6px 4px', borderRadius:'8px', cursor:termine?'default':'pointer',
-                    border: actif ? '2px solid '+VIOLET : '1px solid #e5e7eb',
-                    background: actif ? '#faf5ff' : '#fff', textAlign:'center'
-                  }}>
-                    <div style={{position:'absolute',bottom:0,left:0,height:'3px',width:pourcent+'%',background:actif?VIOLET:'#c4b5fd'}}/>
-                    <div style={{fontWeight:900,fontSize:'13px',color:actif?VIOLET:'#374151'}}>{val}</div>
-                    <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:700}}>{s.total>0?pourcent+'%':'—'}</div>
-                  </button>
-                );
-              })}
-            </div>
+      <button onClick={() => setMatchsOuvert(v => !v)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: matchsOuvert ? '16px' : 0}}>
+        <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <span style={{fontWeight:900,fontSize:'16px'}}>⚽ Matchs à voter</span>
+          {matchs.length > 0 && <span style={{background:VIOLET,color:'#fff',fontSize:'11px',fontWeight:900,padding:'2px 9px',borderRadius:'999px'}}>{matchs.length}</span>}
+        </span>
+        <span style={{color:VIOLET,fontSize:'13px',fontWeight:700}}>{matchsOuvert ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
+      </button>
+      {matchsOuvert && (
+        <>
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'8px'}}>
+            <a href="/matchs" style={{color:VIOLET,fontSize:'12px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
           </div>
-        );
-      })}
+          {matchs.length === 0 && <p style={{color:'#9ca3af',fontSize:'13px',margin:0}}>Aucun match pour le moment.</p>}
+          {matchs.slice(0,4).map(m => {
+            const s = stats[m.id] || { '1':0,'X':0,'2':0,total:0 };
+            const monVote = mesVotes[m.id];
+            const termine = m.statut === 'termine';
+            return (
+              <div key={m.id} style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
+                <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 6px'}}>{formatMatch(m.date_match)}</p>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                  <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe1}</span>
+                  {termine ? <span style={{fontWeight:900,fontSize:'14px',color:VIOLET}}>{m.score_home}-{m.score_away}</span> : <span style={{fontSize:'11px',color:'#9ca3af'}}>vs</span>}
+                  <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe2}</span>
+                </div>
+                <div style={{display:'flex',gap:'4px'}}>
+                  {([['1'],['X'],['2']] as const).map(([val]) => {
+                    const pourcent = pct(s[val], s.total);
+                    const actif = monVote === val;
+                    return (
+                      <button key={val} disabled={termine} onClick={() => voter(m.id, val)} style={{
+                        flex:1, position:'relative', overflow:'hidden',
+                        padding:'6px 4px', borderRadius:'8px', cursor:termine?'default':'pointer',
+                        border: actif ? '2px solid '+VIOLET : '1px solid #e5e7eb',
+                        background: actif ? '#faf5ff' : '#fff', textAlign:'center'
+                      }}>
+                        <div style={{position:'absolute',bottom:0,left:0,height:'3px',width:pourcent+'%',background:actif?VIOLET:'#c4b5fd'}}/>
+                        <div style={{fontWeight:900,fontSize:'13px',color:actif?VIOLET:'#374151'}}>{val}</div>
+                        <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:700}}>{s.total>0?pourcent+'%':'—'}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 
@@ -187,7 +198,7 @@ export default function Home() {
 
       <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'40px 24px',textAlign:'center'}}>
         <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,44px)',margin:'0 0 8px'}}>📰 MakeGoal</h1>
-        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'17px',margin:0,fontWeight:600}}>Aktialite, analiz ak kominote — N ap enfòme w.</p>
+        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'17px',margin:0,fontWeight:600}}>N ap enfòme w.</p>
       </div>
 
       <main style={{maxWidth:'1100px',margin:'0 auto',padding:'32px 16px'}}>

@@ -106,6 +106,7 @@ type Article = {
   ligue: string | null; ligue_logo: string | null;
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
+  heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   relance_at: string | null;
@@ -174,6 +175,8 @@ export default function AdminMedia() {
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
   const [matchsJourSelection, setMatchsJourSelection] = useState<MatchJour[]>([]);
   const [piocheMatchOuvert, setPiocheMatchOuvert] = useState(false);
+  const [heureMatch, setHeureMatch] = useState('');
+  const [stade, setStade] = useState('');
 
   const [resTexteColle, setResTexteColle] = useState('');
   const [resButs, setResButs] = useState<But[]>([]);
@@ -209,6 +212,7 @@ export default function AdminMedia() {
     setEquipe2(m.equipe2);
     setPays1(''); setPays2('');
     if (m.competition) setLigue(m.competition);
+    setHeureMatch(new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}));
     if (m.score_home !== null && m.score_away !== null) {
       setScore1(String(m.score_home)); setScore2(String(m.score_away)); setStatutMatch('Match terminé');
     } else {
@@ -349,6 +353,7 @@ export default function AdminMedia() {
     setClassementTexteColle('');
     setMatchsJourSelection([]);
     setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]);
+    setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
     setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
   };
@@ -365,6 +370,7 @@ export default function AdminMedia() {
     setScore1(a.score1 !== null && a.score1 !== undefined ? String(a.score1) : '');
     setScore2(a.score2 !== null && a.score2 !== undefined ? String(a.score2) : '');
     setStatutMatch(a.statut_match || '');
+    setHeureMatch(a.heure_match || ''); setStade(a.stade || '');
     const dt = a.distinction_type || '';
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
@@ -455,6 +461,8 @@ export default function AdminMedia() {
       score1: score1 !== '' ? parseInt(score1) : null,
       score2: score2 !== '' ? parseInt(score2) : null,
       statut_match: statutMatch || null,
+      heure_match: (modePost === 'match' || modePost === 'resultat') ? (heureMatch || null) : null,
+      stade: (modePost === 'match' || modePost === 'resultat') ? (stade || null) : null,
       statut_change_at: statutMatch ? new Date().toISOString() : null,
       distinction_type: distinctionType === 'Autre' ? (distinctionAutre || null) : (distinctionType || null),
       laureat: laureat || null,
@@ -645,6 +653,12 @@ export default function AdminMedia() {
                   <input type="number" value={score2} onChange={e => setScore2(e.target.value)} placeholder="0" style={{...inputStyle,width:'70px',textAlign:'center',fontSize:'18px',fontWeight:900}}/>
                 </div>
 
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Heure & lieu (optionnel)</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+                  <input value={heureMatch} onChange={e => setHeureMatch(e.target.value)} placeholder="🕐 Sam 15 août, 15:00" style={inputStyle}/>
+                  <input value={stade} onChange={e => setStade(e.target.value)} placeholder="📍 Stade Santiago Bernabéu" style={inputStyle}/>
+                </div>
+
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Statut</p>
                 <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                   {['', 'À venir', 'Mi-temps', 'Match terminé'].map(s => (
@@ -715,6 +729,10 @@ export default function AdminMedia() {
                   <span style={{color:'#6b7280'}}>-</span>
                   <input type="number" value={score2} onChange={e => setScore2(e.target.value)} style={{...inputStyle,width:'50px',textAlign:'center'}}/>
                   <input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="Équipe 2" style={{...inputStyle,flex:2}}/>
+                </div>
+                <div style={{display:'flex',gap:'8px',marginBottom:'18px'}}>
+                  <input value={heureMatch} onChange={e => setHeureMatch(e.target.value)} placeholder="🕐 Sam 15 août, 15:00" style={inputStyle}/>
+                  <input value={stade} onChange={e => setStade(e.target.value)} placeholder="📍 Stade" style={inputStyle}/>
                 </div>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>⚽ Buts ({resButs.length})</p>
@@ -1040,81 +1058,3 @@ export default function AdminMedia() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

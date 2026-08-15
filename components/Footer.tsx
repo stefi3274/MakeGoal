@@ -1,9 +1,29 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 const VIOLET = '#bf00ff';
 const LOGO_URL = 'https://giflxfycfqanyfaeoedz.supabase.co/storage/v1/object/public/images/logo%20makegoal.jpg';
 
+type Reseaux = { facebook: string | null; instagram: string | null; tiktok: string | null; x: string | null; youtube: string | null; whatsapp: string | null };
+
 export default function Footer() {
+  const [reseaux, setReseaux] = useState<Reseaux | null>(null);
+
+  useEffect(() => {
+    supabase.from('a_propos').select('facebook, instagram, tiktok, x, youtube, whatsapp').eq('id', 1).single()
+      .then(({ data }) => { if (data) setReseaux(data); });
+  }, []);
+
+  const icones = reseaux ? [
+    { url: reseaux.facebook, label: 'Facebook', emoji: '📘' },
+    { url: reseaux.instagram, label: 'Instagram', emoji: '📸' },
+    { url: reseaux.tiktok, label: 'TikTok', emoji: '🎵' },
+    { url: reseaux.x, label: 'X', emoji: '✖️' },
+    { url: reseaux.youtube, label: 'YouTube', emoji: '▶️' },
+    { url: reseaux.whatsapp, label: 'WhatsApp', emoji: '💬' },
+  ].filter(r => r.url) : [];
+
   return (
     <footer style={{background:'#1a1a1a',color:'#e5e7eb',padding:'32px 16px',marginTop:'48px'}}>
       <div style={{maxWidth:'960px',margin:'0 auto'}}>
@@ -15,6 +35,16 @@ export default function Footer() {
             </div>
             <p style={{fontSize:'13px',color:'#9ca3af',margin:0}}>Média sportif — N ap enfòme w.</p>
             <p style={{fontSize:'12px',color:'#9ca3af',marginTop:'8px'}}>Édité par SteFi Services<br/>Port-au-Prince, Haïti</p>
+            {icones.length > 0 && (
+              <div style={{display:'flex',gap:'10px',marginTop:'14px'}}>
+                {icones.map(r => (
+                  <a key={r.label} href={r.url!} target="_blank" rel="noopener noreferrer" title={r.label} style={{
+                    width:'34px',height:'34px',borderRadius:'50%',background:'#2a2a2a',
+                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',textDecoration:'none'
+                  }}>{r.emoji}</a>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <h4 style={{color:'#ffffff',fontWeight:700,fontSize:'14px',marginBottom:'8px'}}>Informations</h4>
