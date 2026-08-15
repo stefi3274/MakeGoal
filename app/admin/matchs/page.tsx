@@ -27,6 +27,7 @@ export default function AdminMatchs() {
   const [vue, setVue] = useState<'liste' | 'nouveau' | 'lot'>('liste');
   const [texteLot, setTexteLot] = useState('');
   const [importLot, setImportLot] = useState(false);
+  const [fuseauLot, setFuseauLot] = useState<'Haiti' | 'Europe'>('Haiti');
   const [editId, setEditId] = useState<string | null>(null);
 
   const [equipe1, setEquipe1] = useState('');
@@ -77,11 +78,14 @@ export default function AdminMatchs() {
     return d.toISOString();
   };
 
-  // Convertit "AAAA-MM-JJ HH:MM" (heure Haïti) en ISO UTC
-  const texteVersUTC = (s: string) => {
+  // Convertit "AAAA-MM-JJ HH:MM" saisi dans le fuseau indiqué vers un ISO UTC. Gère automatiquement l'heure d'été/hiver.
+  const FUSEAUX = { Haiti: 'America/Port-au-Prince', Europe: 'Europe/Madrid' };
+  const texteVersUTC = (s: string, fuseau: 'Haiti' | 'Europe' = 'Haiti') => {
     const iso = s.trim().replace(' ', 'T');
-    const d = new Date(iso + ':00-04:00');
-    return d.toISOString();
+    const naive = new Date(iso + ':00Z');
+    const local = new Date(naive.toLocaleString('en-US', { timeZone: FUSEAUX[fuseau] }));
+    const diff = naive.getTime() - local.getTime();
+    return new Date(naive.getTime() + diff).toISOString();
   };
 
   const importerLot = async () => {
@@ -108,7 +112,7 @@ export default function AdminMatchs() {
       const equipe1 = parts.slice(0, parts.length - 2).join(' - ');
       if (!equipe1 || !equipe2) { erreurs.push(ligne); continue; }
       try {
-        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr) });
+        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr, fuseauLot) });
       } catch { erreurs.push(ligne); }
     }
 
@@ -226,7 +230,12 @@ PSG - Monaco - 2026-08-15 17:00
 
 Journée 3 - Premier League
 Arsenal - Chelsea - 2026-08-16 14:00`}</pre>
-            <p style={{color:'#6b7280',fontSize:'11px',margin:'8px 0 12px'}}>Format d'un match : Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM (heure d'Haïti)</p>
+            <p style={{color:'#6b7280',fontSize:'11px',margin:'8px 0 6px'}}>Format d'un match : Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM</p>
+            <p style={{color:'#9ca3af',fontSize:'12px',fontWeight:700,margin:'0 0 8px'}}>Cette heure collée est dans le fuseau :</p>
+            <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
+              <button type="button" onClick={() => setFuseauLot('Haiti')} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:fuseauLot==='Haiti'?VIOLET:'#333',color:'#fff'}}>🇭🇹 Haïti</button>
+              <button type="button" onClick={() => setFuseauLot('Europe')} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:fuseauLot==='Europe'?VIOLET:'#333',color:'#fff'}}>🇪🇸 Europe (Espagne/France)</button>
+            </div>
             <textarea value={texteLot} onChange={e => setTexteLot(e.target.value)} rows={12} placeholder="Collez vos matchs ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',lineHeight:'1.6'}}/>
             <button onClick={importerLot} disabled={importLot} style={{width:'100%',marginTop:'16px',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{importLot ? '⏳ Import...' : '🚀 Créer tous les matchs'}</button>
           </div>
