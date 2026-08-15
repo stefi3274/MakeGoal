@@ -173,6 +173,7 @@ export default function AdminMedia() {
   const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
   const [matchsJourSelection, setMatchsJourSelection] = useState<MatchJour[]>([]);
+  const [piocheMatchOuvert, setPiocheMatchOuvert] = useState(false);
 
   const [resTexteColle, setResTexteColle] = useState('');
   const [resButs, setResButs] = useState<But[]>([]);
@@ -186,7 +187,7 @@ export default function AdminMedia() {
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
-  useEffect(() => { if (connecte && modePost === 'matchsjour' && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
+  useEffect(() => { if (connecte && (modePost === 'matchsjour' || modePost === 'match') && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
 
   const chargerMatchsDispo = async () => {
     const { data } = await supabase.from('matchs').select('*').order('date_match', { ascending: true });
@@ -202,6 +203,20 @@ export default function AdminMedia() {
   };
 
   const retirerMatchJour = (id: string) => setMatchsJourSelection(prev => prev.filter(x => x.id !== id));
+
+  const piocherMatch = (m: Match) => {
+    setEquipe1(m.equipe1);
+    setEquipe2(m.equipe2);
+    setPays1(''); setPays2('');
+    if (m.competition) setLigue(m.competition);
+    if (m.score_home !== null && m.score_away !== null) {
+      setScore1(String(m.score_home)); setScore2(String(m.score_away)); setStatutMatch('Match terminé');
+    } else {
+      setScore1(''); setScore2(''); setStatutMatch('À venir');
+    }
+    setPiocheMatchOuvert(false);
+    setMessage('✅ Match pioché, vérifiez et complétez si besoin.');
+  };
 
   const setScoreMatchJour = (id: string, champ: 'score1' | 'score2', val: string) => {
     setMatchsJourSelection(prev => prev.map(x => x.id === id ? { ...x, [champ]: val === '' ? null : parseInt(val) } : x));
@@ -586,6 +601,20 @@ export default function AdminMedia() {
               <div style={sectionStyle}>
                 <label style={labelStyle}>⚽ Affiche de match</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Pour un post match. Remplissez ce que vous voulez afficher.</p>
+
+                <button type="button" onClick={() => setPiocheMatchOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:piocheMatchOuvert?'#333':VIOLET,color:'#fff',marginBottom:'14px'}}>{piocheMatchOuvert ? '✕ Fermer la liste' : '🎯 Piocher un match existant'}</button>
+
+                {piocheMatchOuvert && (
+                  <div style={{maxHeight:'280px',overflowY:'auto',border:'1px solid #333',borderRadius:'10px',marginBottom:'20px'}}>
+                    {matchsDispo.length === 0 && <p style={{color:'#6b7280',fontSize:'12px',padding:'14px'}}>Aucun match trouvé. Ajoutez-en dans "Matchs".</p>}
+                    {matchsDispo.map(m => (
+                      <div key={m.id} onClick={() => piocherMatch(m)} style={{padding:'10px 12px',borderBottom:'1px solid #222',cursor:'pointer'}}>
+                        <div style={{color:'#fff',fontSize:'13px',fontWeight:700}}>{m.equipe1} vs {m.equipe2}</div>
+                        <div style={{color:'#6b7280',fontSize:'11px'}}>{m.competition ? m.competition + ' · ' : ''}{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}{m.score_home !== null ? ' · ' + m.score_home + '-' + m.score_away : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ligue / compétition</p>
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px',alignItems:'center'}}>
@@ -1011,3 +1040,81 @@ export default function AdminMedia() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
