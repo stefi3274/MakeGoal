@@ -170,6 +170,10 @@ export default function AdminMedia() {
     Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''}))
   );
   const [classementTexteColle, setClassementTexteColle] = useState('');
+  const [lotClassementOuvert, setLotClassementOuvert] = useState(false);
+  const [texteLotClassements, setTexteLotClassements] = useState('');
+  const [typeLotClassements, setTypeLotClassements] = useState<'equipes' | 'joueurs'>('equipes');
+  const [importLotClassements, setImportLotClassements] = useState(false);
   const [formation, setFormation] = useState('');
   const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
@@ -427,6 +431,34 @@ export default function AdminMedia() {
     });
     setClassement(parsees);
     setMessage('✅ Classement analysé (' + parsees.length + ' lignes). Vérifiez et corrigez si besoin.');
+  };
+
+  const creerClassementsEnLot = async () => {
+    const blocs = texteLotClassements.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    const aCreer: { nomLigue: string; lignes: { pos: string; nom: string; extra: string; val: string; couleur: string }[] }[] = [];
+    for (const bloc of blocs) {
+      const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lignes.length < 2) continue;
+      const nomLigue = lignes[0];
+      const equipes = lignes.slice(1).map((l, i) => {
+        const parts = l.split('-').map(p => p.trim()).filter(p => p !== '');
+        return { pos: String(i + 1), nom: parts[0] || '', extra: parts[1] || '', val: parts[2] || '', couleur: '' };
+      });
+      aCreer.push({ nomLigue, lignes: equipes });
+    }
+    if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un nom de championnat par bloc, puis une ligne par ' + (typeLotClassements === 'equipes' ? 'équipe' : 'joueur') + '.'); return; }
+    setImportLotClassements(true);
+    const rows = aCreer.map(c => ({
+      type: 'post', langue, categorie: 'Classement', titre: 'Classement — ' + c.nomLigue,
+      classement_type: typeLotClassements, classement_titre: c.nomLigue, classement: c.lignes,
+      publie: true
+    }));
+    const { error } = await supabase.from('articles').insert(rows);
+    setImportLotClassements(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ ' + rows.length + ' classements créés et publiés (' + aCreer.map(c => c.nomLigue).join(', ') + ').');
+    setTexteLotClassements('');
+    chargerArticles();
   };
 
   const COULEURS_LIGNE = [
@@ -857,6 +889,20 @@ export default function AdminMedia() {
 
                 {classementType && (
                   <div>
+                    <button type="button" onClick={() => setLotClassementOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotClassementOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotClassementOuvert ? '✕ Fermer' : '📚 Coller plusieurs championnats à la fois'}</button>
+
+                    {lotClassementOuvert && (
+                      <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                        <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post "Classement" par championnat, en une fois. Un bloc par championnat, séparé par une ligne vide : la 1ère ligne du bloc = nom du championnat, puis une ligne par {typeLotClassements==='equipes'?'équipe':'joueur'}.</p>
+                        <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
+                          <button type="button" onClick={() => setTypeLotClassements('equipes')} style={btnChoix(typeLotClassements==='equipes')}>🏆 Équipes</button>
+                          <button type="button" onClick={() => setTypeLotClassements('joueurs')} style={btnChoix(typeLotClassements==='joueurs')}>👤 Joueurs</button>
+                        </div>
+                        <textarea value={texteLotClassements} onChange={e => setTexteLotClassements(e.target.value)} rows={12} placeholder={"La Liga\nSevilla - 2 - 6\nAlavés - 2 - 4\n\nPremier League\nBrighton - 1 - 3\nArsenal - 1 - 3"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                        <button type="button" onClick={creerClassementsEnLot} disabled={importLotClassements} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotClassements ? '⏳ Création...' : '🚀 Créer tous les classements'}</button>
+                      </div>
+                    )}
+
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
                     <input value={classementTitre} onChange={e => setClassementTitre(e.target.value)} placeholder={classementType==='equipes'?'Ex: Groupe A / Classement FIFA':'Ex: Meilleurs buteurs Ligue 1'} style={{...inputStyle,marginBottom:'14px'}}/>
 

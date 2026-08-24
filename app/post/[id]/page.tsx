@@ -39,6 +39,15 @@ const DRAPEAUX: Record<string, string> = {
 };
 const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
+const IconCrampon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" style={{display:'inline-block',verticalAlign:'-2px'}}>
+    <path fill={VIOLET} d="M2 17.2c0-1.6 1-2.8 2.6-3.3l6.8-2.3c1-.35 1.7-1.2 1.9-2.3l.5-2.4c.3-1.5 1.7-2.5 3.2-2.2l3.2.7c1.2.27 2 1.4 1.9 2.6l-.25 2.7c-.1 1.05.4 2.05 1.3 2.6l.9.6c.65.4.6 1.4-.1 1.75-1 .5-2.2.85-3.7.85H5c-1.7 0-3-1.3-3-3z"/>
+    <circle cx="6.3" cy="19.3" r="1.05" fill={VIOLET}/>
+    <circle cx="10.2" cy="19.5" r="1.05" fill={VIOLET}/>
+    <circle cx="14.1" cy="19.5" r="1.05" fill={VIOLET}/>
+  </svg>
+);
+
 const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
   champ: [
     { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
@@ -253,12 +262,12 @@ export default function PostPage() {
           }}>
             <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'28px'}}>
               {LOGO_URL ? (
-                <img src={LOGO_URL} alt="MakeGoal" style={{height:'40px'}}/>
+                <img src={LOGO_URL} alt="MakeGoal" style={{height:'58px'}}/>
               ) : (
                 <span style={{color:VIOLET,fontWeight:900,fontSize:'26px'}}>MakeGoal</span>
               )}
               <span style={{marginLeft:'auto',fontSize:'13px',fontWeight:700,color:'#fff',background:VIOLET,padding:'4px 12px',borderRadius:'999px'}}>
-                {post.langue==='kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 Actu'}
+                {post.langue==='kreyol' ? 'Kreyòl' : 'Actu'}
               </span>
             </div>
 
@@ -281,7 +290,7 @@ export default function PostPage() {
                 <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
-                    <div style={{fontWeight:900,fontSize:'16px',color:'#111',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
                   </div>
                   {post.score1 !== null && post.score2 !== null ? (
                     <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px rgba(191,0,255,0.16)',border:'1px solid #ece0ff'}}>
@@ -292,7 +301,7 @@ export default function PostPage() {
                   )}
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
-                    <div style={{fontWeight:900,fontSize:'16px',color:'#111',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
                   </div>
                 </div>
                 {(post.heure_match || post.stade) && (
@@ -340,7 +349,7 @@ export default function PostPage() {
                         <div style={{fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{eq}</div>
                         {post.resultat_details!.buts.filter(b => b.equipe === eq).map((b, i) => (
                           <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>
-                            ⚽ {b.joueur} <span style={{color:'#6b7280'}}>{b.minute}'</span>{b.passeur && <span style={{color:'#6b7280'}}> 🥾 {b.passeur}</span>}
+                            ⚽ {b.joueur} <span style={{color:'#6b7280'}}>{b.minute}'</span>{b.passeur && <span style={{color:'#6b7280'}}> <IconCrampon/> {b.passeur}</span>}
                           </div>
                         ))}
                       </div>
@@ -374,7 +383,7 @@ export default function PostPage() {
                 <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
                   {post.stats_joueur.joueurs.map((j, i) => (
                     <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
-                      <div style={{fontWeight:900,fontSize:'15px',color:'#111',textAlign:'center'}}>{j.nom}</div>
+                      <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
                       {j.equipe && <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>{j.equipe}</div>}
                       {CHAMPS_STATS[post.stats_joueur!.poste || 'champ'].filter(c => j.valeurs?.[c.cle]).map(c => (
                         <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
