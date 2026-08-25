@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 const VIOLET = '#bf00ff';
 
@@ -11,6 +12,7 @@ type Concours = {
   statut: string;
   lots: string | null;
   created_at: string;
+  sport: string | null;
 };
 
 type ConcoursMatch = {
@@ -42,6 +44,10 @@ export default function AdminConcours() {
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [lots, setLots] = useState('10 000 Gourdes, tablettes, abonnement Netflix 3 mois');
+  const [sportFiltre, setSportFiltre] = useState<Sport>('football');
+  const [sportForm, setSportForm] = useState<Sport>('football');
+
+  useEffect(() => { setSportFiltre(getSport()); setSportForm(getSport()); }, []);
 
   const [nEquipe1, setNEquipe1] = useState('');
   const [nEquipe2, setNEquipe2] = useState('');
@@ -82,7 +88,7 @@ export default function AdminConcours() {
   const creerConcours = async () => {
     if (!titre || !lots) { setMessage('❌ Le titre et les lots sont obligatoires.'); return; }
     const { data, error } = await supabase.from('concours').insert({
-      titre, description: description || null, lots, statut: 'ouvert'
+      titre, description: description || null, lots, statut: 'ouvert', sport: sportForm
     }).select().single();
     if (error) { setMessage('❌ ' + error.message); return; }
     setMessage('✅ Concours créé ! Ajoutez maintenant ses matchs ci-dessous.');
@@ -203,12 +209,17 @@ export default function AdminConcours() {
 
   return (
     <div style={{minHeight:'100vh',background:'#0f0f0f',fontFamily:'sans-serif'}}>
-      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222'}}>
-        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>🏆 Admin Concours</h1>
+      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222',flexWrap:'wrap',gap:'10px'}}>
+        <h1 style={{color:SPORT_COULEURS[sportFiltre].primaire,fontWeight:900,fontSize:'18px',margin:0}}>🏆 Admin Concours</h1>
+        <div style={{display:'flex',gap:'6px',background:'#1a1a1a',borderRadius:'999px',padding:'4px'}}>
+          {(['football','basketball'] as Sport[]).map(s => (
+            <button key={s} onClick={() => setSportFiltre(s)} style={{border:'none',cursor:'pointer',padding:'7px 14px',borderRadius:'999px',fontWeight:800,fontSize:'12.5px',background:sportFiltre===s?SPORT_COULEURS[s].primaire:'transparent',color:sportFiltre===s?'#fff':'#9ca3af'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+          ))}
+        </div>
         <div style={{display:'flex',gap:'8px'}}>
           <a href="/admin" style={{background:'#333',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin principal</a>
           <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
-          <button onClick={() => setVue('nouveau')} style={{background:vue==='nouveau'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
+          <button onClick={() => { setSportForm(sportFiltre); setVue('nouveau'); }} style={{background:vue==='nouveau'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
         </div>
       </header>
 
@@ -219,6 +230,11 @@ export default function AdminConcours() {
         {vue === 'nouveau' && (
           <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
             <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'20px'}}>Créer un concours</h2>
+            <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
+              {(['football','basketball'] as Sport[]).map(s => (
+                <button key={s} type="button" onClick={() => setSportForm(s)} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:sportForm===s?SPORT_COULEURS[s].primaire:'#333',color:'#fff'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+              ))}
+            </div>
             <div style={{marginBottom:'14px'}}><label style={labelStyle}>Titre du concours</label><input value={titre} onChange={e => setTitre(e.target.value)} placeholder="Coupe du Monde 2026" style={inputStyle}/></div>
             <div style={{marginBottom:'14px'}}><label style={labelStyle}>Description (optionnel)</label><input value={description} onChange={e => setDescription(e.target.value)} placeholder="Pronostiquez les matchs de la phase de groupes" style={inputStyle}/></div>
             <div style={{marginBottom:'20px'}}><label style={labelStyle}>Lots</label><input value={lots} onChange={e => setLots(e.target.value)} style={inputStyle}/></div>
@@ -229,8 +245,8 @@ export default function AdminConcours() {
 
         {vue === 'liste' && (
           <>
-            {concoursList.length === 0 && <p style={{color:'#6b7280'}}>Aucun concours. Créez-en un.</p>}
-            {concoursList.map(c => {
+            {concoursList.filter(c => (c.sport || 'football') === sportFiltre).length === 0 && <p style={{color:'#6b7280'}}>Aucun concours {SPORT_LABEL[sportFiltre].nom.toLowerCase()}. Créez-en un.</p>}
+            {concoursList.filter(c => (c.sport || 'football') === sportFiltre).map(c => {
               const matchs = matchsByConcours[c.id] || [];
               const ouvert = expandedId === c.id;
               return (

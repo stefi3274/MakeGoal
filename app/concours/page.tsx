@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../lib/sport';
 
 const VIOLET = '#bf00ff';
 
@@ -14,6 +15,7 @@ type Concours = {
   description: string | null;
   statut: string;
   lots: string | null;
+  sport: string | null;
 };
 
 type ConcoursMatch = {
@@ -50,15 +52,21 @@ export default function ConcoursPage() {
   const [classement, setClassement] = useState<Classement[]>([]);
   const [partageMsg, setPartageMsg] = useState('');
   const [vue, setVue] = useState<'participer' | 'classement'>('participer');
+  const [sport, setSportLocal] = useState<Sport>('football');
 
-  useEffect(() => { chargerConcours(); }, []);
+  useEffect(() => { setSportLocal(getSport()); }, []);
+  useEffect(() => { chargerConcours(); }, [sport]);
   useEffect(() => { if (user && matchs.length > 0) chargerMesPronos(); }, [user, matchs]);
 
+  const couleur = SPORT_COULEURS[sport].primaire;
+
   const chargerConcours = async () => {
+    setLoading(true);
     const { data: c } = await supabase
       .from('concours')
       .select('*')
       .in('statut', ['ouvert', 'ferme'])
+      .eq('sport', sport)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -76,6 +84,8 @@ export default function ConcoursPage() {
         setPronos(init);
       }
       chargerClassement(c.id);
+    } else {
+      setConcours(null); setMatchs([]);
     }
     setLoading(false);
   };
@@ -184,8 +194,8 @@ export default function ConcoursPage() {
       <Header />
       <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 24px'}}>
 
-        <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',borderRadius:'20px',padding:'32px',textAlign:'center',marginBottom:'24px'}}>
-          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>🏆 Concours MakeGoal</p>
+        <div style={{background:'linear-gradient(135deg,#1a0033,'+couleur+')',borderRadius:'20px',padding:'32px',textAlign:'center',marginBottom:'24px'}}>
+          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>{SPORT_LABEL[sport].emoji} Concours MakeGoal</p>
           <h1 style={{color:'#fff',fontWeight:900,fontSize:'28px',margin:'0 0 12px'}}>{concours.titre}</h1>
           {concours.lots && (
             <div style={{background:'rgba(255,255,255,0.15)',borderRadius:'12px',padding:'12px',marginTop:'8px'}}>
@@ -195,8 +205,8 @@ export default function ConcoursPage() {
         </div>
 
         <div style={{display:'flex',gap:'8px',marginBottom:'24px',background:'#f3f4f6',borderRadius:'12px',padding:'4px'}}>
-          <button onClick={() => setVue('participer')} style={{flex:1,padding:'12px',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue==='participer'?'#fff':'transparent',color:vue==='participer'?VIOLET:'#6b7280'}}>Participer</button>
-          <button onClick={() => setVue('classement')} style={{flex:1,padding:'12px',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue==='classement'?'#fff':'transparent',color:vue==='classement'?VIOLET:'#6b7280'}}>Classement</button>
+          <button onClick={() => setVue('participer')} style={{flex:1,padding:'12px',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue==='participer'?'#fff':'transparent',color:vue==='participer'?couleur:'#6b7280'}}>Participer</button>
+          <button onClick={() => setVue('classement')} style={{flex:1,padding:'12px',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue==='classement'?'#fff':'transparent',color:vue==='classement'?couleur:'#6b7280'}}>Classement</button>
         </div>
 
         {message && <div style={{padding:'12px 16px',borderRadius:'12px',marginBottom:'16px',fontWeight:600,fontSize:'14px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981'}}>{message}</div>}
@@ -207,46 +217,51 @@ export default function ConcoursPage() {
 
             {matchs.map(m => {
               const p = pronos[m.id] || { choix_1x2:'', score_home:'', score_away:'', buteurs:['','',''] };
+              const optionsResultat = sport === 'basketball' ? [['1',m.equipe1],['2',m.equipe2]] : [['1',m.equipe1],['X','Nul'],['2',m.equipe2]];
               return (
                 <div key={m.id} style={{border:'2px solid #e5e7eb',borderRadius:'20px',padding:'24px',marginBottom:'20px'}}>
                   {m.label && <div style={{display:'inline-block',background:'#111',color:'#fff',fontSize:'11px',fontWeight:700,padding:'4px 12px',borderRadius:'999px',marginBottom:'12px'}}>{m.label}</div>}
                   <h2 style={{fontWeight:900,fontSize:'20px',margin:'0 0 4px'}}>{m.equipe1} vs {m.equipe2}</h2>
                   <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 20px'}}>📅 {formatDate(m.date_match)}</p>
 
-                  <p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Résultat <span style={{color:VIOLET}}>(10 pts, +25 si exact)</span></p>
+                  <p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Résultat <span style={{color:couleur}}>(10 pts, +25 si exact)</span></p>
                   <div style={{display:'flex',gap:'8px',marginBottom:'20px'}}>
-                    {[['1',m.equipe1],['X','Nul'],['2',m.equipe2]].map(([val,label]) => (
+                    {optionsResultat.map(([val,label]) => (
                       <button key={val} disabled={ferme} onClick={() => setChoix(m.id, val)} style={{
                         flex:1,padding:'14px 8px',borderRadius:'12px',cursor:ferme?'default':'pointer',
-                        border:p.choix_1x2===val?'2px solid '+VIOLET:'2px solid #e5e7eb',
+                        border:p.choix_1x2===val?'2px solid '+couleur:'2px solid #e5e7eb',
                         background:p.choix_1x2===val?'#faf5ff':'#fff',
-                        fontWeight:700,fontSize:'13px',color:p.choix_1x2===val?VIOLET:'#374151'
+                        fontWeight:700,fontSize:'13px',color:p.choix_1x2===val?couleur:'#374151'
                       }}>
                         <div style={{fontSize:'18px',fontWeight:900,marginBottom:'2px'}}>{val}</div>
                         <div style={{fontSize:'11px'}}>{label}</div>
                       </button>
                     ))}
-                  </div><p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Score exact <span style={{color:VIOLET}}>(10 pts, +25 si exact)</span></p>
+                  </div><p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Score exact <span style={{color:couleur}}>(10 pts, +25 si exact)</span></p>
                   <div style={{display:'flex',gap:'12px',alignItems:'center',justifyContent:'center',marginBottom:'20px'}}>
                     <input type="number" min={0} disabled={ferme} value={p.score_home} onChange={e => setScore(m.id,'home',e.target.value)} placeholder="0" style={{...inputStyle,width:'64px',textAlign:'center',fontSize:'22px',fontWeight:900}}/>
                     <span style={{fontSize:'22px',fontWeight:900,color:'#9ca3af'}}>—</span>
                     <input type="number" min={0} disabled={ferme} value={p.score_away} onChange={e => setScore(m.id,'away',e.target.value)} placeholder="0" style={{...inputStyle,width:'64px',textAlign:'center',fontSize:'22px',fontWeight:900}}/>
                   </div>
 
-                  <p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Buteurs <span style={{color:VIOLET}}>(10 pts chacun, +25 si exact)</span></p>
-                  {p.buteurs.map((b, i) => (
-                    <input key={i} disabled={ferme} value={b} onChange={e => setButeur(m.id, i, e.target.value)} placeholder={'Buteur ' + (i+1)} style={{...inputStyle,marginBottom:'8px'}}/>
-                  ))}
+                  {sport === 'football' && (
+                    <>
+                      <p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Buteurs <span style={{color:couleur}}>(10 pts chacun, +25 si exact)</span></p>
+                      {p.buteurs.map((b, i) => (
+                        <input key={i} disabled={ferme} value={b} onChange={e => setButeur(m.id, i, e.target.value)} placeholder={'Buteur ' + (i+1)} style={{...inputStyle,marginBottom:'8px'}}/>
+                      ))}
+                    </>
+                  )}
 
                   {!ferme && (
-                    <button onClick={() => sauvegarderMatch(m.id)} disabled={saving===m.id} style={{width:'100%',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'12px',fontWeight:700,fontSize:'15px',cursor:'pointer',marginTop:'8px'}}>
+                    <button onClick={() => sauvegarderMatch(m.id)} disabled={saving===m.id} style={{width:'100%',padding:'14px',background:couleur,color:'#fff',border:'none',borderRadius:'12px',fontWeight:700,fontSize:'15px',cursor:'pointer',marginTop:'8px'}}>
                       {saving===m.id ? '...' : '✅ Valider ce match'}
                     </button>
                   )}
                 </div>
               );
             })}{user && (
-              <div style={{background:'#faf5ff',border:'2px solid '+VIOLET,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
+              <div style={{background:'#faf5ff',border:'2px solid '+couleur,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
                 <h3 style={{fontWeight:900,fontSize:'18px',marginBottom:'8px'}}>🔥 Gagnez 15 points par ami recruté !</h3>
                 <p style={{color:'#6b7280',fontSize:'14px',marginBottom:'16px'}}>Partagez votre lien. Chaque personne qui s'inscrit via votre lien vous rapporte 15 points immédiatement.</p>
                 {partageMsg && <p style={{color:'#10b981',fontWeight:700,marginBottom:'12px'}}>{partageMsg}</p>}
@@ -257,7 +272,7 @@ export default function ConcoursPage() {
             )}
 
             <p style={{textAlign:'center',marginTop:'24px'}}>
-              <a href="/concours/termes" style={{color:VIOLET,fontSize:'14px',fontWeight:600}}>📜 Termes et conditions du concours</a>
+              <a href="/concours/termes" style={{color:couleur,fontSize:'14px',fontWeight:600}}>📜 Termes et conditions du concours</a>
             </p>
           </>
         )}
@@ -272,10 +287,10 @@ export default function ConcoursPage() {
               classement.map((c, i) => (
                 <div key={c.user_id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                    <span style={{fontWeight:900,fontSize:'14px',width:'28px',height:'28px',borderRadius:'999px',display:'flex',alignItems:'center',justifyContent:'center',background:i<3?VIOLET:'#f3f4f6',color:i<3?'#fff':'#6b7280'}}>{i+1}</span>
+                    <span style={{fontWeight:900,fontSize:'14px',width:'28px',height:'28px',borderRadius:'999px',display:'flex',alignItems:'center',justifyContent:'center',background:i<3?couleur:'#f3f4f6',color:i<3?'#fff':'#6b7280'}}>{i+1}</span>
                     <span style={{fontWeight:600,fontSize:'15px'}}>{c.username}</span>
                   </div>
-                  <span style={{fontWeight:900,color:VIOLET,fontSize:'16px'}}>{c.points_total} pts</span>
+                  <span style={{fontWeight:900,color:couleur,fontSize:'16px'}}>{c.points_total} pts</span>
                 </div>
               ))
             )}
