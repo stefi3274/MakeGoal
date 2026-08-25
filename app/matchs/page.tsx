@@ -6,8 +6,7 @@ import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { matchVisible } from '../../lib/postVisible';
-
-const VIOLET = '#bf00ff';
+import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../lib/sport';
 
 type Match = {
   id: string;
@@ -18,6 +17,7 @@ type Match = {
   statut: string;
   score_home: number | null;
   score_away: number | null;
+  sport: string | null;
 };
 type VoteStat = { '1': number; 'X': number; '2': number; total: number };
 
@@ -26,16 +26,22 @@ const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 1
 export default function MatchsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [sport, setSportLocal] = useState<Sport>('football');
   const [matchs, setMatchs] = useState<Match[]>([]);
   const [stats, setStats] = useState<Record<string, VoteStat>>({});
   const [mesVotes, setMesVotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { chargerMatchs(); }, []);
+  useEffect(() => { setSportLocal(getSport()); }, []);
+  useEffect(() => { chargerMatchs(); }, [sport]);
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
+  const couleur = SPORT_COULEURS[sport].primaire;
+  const couleurClair = SPORT_COULEURS[sport].clair;
+
   const chargerMatchs = async () => {
-    const { data } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
+    setLoading(true);
+    const { data } = await supabase.from('matchs').select('*').eq('actif', true).eq('sport', sport).order('date_match', { ascending: true });
     if (data) { const visibles = data.filter(m => matchVisible(m.date_match)); setMatchs(visibles); visibles.forEach(m => chargerStats(m.id)); }
     setLoading(false);
   };
@@ -74,12 +80,16 @@ export default function MatchsPage() {
 
   const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/Port-au-Prince' });
 
+  const optionsVote = sport === 'basketball'
+    ? ([['1','equipe1'],['2','equipe2']] as const)
+    : ([['1','equipe1'],['X','Nul'],['2','equipe2']] as const);
+
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
 
-      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'40px 24px',textAlign:'center'}}>
-        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(26px,5vw,40px)',margin:'0 0 8px'}}>⚽ Les matchs</h1>
+      <div style={{background:'linear-gradient(135deg,#1a0033,'+couleur+')',padding:'40px 24px',textAlign:'center'}}>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(26px,5vw,40px)',margin:'0 0 8px'}}>{SPORT_LABEL[sport].emoji} Les matchs</h1>
         <p style={{color:'rgba(255,255,255,0.85)',fontSize:'16px',margin:0}}>Votez et voyez ce que pense la communauté.</p>
       </div>
 
@@ -106,7 +116,7 @@ export default function MatchsPage() {
               <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'16px',marginBottom:'16px'}}>
                 <span style={{fontWeight:900,fontSize:'17px',flex:1,textAlign:'right'}}>{m.equipe1}</span>
                 {termine ? (
-                  <span style={{fontWeight:900,fontSize:'22px',color:VIOLET,minWidth:'60px',textAlign:'center'}}>{m.score_home}-{m.score_away}</span>
+                  <span style={{fontWeight:900,fontSize:'22px',color:couleur,minWidth:'60px',textAlign:'center'}}>{m.score_home}-{m.score_away}</span>
                 ) : (
                   <span style={{fontWeight:900,fontSize:'15px',color:'#9ca3af',minWidth:'40px',textAlign:'center'}}>VS</span>
                 )}
@@ -116,20 +126,21 @@ export default function MatchsPage() {
               {termine && <p style={{textAlign:'center',fontSize:'12px',color:'#10b981',fontWeight:700,margin:'0 0 12px'}}>✓ Match terminé</p>}
 
               <div style={{display:'flex',gap:'8px'}}>
-                {([['1',m.equipe1],['X','Nul'],['2',m.equipe2]] as const).map(([val,label]) => {
-                  const pourcent = pct(s[val], s.total);
+                {optionsVote.map(([val,label]) => {
+                  const libelle = label === 'equipe1' ? m.equipe1 : label === 'equipe2' ? m.equipe2 : label;
+                  const pourcent = pct(s[val as '1'|'X'|'2'], s.total);
                   const actif = monVote === val;
                   return (
-                    <button key={val} disabled={termine} onClick={() => voter(m.id, val)} style={{
+                    <button key={val} disabled={termine} onClick={() => voter(m.id, val as '1'|'X'|'2')} style={{
                       flex:1, position:'relative', overflow:'hidden',
                       padding:'12px 8px', borderRadius:'10px', cursor:termine?'default':'pointer',
-                      border: actif ? '2px solid '+VIOLET : '2px solid #e5e7eb',
-                      background: actif ? '#faf5ff' : '#fff', textAlign:'center'
+                      border: actif ? '2px solid '+couleur : '2px solid #e5e7eb',
+                      background: actif ? couleurClair : '#fff', textAlign:'center'
                     }}>
-                      <div style={{position:'absolute',bottom:0,left:0,height:'4px',width:pourcent+'%',background:actif?VIOLET:'#c4b5fd',transition:'width 0.4s'}}/>
-                      <div style={{fontWeight:900,fontSize:'16px',color:actif?VIOLET:'#374151'}}>{val}</div>
-                      <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:600,marginTop:'2px'}}>{label}</div>
-                      <div style={{fontSize:'13px',color:actif?VIOLET:'#6b7280',fontWeight:900,marginTop:'4px'}}>{s.total>0?pourcent+'%':'—'}</div>
+                      <div style={{position:'absolute',bottom:0,left:0,height:'4px',width:pourcent+'%',background:actif?couleur:'#e5d9ff',transition:'width 0.4s'}}/>
+                      <div style={{fontWeight:900,fontSize:'16px',color:actif?couleur:'#374151'}}>{val}</div>
+                      <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:600,marginTop:'2px'}}>{libelle}</div>
+                      <div style={{fontSize:'13px',color:actif?couleur:'#6b7280',fontWeight:900,marginTop:'4px'}}>{s.total>0?pourcent+'%':'—'}</div>
                     </button>
                   );
                 })}

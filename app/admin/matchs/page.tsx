@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 const VIOLET = '#bf00ff';
 
@@ -14,6 +15,7 @@ type Match = {
   score_home: number | null;
   score_away: number | null;
   actif: boolean;
+  sport: string | null;
 };
 
 export default function AdminMatchs() {
@@ -36,7 +38,10 @@ export default function AdminMatchs() {
   const [dateMatch, setDateMatch] = useState('');
 
   const [scores, setScores] = useState<Record<string, { sh: string; sa: string }>>({});
+  const [sportFiltre, setSportFiltre] = useState<Sport>('football');
+  const [sportForm, setSportForm] = useState<Sport>('football');
 
+  useEffect(() => { setSportFiltre(getSport()); setSportForm(getSport()); }, []);
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerMatchs(); }, [connecte]);
 
@@ -53,12 +58,14 @@ export default function AdminMatchs() {
 
   const nouveauMatch = () => {
     setEditId(null); setEquipe1(''); setEquipe2(''); setCompetition(''); setDateMatch('');
+    setSportForm(sportFiltre);
     setVue('nouveau');
   };
 
   const editerMatch = (m: Match) => {
     setEditId(m.id); setEquipe1(m.equipe1); setEquipe2(m.equipe2);
     setCompetition(m.competition || ''); setDateMatch(m.date_match ? versLocal(m.date_match) : '');
+    setSportForm((m.sport as Sport) || 'football');
     setVue('nouveau');
   };
 
@@ -92,7 +99,7 @@ export default function AdminMatchs() {
     setImportLot(true); setMessage('');
     const lignes = texteLot.split('\n').map(l => l.trim());
     let competitionCourante = '';
-    const aCreer: { equipe1: string; equipe2: string; competition: string; date_match: string }[] = [];
+    const aCreer: { equipe1: string; equipe2: string; competition: string; date_match: string; sport: Sport }[] = [];
     const erreurs: string[] = [];
 
     for (const ligne of lignes) {
@@ -112,7 +119,7 @@ export default function AdminMatchs() {
       const equipe1 = parts.slice(0, parts.length - 2).join(' - ');
       if (!equipe1 || !equipe2) { erreurs.push(ligne); continue; }
       try {
-        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr, fuseauLot) });
+        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr, fuseauLot), sport: sportForm });
       } catch { erreurs.push(ligne); }
     }
 
@@ -135,7 +142,7 @@ export default function AdminMatchs() {
 
   const sauvegarder = async () => {
     if (!equipe1 || !equipe2 || !dateMatch) { setMessage('❌ Équipes et date obligatoires.'); return; }
-    const payload = { equipe1, equipe2, competition: competition || null, date_match: versUTC(dateMatch) };
+    const payload = { equipe1, equipe2, competition: competition || null, date_match: versUTC(dateMatch), sport: sportForm };
     if (editId) {
       const { error } = await supabase.from('matchs').update(payload).eq('id', editId);
       if (error) { setMessage('❌ ' + error.message); return; }
@@ -193,13 +200,18 @@ export default function AdminMatchs() {
 
   return (
     <div style={{minHeight:'100vh',background:'#0f0f0f',fontFamily:'sans-serif'}}>
-      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222'}}>
-        <h1 style={{color:VIOLET,fontWeight:900,fontSize:'18px',margin:0}}>⚽ Admin Matchs</h1>
+      <header style={{background:'#111',padding:'12px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #222',flexWrap:'wrap',gap:'10px'}}>
+        <h1 style={{color:SPORT_COULEURS[sportFiltre].primaire,fontWeight:900,fontSize:'18px',margin:0}}>{SPORT_LABEL[sportFiltre].emoji} Admin Matchs</h1>
+        <div style={{display:'flex',gap:'6px',background:'#1a1a1a',borderRadius:'999px',padding:'4px'}}>
+          {(['football','basketball'] as Sport[]).map(s => (
+            <button key={s} onClick={() => setSportFiltre(s)} style={{border:'none',cursor:'pointer',padding:'7px 14px',borderRadius:'999px',fontWeight:800,fontSize:'12.5px',background:sportFiltre===s?SPORT_COULEURS[s].primaire:'transparent',color:sportFiltre===s?'#fff':'#9ca3af'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+          ))}
+        </div>
         <div style={{display:'flex',gap:'8px'}}>
           <a href="/admin" style={{background:'#333',color:'#fff',textDecoration:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px'}}>← Admin</a>
           <button onClick={() => setVue('liste')} style={{background:vue==='liste'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Liste</button>
           <button onClick={nouveauMatch} style={{background:vue==='nouveau'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>+ Nouveau</button>
-          <button onClick={() => setVue('lot')} style={{background:vue==='lot'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>📋 Coller en lot</button>
+          <button onClick={() => { setSportForm(sportFiltre); setVue('lot'); }} style={{background:vue==='lot'?VIOLET:'#333',color:'#fff',border:'none',padding:'10px 16px',borderRadius:'999px',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>📋 Coller en lot</button>
         </div>
       </header>
 
@@ -210,6 +222,11 @@ export default function AdminMatchs() {
         {vue === 'nouveau' && (
           <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
             <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'20px'}}>{editId ? 'Modifier le match' : 'Nouveau match'}</h2>
+            <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
+              {(['football','basketball'] as Sport[]).map(s => (
+                <button key={s} type="button" onClick={() => setSportForm(s)} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:sportForm===s?SPORT_COULEURS[s].primaire:'#333',color:'#fff'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+              ))}
+            </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
               <div><label style={labelStyle}>Équipe 1 (domicile)</label><input value={equipe1} onChange={e => setEquipe1(e.target.value)} placeholder="Espagne" style={inputStyle}/></div>
               <div><label style={labelStyle}>Équipe 2 (extérieur)</label><input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="Argentine" style={inputStyle}/></div>
@@ -223,6 +240,11 @@ export default function AdminMatchs() {
         {vue === 'lot' && (
           <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px'}}>
             <h2 style={{color:'#fff',fontWeight:900,fontSize:'20px',marginBottom:'8px'}}>📋 Coller plusieurs matchs</h2>
+            <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
+              {(['football','basketball'] as Sport[]).map(s => (
+                <button key={s} type="button" onClick={() => setSportForm(s)} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:sportForm===s?SPORT_COULEURS[s].primaire:'#333',color:'#fff'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+              ))}
+            </div>
             <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'8px'}}>Une ligne de titre par compétition, puis un match par ligne. Ligne vide entre deux compétitions.</p>
             <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'12px',padding:'12px',borderRadius:'8px',overflow:'auto',lineHeight:'1.5'}}>{`Journée 5 - Ligue 1
 Marseille - Lyon - 2026-08-15 15:00
@@ -243,8 +265,8 @@ Arsenal - Chelsea - 2026-08-16 14:00`}</pre>
 
         {vue === 'liste' && (
           <>
-            {matchs.length === 0 && <p style={{color:'#6b7280'}}>Aucun match. Créez-en un pour lancer le vote.</p>}
-            {matchs.map(m => (
+            {matchs.filter(m => (m.sport || 'football') === sportFiltre).length === 0 && <p style={{color:'#6b7280'}}>Aucun match {SPORT_LABEL[sportFiltre].nom.toLowerCase()}. Créez-en un pour lancer le vote.</p>}
+            {matchs.filter(m => (m.sport || 'football') === sportFiltre).map(m => (
               <div key={m.id} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px',marginBottom:'16px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
                   <div>

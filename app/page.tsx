@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { postVisible, matchVisible } from '../lib/postVisible';
+import { getSport, SPORT_COULEURS, Sport } from '../lib/sport';
 
 const VIOLET = '#bf00ff';
 
@@ -38,9 +39,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [filtre, setFiltre] = useState('Tous');
   const [matchsOuvert, setMatchsOuvert] = useState(false);
+  const [sport, setSportLocal] = useState<Sport>('football');
   const [email, setEmail] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
 
+  useEffect(() => { setSportLocal(getSport()); }, []);
   useEffect(() => { chargerTout(); }, []);
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
@@ -51,7 +54,7 @@ export default function Home() {
       setArticles(visibles);
       chargerCompteurs(visibles.map(a => a.id));
     }
-    const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).order('date_match', { ascending: true });
+    const { data: mts } = await supabase.from('matchs').select('*').eq('actif', true).eq('sport', getSport()).order('date_match', { ascending: true });
     if (mts) { const visibles = mts.filter(m => matchVisible(m.date_match)); setMatchs(visibles); visibles.forEach(m => chargerStats(m.id)); }
     const { data: c } = await supabase.from('concours').select('*').in('statut', ['ouvert','ferme']).order('created_at', { ascending: false }).limit(1).single();
     if (c) {
@@ -139,19 +142,22 @@ export default function Home() {
 
   const labelChoix = (m: Match, ch: string) => ch === '1' ? m.equipe1 : ch === '2' ? m.equipe2 : 'le nul';
 
-  const WidgetMatchs = () => (
+  const WidgetMatchs = () => {
+    const couleur = SPORT_COULEURS[sport].primaire;
+    const optionsVote = sport === 'basketball' ? (['1','2'] as const) : (['1','X','2'] as const);
+    return (
     <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',padding:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
       <button onClick={() => setMatchsOuvert(v => !v)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: matchsOuvert ? '16px' : 0}}>
         <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
-          <span style={{fontWeight:900,fontSize:'16px'}}>⚽ Matchs à voter</span>
-          {matchs.length > 0 && <span style={{background:VIOLET,color:'#fff',fontSize:'11px',fontWeight:900,padding:'2px 9px',borderRadius:'999px'}}>{matchs.length}</span>}
+          <span style={{fontWeight:900,fontSize:'16px'}}>{sport==='basketball'?'🏀':'⚽'} Matchs à voter</span>
+          {matchs.length > 0 && <span style={{background:couleur,color:'#fff',fontSize:'11px',fontWeight:900,padding:'2px 9px',borderRadius:'999px'}}>{matchs.length}</span>}
         </span>
-        <span style={{color:VIOLET,fontSize:'13px',fontWeight:700}}>{matchsOuvert ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
+        <span style={{color:couleur,fontSize:'13px',fontWeight:700}}>{matchsOuvert ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
       </button>
       {matchsOuvert && (
         <>
           <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'8px'}}>
-            <a href="/matchs" style={{color:VIOLET,fontSize:'12px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
+            <a href="/matchs" style={{color:couleur,fontSize:'12px',fontWeight:700,textDecoration:'none'}}>Voir tout →</a>
           </div>
           {matchs.length === 0 && <p style={{color:'#9ca3af',fontSize:'13px',margin:0}}>Aucun match pour le moment.</p>}
           {matchs.slice(0,4).map(m => {
@@ -163,22 +169,22 @@ export default function Home() {
                 <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 6px'}}>{formatMatch(m.date_match)}</p>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
                   <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe1}</span>
-                  {termine ? <span style={{fontWeight:900,fontSize:'14px',color:VIOLET}}>{m.score_home}-{m.score_away}</span> : <span style={{fontSize:'11px',color:'#9ca3af'}}>vs</span>}
+                  {termine ? <span style={{fontWeight:900,fontSize:'14px',color:couleur}}>{m.score_home}-{m.score_away}</span> : <span style={{fontSize:'11px',color:'#9ca3af'}}>vs</span>}
                   <span style={{fontWeight:700,fontSize:'13px'}}>{m.equipe2}</span>
                 </div>
                 <div style={{display:'flex',gap:'4px'}}>
-                  {([['1'],['X'],['2']] as const).map(([val]) => {
+                  {optionsVote.map((val) => {
                     const pourcent = pct(s[val], s.total);
                     const actif = monVote === val;
                     return (
                       <button key={val} disabled={termine} onClick={() => voter(m.id, val)} style={{
                         flex:1, position:'relative', overflow:'hidden',
                         padding:'6px 4px', borderRadius:'8px', cursor:termine?'default':'pointer',
-                        border: actif ? '2px solid '+VIOLET : '1px solid #e5e7eb',
+                        border: actif ? '2px solid '+couleur : '1px solid #e5e7eb',
                         background: actif ? '#faf5ff' : '#fff', textAlign:'center'
                       }}>
-                        <div style={{position:'absolute',bottom:0,left:0,height:'3px',width:pourcent+'%',background:actif?VIOLET:'#c4b5fd'}}/>
-                        <div style={{fontWeight:900,fontSize:'13px',color:actif?VIOLET:'#374151'}}>{val}</div>
+                        <div style={{position:'absolute',bottom:0,left:0,height:'3px',width:pourcent+'%',background:actif?couleur:'#e5d9ff'}}/>
+                        <div style={{fontWeight:900,fontSize:'13px',color:actif?couleur:'#374151'}}>{val}</div>
                         <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:700}}>{s.total>0?pourcent+'%':'—'}</div>
                       </button>
                     );
@@ -190,7 +196,7 @@ export default function Home() {
         </>
       )}
     </div>
-  );
+  );};
 
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
