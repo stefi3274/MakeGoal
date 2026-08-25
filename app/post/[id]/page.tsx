@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
+import { SPORT_COULEURS, Sport } from '../../../lib/sport';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -69,6 +70,12 @@ const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]
   ]
 };
 
+const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
+  { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
+  { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
+  { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
+];
+
 
 const FORMATIONS: Record<string, { x: number; y: number }[]> = {
   '4-4-2': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},{x:38,y:20},{x:62,y:20}],
@@ -110,7 +117,9 @@ type Post = {
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
+  quarts_temps: { quart: string; score1: string; score2: string }[] | null;
   stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
+  sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
 };
@@ -247,6 +256,7 @@ export default function PostPage() {
   );
 
   const dims = format === 'carre' ? { width: 500, minHeight: 500 } : { width: 400, minHeight: 640 };
+  const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
 
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
@@ -347,6 +357,20 @@ export default function PostPage() {
               </div>
             )}
 
+            {post.quarts_temps && post.quarts_temps.length > 0 && (
+              <div style={{margin:'8px 0 24px',padding:'20px',background:SPORT_COULEURS.basketball.clair,borderRadius:'16px'}}>
+                <p style={{fontSize:'11px',fontWeight:900,color:SPORT_COULEURS.basketball.primaire,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'12px',textAlign:'center'}}>🏀 Score par quart-temps</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat('+post.quarts_temps.length+',1fr)',gap:'8px'}}>
+                  {post.quarts_temps.map((q, i) => (
+                    <div key={i} style={{background:'#fff',borderRadius:'10px',padding:'10px 6px',textAlign:'center',border:'1px solid '+SPORT_COULEURS.basketball.primaire+'33'}}>
+                      <div style={{fontSize:'10px',fontWeight:900,color:'#9ca3af',marginBottom:'4px'}}>{q.quart}</div>
+                      <div style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{q.score1}-{q.score2}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {post.resultat_details && (post.resultat_details.buts?.length > 0 || post.resultat_details.rouges?.length > 0 || post.resultat_details.jaunes?.length > 0) && (
               <div style={{margin:'8px 0 24px',padding:'18px',background:'#faf5ff',borderRadius:'16px'}}>
                 {post.resultat_details.buts && post.resultat_details.buts.length > 0 && (
@@ -382,10 +406,10 @@ export default function PostPage() {
             )}
 
             {post.stats_joueur && post.stats_joueur.joueurs && post.stats_joueur.joueurs.length > 0 && (
-              <div style={{margin:'8px 0 24px',padding:'18px',background:'#faf5ff',borderRadius:'16px'}}>
+              <div style={{margin:'8px 0 24px',padding:'18px',background:couleurSport==='#ff7a00'?SPORT_COULEURS.basketball.clair:'#faf5ff',borderRadius:'16px'}}>
                 {post.stats_joueur.mode === 'bilan' && post.stats_joueur.nbMatchs && (
                   <div style={{textAlign:'center',marginBottom:'14px'}}>
-                    <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>📊 Bilan sur {post.stats_joueur.nbMatchs} matchs</span>
+                    <span style={{display:'inline-block',background:couleurSport,color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>📊 Bilan sur {post.stats_joueur.nbMatchs} matchs</span>
                   </div>
                 )}
                 <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
@@ -393,7 +417,7 @@ export default function PostPage() {
                     <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
                       <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
                       {j.equipe && <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>{j.equipe}</div>}
-                      {CHAMPS_STATS[post.stats_joueur!.poste || 'champ'].filter(c => j.valeurs?.[c.cle]).map(c => (
+                      {(post.sport === 'basketball' ? CHAMPS_STATS_BASKET : CHAMPS_STATS[post.stats_joueur!.poste || 'champ']).filter(c => j.valeurs?.[c.cle]).map(c => (
                         <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
                           <span style={{color:'#6b7280'}}>{c.label}</span>
                           <span style={{fontWeight:900,color:'#111'}}>{j.valeurs[c.cle]}</span>

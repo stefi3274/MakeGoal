@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 const VIOLET = '#bf00ff';
 
@@ -94,6 +95,14 @@ const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
   ]
 };
 
+const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
+  { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
+  { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
+  { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
+];
+
+type QuartTemps = { quart: string; score1: string; score2: string };
+
 type Match = {
   id: string; equipe1: string; equipe2: string; competition: string | null;
   date_match: string; score_home: number | null; score_away: number | null;
@@ -114,10 +123,11 @@ type Article = {
   classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
   matchs_jour: MatchJour[] | null;
   resultat_details: { buts: But[]; rouges: CarteEvenement[]; jaunes: CarteEvenement[] } | null;
+  quarts_temps: QuartTemps[] | null;
   stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
-  publie: boolean; created_at: string;
+  publie: boolean; created_at: string; sport: string | null;
 };
 
 export default function AdminMedia() {
@@ -186,12 +196,15 @@ export default function AdminMedia() {
   const [resButs, setResButs] = useState<But[]>([]);
   const [resRouges, setResRouges] = useState<CarteEvenement[]>([]);
   const [resJaunes, setResJaunes] = useState<CarteEvenement[]>([]);
+  const [resQuarts, setResQuarts] = useState<QuartTemps[]>([]);
 
   const [statsMode, setStatsMode] = useState<'performance' | 'comparaison' | 'bilan'>('performance');
   const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
   const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
+  const [sportForm, setSportForm] = useState<Sport>('football');
 
+  useEffect(() => { setSportForm(getSport()); }, []);
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
   useEffect(() => { if (connecte && (modePost === 'matchsjour' || modePost === 'match') && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
@@ -270,6 +283,37 @@ export default function AdminMedia() {
     setStatutMatch('Match terminé');
     setMessage('✅ Résultat analysé. Vérifiez et corrigez si besoin avant de publier.');
   };
+
+  const analyserResultatBasket = () => {
+    const lignes = resTexteColle.split('\n').map(l => l.trim());
+    let i = 0;
+    while (i < lignes.length && !lignes[i]) i++;
+    const header = lignes[i] || '';
+    const mHeader = header.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)$/);
+    if (mHeader) {
+      setEquipe1(mHeader[1].trim());
+      setScore1(mHeader[2]);
+      setScore2(mHeader[3]);
+      setEquipe2(mHeader[4].trim());
+    } else {
+      setMessage('❌ Première ligne non reconnue. Format attendu : "Equipe1 102 - 98 Equipe2"');
+      return;
+    }
+    const quarts: QuartTemps[] = [];
+    for (let k = i + 1; k < lignes.length; k++) {
+      const l = lignes[k];
+      if (!l) continue;
+      const m = l.match(/^(Q[1-4]|OT\d*)\s+(\d+)\s*-\s*(\d+)$/i);
+      if (m) quarts.push({ quart: m[1].toUpperCase(), score1: m[2], score2: m[3] });
+    }
+    setResQuarts(quarts);
+    setStatutMatch('Match terminé');
+    setMessage('✅ Résultat analysé. Vérifiez et corrigez si besoin avant de publier.');
+  };
+
+  const modifierQuart = (i: number, champ: keyof QuartTemps, val: string) => setResQuarts(prev => prev.map((q, idx) => idx === i ? { ...q, [champ]: val } : q));
+  const retirerQuart = (i: number) => setResQuarts(prev => prev.filter((_, idx) => idx !== i));
+  const ajouterQuart = () => setResQuarts(prev => [...prev, { quart: 'Q' + (prev.length + 1), score1: '', score2: '' }]);
 
   const modifierBut = (i: number, champ: keyof But, val: string) => setResButs(prev => prev.map((b, idx) => idx === i ? { ...b, [champ]: val } : b));
   const retirerBut = (i: number) => setResButs(prev => prev.filter((_, idx) => idx !== i));
@@ -356,7 +400,8 @@ export default function AdminMedia() {
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',val:'',couleur:''})));
     setClassementTexteColle('');
     setMatchsJourSelection([]);
-    setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]);
+    setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]); setResQuarts([]);
+    setSportForm(getSport());
     setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
     setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
@@ -380,13 +425,13 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.stats_joueur && a.stats_joueur.joueurs?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
     else if (a.stats_joueur && a.stats_joueur.joueurs?.length) setModePost('stats');
     else if (a.matchs_jour && a.matchs_jour.length) setModePost('matchsjour');
-    else if (a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) setModePost('resultat');
+    else if ((a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) || (a.quarts_temps && a.quarts_temps.length)) setModePost('resultat');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
@@ -397,6 +442,8 @@ export default function AdminMedia() {
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
     setResButs(a.resultat_details?.buts || []); setResRouges(a.resultat_details?.rouges || []); setResJaunes(a.resultat_details?.jaunes || []);
+    setResQuarts(a.quarts_temps || []);
+    setSportForm((a.sport as Sport) || 'football');
     setResTexteColle('');
     if (a.stats_joueur && a.stats_joueur.joueurs?.length) {
       setStatsMode((a.stats_joueur.mode as any) || 'performance');
@@ -506,8 +553,10 @@ export default function AdminMedia() {
       classement_titre: classementTitre || null,
       classement: classementType ? classement.filter(l => l.nom) : null,
       matchs_jour: modePost === 'matchsjour' ? matchsJourSelection : null,
-      resultat_details: modePost === 'resultat' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
+      resultat_details: modePost === 'resultat' && sportForm === 'football' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
+      quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
       stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
+      sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
       pub_nom: pubNom || null,
       pub_logo: pubLogo || null,
@@ -602,9 +651,15 @@ export default function AdminMedia() {
                 <button onClick={() => setType('post')} style={btnChoix(type==='post')}>⚡ Post (bref)</button>
               </div>
               <label style={labelStyle}>Langue</label>
-              <div style={{display:'flex',gap:'8px',marginBottom: type === 'post' ? '16px' : '0'}}>
+              <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
                 <button onClick={() => setLangue('fr')} style={btnChoix(langue==='fr')}>🇫🇷 Français</button>
                 <button onClick={() => setLangue('kreyol')} style={btnChoix(langue==='kreyol')}>🇭🇹 Kreyòl</button>
+              </div>
+              <label style={labelStyle}>Sport</label>
+              <div style={{display:'flex',gap:'8px',marginBottom: type === 'post' ? '16px' : '0'}}>
+                {(['football','basketball'] as Sport[]).map(s => (
+                  <button key={s} onClick={() => setSportForm(s)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:sportForm===s?SPORT_COULEURS[s].primaire:'#333',color:'#fff'}}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
+                ))}
               </div>
 
               {type === 'post' && (
@@ -747,7 +802,7 @@ export default function AdminMedia() {
               </div>
             )}
 
-            {type === 'post' && modePost === 'resultat' && (
+            {type === 'post' && modePost === 'resultat' && sportForm === 'football' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>📋 Résultat de match</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Collez le résultat au format : première ligne "Equipe1 3 - 1 Equipe2", puis des sections "Buts Equipe1" / "Rouges" / "Jaunes" (optionnel) suivies d'une ligne par joueur "Nom minute (passeur)".</p>
@@ -801,6 +856,40 @@ export default function AdminMedia() {
               </div>
             )}
 
+            {type === 'post' && modePost === 'resultat' && sportForm === 'basketball' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>📋 Résultat de match</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Collez le résultat au format : première ligne "Equipe1 102 - 98 Equipe2", puis une ligne par quart-temps "Q1 28-22" (Q1 à Q4, OT pour prolongation).</p>
+                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={"Lakers 102 - 98 Celtics\n\nQ1 28-22\nQ2 24-26\nQ3 25-24\nQ4 25-26"} rows={9} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <button type="button" onClick={analyserResultatBasket} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS.basketball.primaire,color:'#fff',marginBottom:'18px'}}>🔍 Analyser le texte</button>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Score final (vérifiez / corrigez)</p>
+                <div style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'18px'}}>
+                  <input value={equipe1} onChange={e => setEquipe1(e.target.value)} placeholder="Équipe 1" style={{...inputStyle,flex:2}}/>
+                  <input type="number" value={score1} onChange={e => setScore1(e.target.value)} style={{...inputStyle,width:'55px',textAlign:'center'}}/>
+                  <span style={{color:'#6b7280'}}>-</span>
+                  <input type="number" value={score2} onChange={e => setScore2(e.target.value)} style={{...inputStyle,width:'55px',textAlign:'center'}}/>
+                  <input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="Équipe 2" style={{...inputStyle,flex:2}}/>
+                </div>
+                <div style={{display:'flex',gap:'8px',marginBottom:'18px'}}>
+                  <input value={heureMatch} onChange={e => setHeureMatch(e.target.value)} placeholder="🕐 Sam 15 août, 19:00" style={inputStyle}/>
+                  <input value={stade} onChange={e => setStade(e.target.value)} placeholder="📍 Salle" style={inputStyle}/>
+                </div>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>🏀 Quarts-temps ({resQuarts.length})</p>
+                {resQuarts.map((q, i) => (
+                  <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
+                    <input value={q.quart} onChange={e => modifierQuart(i,'quart',e.target.value)} placeholder="Q1" style={{...inputStyle,width:'60px',padding:'8px',textAlign:'center'}}/>
+                    <input value={q.score1} onChange={e => modifierQuart(i,'score1',e.target.value)} placeholder="0" style={{...inputStyle,width:'55px',padding:'8px',textAlign:'center'}}/>
+                    <span style={{color:'#6b7280'}}>-</span>
+                    <input value={q.score2} onChange={e => modifierQuart(i,'score2',e.target.value)} placeholder="0" style={{...inputStyle,width:'55px',padding:'8px',textAlign:'center'}}/>
+                    <button onClick={() => retirerQuart(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                  </div>
+                ))}
+                <button type="button" onClick={ajouterQuart} style={{padding:'6px 14px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'11px',fontWeight:700}}>+ Ajouter une période</button>
+              </div>
+            )}
+
             {type === 'post' && modePost === 'stats' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>📈 Stats joueur</label>
@@ -813,8 +902,14 @@ export default function AdminMedia() {
                 </div>
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
-                  <button type="button" onClick={() => setStatsPoste('champ')} style={btnChoix(statsPoste==='champ')}>🏃 Joueur de champ</button>
-                  <button type="button" onClick={() => setStatsPoste('gardien')} style={btnChoix(statsPoste==='gardien')}>🧤 Gardien</button>
+                  {sportForm === 'football' ? (
+                    <>
+                      <button type="button" onClick={() => setStatsPoste('champ')} style={btnChoix(statsPoste==='champ')}>🏃 Joueur de champ</button>
+                      <button type="button" onClick={() => setStatsPoste('gardien')} style={btnChoix(statsPoste==='gardien')}>🧤 Gardien</button>
+                    </>
+                  ) : (
+                    <span style={{fontSize:'12px',color:'#6b7280',fontWeight:700}}>🏀 Champs basketball (Points, Rebonds, Passes...)</span>
+                  )}
                 </div>
 
                 {statsMode === 'bilan' && (
@@ -831,7 +926,7 @@ export default function AdminMedia() {
                       )}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
-                      {CHAMPS_STATS[statsPoste].map(c => (
+                      {(sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET).map(c => (
                         <div key={c.cle}>
                           <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 4px'}}>{c.label}</p>
                           <input value={j.valeurs[c.cle] || ''} onChange={e => modifierValeurStats(i,c.cle,e.target.value)} style={{...inputStyle,padding:'8px'}}/>
