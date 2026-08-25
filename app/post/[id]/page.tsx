@@ -40,12 +40,19 @@ const DRAPEAUX: Record<string, string> = {
 const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
 const IconCrampon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" style={{display:'inline-block',verticalAlign:'-2px'}}>
-    <path fill={VIOLET} d="M2 17.2c0-1.6 1-2.8 2.6-3.3l6.8-2.3c1-.35 1.7-1.2 1.9-2.3l.5-2.4c.3-1.5 1.7-2.5 3.2-2.2l3.2.7c1.2.27 2 1.4 1.9 2.6l-.25 2.7c-.1 1.05.4 2.05 1.3 2.6l.9.6c.65.4.6 1.4-.1 1.75-1 .5-2.2.85-3.7.85H5c-1.7 0-3-1.3-3-3z"/>
-    <circle cx="6.3" cy="19.3" r="1.05" fill={VIOLET}/>
-    <circle cx="10.2" cy="19.5" r="1.05" fill={VIOLET}/>
-    <circle cx="14.1" cy="19.5" r="1.05" fill={VIOLET}/>
-  </svg>
+  <span style={{
+    display:'inline-flex', alignItems:'center', justifyContent:'center',
+    width:'19px', height:'19px', borderRadius:'50%',
+    background:'linear-gradient(135deg,'+VIOLET+',#7c1fd9)',
+    boxShadow:'0 2px 6px rgba(191,0,255,0.35)', flexShrink:0
+  }}>
+    <svg width="12" height="12" viewBox="0 0 24 24">
+      <path fill="#fff" d="M2.2 16.8c0-1.7 1.1-3 2.8-3.5l6.6-2.1c1.1-.35 1.9-1.25 2.15-2.35l.5-2.25c.35-1.55 1.85-2.55 3.4-2.2l3 .68c1.25.28 2.05 1.5 1.85 2.75l-.4 2.5c-.17 1.05.28 2.1 1.15 2.7l1.05.72c.75.5.65 1.65-.2 2-1.05.42-2.3.7-3.75.7H5.3c-1.7 0-3.1-1.35-3.1-3.1z"/>
+      <circle cx="6.6" cy="18.9" r="1.15" fill="#fff"/>
+      <circle cx="10.5" cy="19.15" r="1.15" fill="#fff"/>
+      <circle cx="14.4" cy="19.15" r="1.15" fill="#fff"/>
+    </svg>
+  </span>
 );
 
 const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
@@ -262,7 +269,7 @@ export default function PostPage() {
           }}>
             <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'28px'}}>
               {LOGO_URL ? (
-                <img src={LOGO_URL} alt="MakeGoal" style={{height:'58px'}}/>
+                <img src={LOGO_URL} alt="MakeGoal" style={{height:'76px'}}/>
               ) : (
                 <span style={{color:VIOLET,fontWeight:900,fontSize:'26px'}}>MakeGoal</span>
               )}
@@ -348,8 +355,9 @@ export default function PostPage() {
                       <div key={eq} style={{marginBottom:'10px'}}>
                         <div style={{fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{eq}</div>
                         {post.resultat_details!.buts.filter(b => b.equipe === eq).map((b, i) => (
-                          <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>
-                            ⚽ {b.joueur} <span style={{color:'#6b7280'}}>{b.minute}'</span>{b.passeur && <span style={{color:'#6b7280'}}> <IconCrampon/> {b.passeur}</span>}
+                          <div key={i} style={{fontSize:'16px',color:'#111',marginBottom:'6px',display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
+                            <span>⚽</span><span style={{fontWeight:800}}>{b.joueur}</span> <span style={{color:'#6b7280',fontWeight:600}}>{b.minute}'</span>
+                            {b.passeur && <span style={{display:'inline-flex',alignItems:'center',gap:'4px',color:'#6b7280',fontWeight:700}}><IconCrampon/> {b.passeur}</span>}
                           </div>
                         ))}
                       </div>
