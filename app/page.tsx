@@ -15,7 +15,7 @@ type Article = {
   type: string; langue: string;
   statut_match: string | null; statut_change_at: string | null; relance_at: string | null;
   image_couverture: string | null; extrait: string | null;
-  auteur: string; created_at: string;
+  auteur: string; created_at: string; sport: string | null;
 };
 type Match = {
   id: string; equipe1: string; equipe2: string;
@@ -48,7 +48,7 @@ export default function Home() {
   useEffect(() => { if (user && matchs.length > 0) chargerMesVotes(); }, [user, matchs]);
 
   const chargerTout = async () => {
-    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, relance_at, image_couverture, extrait, auteur, created_at').eq('publie', true).order('created_at', { ascending: false });
+    const { data: arts } = await supabase.from('articles').select('id, titre, categorie, type, langue, statut_match, statut_change_at, relance_at, image_couverture, extrait, auteur, created_at, sport').eq('publie', true).eq('sport', getSport()).order('created_at', { ascending: false });
     if (arts) {
       const visibles = arts.filter(postVisible);
       setArticles(visibles);
@@ -255,7 +255,7 @@ export default function Home() {
               {['Tous', 'Actualités', 'Revue de presse'].map(cat => (
                 <button key={cat} onClick={() => setFiltre(cat)} style={{
                   padding:'8px 18px', borderRadius:'999px', fontWeight:700, fontSize:'13px', cursor:'pointer', border:'none',
-                  background: filtre === cat ? VIOLET : '#fff',
+                  background: filtre === cat ? SPORT_COULEURS[sport].primaire : '#fff',
                   color: filtre === cat ? '#fff' : '#374151',
                   boxShadow: filtre === cat ? 'none' : '0 1px 4px rgba(0,0,0,0.08)'
                 }}>{cat}</button>
@@ -307,7 +307,7 @@ export default function Home() {
                     <div style={{padding:'16px',flex:1,display:'flex',flexDirection:'column'}}>
                       <div style={{display:'flex',gap:'6px',marginBottom:'8px',flexWrap:'wrap'}}>
                         <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px'}}>{a.categorie}</span>
-                        {a.type === 'post' && <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:VIOLET,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
+                        {a.type === 'post' && <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:SPORT_COULEURS[sport].primaire,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
                         <span style={{fontSize:'10px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
                       </div>
                       <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>

@@ -297,11 +297,11 @@ export default function PostPage() {
             )}
 
             {(post.pays1 && post.pays2) || (post.equipe1 && post.equipe2) ? (
-              <div style={{margin:'8px 0 24px',padding:'26px 22px',background:'linear-gradient(160deg,#faf5ff,#ffffff)',borderRadius:'20px',border:'1px solid #ece0ff'}}>
+              <div style={{margin:'8px 0 24px',padding:'26px 22px',background:'linear-gradient(160deg,'+SPORT_COULEURS[(post.sport as Sport) || 'football'].clair+',#ffffff)',borderRadius:'20px',border:'1px solid '+couleurSport+'33'}}>
                 {(post.ligue || post.ligue_logo) && (
                   <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'20px'}}>
                     {post.ligue_logo && <img src={post.ligue_logo} alt="" style={{height:'22px'}}/>}
-                    {post.ligue && <span style={{fontSize:'12px',fontWeight:900,color:'#6b21a8',textTransform:'uppercase',letterSpacing:'0.6px',background:'#fff',padding:'5px 14px',borderRadius:'999px',border:'1px solid #ece0ff'}}>{post.ligue}</span>}
+                    {post.ligue && <span style={{fontSize:'12px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.6px',background:'#fff',padding:'5px 14px',borderRadius:'999px',border:'1px solid '+couleurSport+'33'}}>{post.ligue}</span>}
                   </div>
                 )}
                 <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
@@ -310,11 +310,11 @@ export default function PostPage() {
                     <div style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
                   </div>
                   {post.score1 !== null && post.score2 !== null ? (
-                    <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px rgba(191,0,255,0.16)',border:'1px solid #ece0ff'}}>
-                      <div style={{fontWeight:900,fontSize:'32px',color:VIOLET,lineHeight:1}}>{post.score1}-{post.score2}</div>
+                    <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px '+couleurSport+'29',border:'1px solid '+couleurSport+'33'}}>
+                      <div style={{fontWeight:900,fontSize:'32px',color:couleurSport,lineHeight:1}}>{post.score1}-{post.score2}</div>
                     </div>
                   ) : (
-                    <div style={{color:'#fff',fontWeight:900,fontSize:'15px',background:'linear-gradient(135deg,'+VIOLET+',#7c1fd9)',borderRadius:'50%',width:'46px',height:'46px',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 16px rgba(191,0,255,0.35)',flexShrink:0}}>VS</div>
+                    <div style={{color:'#fff',fontWeight:900,fontSize:'15px',background:'linear-gradient(135deg,'+couleurSport+','+SPORT_COULEURS[(post.sport as Sport) || 'football'].sombre+')',borderRadius:'50%',width:'46px',height:'46px',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 16px '+couleurSport+'59',flexShrink:0}}>VS</div>
                   )}
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
@@ -322,7 +322,7 @@ export default function PostPage() {
                   </div>
                 </div>
                 {(post.heure_match || post.stade) && (
-                  <div style={{display:'flex',justifyContent:'center',gap:'20px',flexWrap:'wrap',marginTop:'20px',paddingTop:'16px',borderTop:'1px solid #ece0ff'}}>
+                  <div style={{display:'flex',justifyContent:'center',gap:'20px',flexWrap:'wrap',marginTop:'20px',paddingTop:'16px',borderTop:'1px solid '+couleurSport+'33'}}>
                     {post.heure_match && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>🕐 {post.heure_match}</span>}
                     {post.stade && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>📍 {post.stade}</span>}
                   </div>
@@ -343,13 +343,13 @@ export default function PostPage() {
             {post.matchs_jour && post.matchs_jour.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
                 {post.matchs_jour.map((m, i) => (
-                  <div key={m.id || i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'14px',borderRadius:'12px',background:i%2===0?'#faf5ff':'#fff',border:'1px solid #f3f4f6',marginBottom:'8px'}}>
+                  <div key={m.id || i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'14px',borderRadius:'12px',background:i%2===0?SPORT_COULEURS[(post.sport as Sport) || 'football'].clair:'#fff',border:'1px solid #f3f4f6',marginBottom:'8px'}}>
                     <div style={{flex:1,minWidth:0}}>
-                      {m.competition && <div style={{fontSize:'10px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'2px'}}>{m.competition}</div>}
+                      {m.competition && <div style={{fontSize:'10px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'2px'}}>{m.competition}</div>}
                       <div style={{fontWeight:900,fontSize:'14px',color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1} vs {m.equipe2}</div>
                       <div style={{fontSize:'11px',color:'#6b7280'}}>{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
                     </div>
-                    <div style={{fontWeight:900,fontSize:'18px',color:VIOLET,whiteSpace:'nowrap'}}>
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurSport,whiteSpace:'nowrap'}}>
                       {m.score1 !== null && m.score2 !== null ? m.score1 + ' - ' + m.score2 : '—'}
                     </div>
                   </div>
