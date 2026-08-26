@@ -283,8 +283,8 @@ export default function PostPage() {
               ) : (
                 <span style={{color:VIOLET,fontWeight:900,fontSize:'26px'}}>MakeGoal</span>
               )}
-              <span style={{marginLeft:'auto',fontSize:'13px',fontWeight:700,color:'#fff',background:VIOLET,padding:'4px 12px',borderRadius:'999px'}}>
-                {post.langue==='kreyol' ? 'Kreyòl' : 'Actu'}
+              <span style={{marginLeft:'auto',fontSize:'13px',fontWeight:700,color:'#fff',background:couleurSport,padding:'4px 12px',borderRadius:'999px'}}>
+                {new Date().toLocaleDateString('fr-FR', { timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', year:'numeric' })}
               </span>
             </div>
 
