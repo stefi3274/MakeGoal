@@ -114,7 +114,7 @@ type Post = {
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   classement_type: string | null; classement_titre: string | null;
-  classement: { pos: string; nom: string; extra: string; val: string; couleur?: string }[] | null;
+  classement: { pos: string; nom: string; extra: string; diff: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
@@ -502,6 +502,7 @@ export default function PostPage() {
                     <span style={{width:'28px'}}>#</span>
                     <span style={{flex:2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
                     <span style={{flex:1.5}}>{post.classement_type === 'equipes' ? 'J' : 'Équipe'}</span>
+                    {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right'}}>Diff</span>}
                     <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : 'Nb'}</span>
                   </div>
                   {post.classement.map((l, i) => {
@@ -511,6 +512,7 @@ export default function PostPage() {
                       <span style={{width:'26px',height:'26px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'12px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent'}}>{l.pos}</span>
                       <span style={{flex:2,fontWeight:700,color:'#111',marginLeft:'8px'}}>{l.nom}</span>
                       <span style={{flex:1.5,color:'#6b7280',fontSize:'12px'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
+                      {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:700,fontSize:'12px'}}>{l.diff}</span>}
                       <span style={{flex:1,textAlign:'right',fontWeight:900,color:medaille||couleurSport}}>{l.val}</span>
                     </div>
                     );
