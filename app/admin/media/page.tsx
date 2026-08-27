@@ -83,20 +83,20 @@ type StatJoueur = { nom: string; equipe: string; valeurs: Record<string, string>
 type StatsPoste = 'champ' | 'gardien';
 const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
   champ: [
-    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
+    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
     { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
     { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
     { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
   ],
   gardien: [
-    { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
+    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
     { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
     { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
   ]
 };
 
 const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
-  { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
+  { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
   { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
   { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
 ];
@@ -202,6 +202,7 @@ export default function AdminMedia() {
   const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
   const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
+  const [statsTexteColle, setStatsTexteColle] = useState('');
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
@@ -331,10 +332,37 @@ export default function AdminMedia() {
     setter(prev => [...prev, { joueur: '', minute: '' }]);
   };
 
-  const ajouterJoueurStats = () => { if (statsJoueurs.length < 3) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', valeurs: {} }]); };
+  const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', valeurs: {} }]); };
   const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
   const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
+
+  const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+  const analyserStats = () => {
+    const champs = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
+    const lookup: Record<string, string> = {};
+    champs.forEach(c => { lookup[normaliserLabel(c.label)] = c.cle; });
+    const blocs = statsTexteColle.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    if (blocs.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
+    const joueurs: StatJoueur[] = blocs.slice(0, 6).map(bloc => {
+      const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
+      const [nomLigne, ...reste] = lignes;
+      const parts = (nomLigne || '').split('-').map(p => p.trim());
+      const valeurs: Record<string, string> = {};
+      reste.forEach(l => {
+        const m = l.match(/^(.+?)\s*[:\-]\s*(.+)$/);
+        if (m) {
+          const cle = lookup[normaliserLabel(m[1])];
+          if (cle) valeurs[cle] = m[2].trim();
+        }
+      });
+      return { nom: parts[0] || '', equipe: parts[1] || '', valeurs };
+    });
+    setStatsJoueurs(joueurs);
+    if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
+    setMessage('✅ ' + joueurs.length + ' joueur(s) analysé(s). Vérifiez et corrigez si besoin.');
+  };
 
   const chargerArticles = async () => {
     const { data } = await supabase.from('articles').select('*').order('created_at', { ascending: false });
@@ -405,6 +433,7 @@ export default function AdminMedia() {
     setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
     setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
+    setStatsTexteColle('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -912,6 +941,11 @@ export default function AdminMedia() {
                   )}
                 </div>
 
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>📋 Coller un texte (optionnel)</p>
+                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Nom - Équipe". Puis une ligne par stat : "Label: valeur".</p>
+                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Mbappé - Real Madrid\nButs: 2\nPasses déc: 1\nNote: 8.5\n\nMessi - Inter Miami\nButs: 1\nPasses déc: 2\nNote: 8.0" : "LeBron James - Lakers\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
+
                 {statsMode === 'bilan' && (
                   <input value={statsNbMatchs} onChange={e => setStatsNbMatchs(e.target.value)} placeholder="Nombre de matchs (ex: 10)" style={{...inputStyle,marginBottom:'16px'}}/>
                 )}
@@ -935,8 +969,8 @@ export default function AdminMedia() {
                     </div>
                   </div>
                 ))}
-                {statsMode === 'comparaison' && statsJoueurs.length < 3 && (
-                  <button type="button" onClick={ajouterJoueurStats} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un 3ᵉ joueur</button>
+                {statsMode === 'comparaison' && statsJoueurs.length < 6 && (
+                  <button type="button" onClick={ajouterJoueurStats} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un joueur ({statsJoueurs.length}/6)</button>
                 )}
               </div>
             )}

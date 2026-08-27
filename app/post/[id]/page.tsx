@@ -58,20 +58,20 @@ const IconCrampon = () => (
 
 const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
   champ: [
-    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
+    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
     { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
     { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
     { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
   ],
   gardien: [
-    { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
+    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
     { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
     { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
   ]
 };
 
 const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
-  { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
+  { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
   { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
   { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
 ];
@@ -257,6 +257,22 @@ export default function PostPage() {
 
   const dims = format === 'carre' ? { width: 500, minHeight: 500 } : { width: 400, minHeight: 640 };
   const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
+  const estResultatMatch = !!(post.quarts_temps?.length || (post.resultat_details && (post.resultat_details.buts?.length || post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length)));
+  const VERT = '#16a34a', ROUGE = '#dc2626', VIOLET_EGALITE = '#8b5cf6';
+  const couleurEquipe1 = estResultatMatch && post.score1 !== null && post.score2 !== null
+    ? (post.score1 > post.score2 ? VERT : post.score1 < post.score2 ? ROUGE : VIOLET_EGALITE) : '#0a0a0a';
+  const couleurEquipe2 = estResultatMatch && post.score1 !== null && post.score2 !== null
+    ? (post.score2 > post.score1 ? VERT : post.score2 < post.score1 ? ROUGE : VIOLET_EGALITE) : '#0a0a0a';
+  const banniere = (() => {
+    if (estResultatMatch) return { label: 'RÉSULTAT DE MATCH', couleur: '#3b82f6' };
+    if (post.classement_type) return { label: 'CLASSEMENT', couleur: '#f59e0b' };
+    if (post.distinction_type === 'Meilleur buteur') return { label: 'MEILLEUR BUTEUR', couleur: '#ef4444' };
+    if (post.distinction_type === 'Meilleur passeur') return { label: 'MEILLEUR PASSEUR', couleur: '#14b8a6' };
+    if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
+    if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
+    if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
+    return null;
+  })();
 
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
@@ -288,6 +304,10 @@ export default function PostPage() {
               </span>
             </div>
 
+            {banniere && (
+              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'12px',textAlign:'center',padding:'9px',borderRadius:'10px',marginBottom:'18px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
+            )}
+
             {post.tags && post.tags.length > 0 && (
               <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
                 {post.tags.map(t => (
@@ -307,7 +327,7 @@ export default function PostPage() {
                 <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
-                    <div style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe1,marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
                   </div>
                   {post.score1 !== null && post.score2 !== null ? (
                     <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px '+couleurSport+'29',border:'1px solid '+couleurSport+'33'}}>
@@ -318,7 +338,7 @@ export default function PostPage() {
                   )}
                   <div style={{textAlign:'center',flex:1}}>
                     {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
-                    <div style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe2,marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
                   </div>
                 </div>
                 {(post.heure_match || post.stade) && (
@@ -474,24 +494,27 @@ export default function PostPage() {
               <div style={{margin:'8px 0 24px'}}>
                 {post.classement_titre && (
                   <div style={{textAlign:'center',marginBottom:'12px'}}>
-                    <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px'}}>📊 {post.classement_titre}</span>
+                    <span style={{display:'inline-block',background:couleurSport,color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px'}}>📊 {post.classement_titre}</span>
                   </div>
                 )}
                 <div style={{border:'1px solid #e5e7eb',borderRadius:'12px',overflow:'hidden'}}>
-                  <div style={{display:'flex',background:'#faf5ff',padding:'8px 10px 8px 14px',fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                  <div style={{display:'flex',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'8px 10px 8px 14px',fontSize:'11px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px'}}>
                     <span style={{width:'28px'}}>#</span>
                     <span style={{flex:2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
                     <span style={{flex:1.5}}>{post.classement_type === 'equipes' ? 'J' : 'Équipe'}</span>
                     <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : 'Nb'}</span>
                   </div>
-                  {post.classement.map((l, i) => (
+                  {post.classement.map((l, i) => {
+                    const medaille = i===0?'#D4AF37':i===1?'#9CA3AF':i===2?'#B87333':null;
+                    return (
                     <div key={i} style={{display:'flex',padding:'9px 10px',fontSize:'13px',borderTop:'1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd',alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
-                      <span style={{width:'28px',fontWeight:900,color:i<3?VIOLET:'#9ca3af'}}>{l.pos}</span>
-                      <span style={{flex:2,fontWeight:700,color:'#111'}}>{l.nom}</span>
+                      <span style={{width:'26px',height:'26px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'12px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent'}}>{l.pos}</span>
+                      <span style={{flex:2,fontWeight:700,color:'#111',marginLeft:'8px'}}>{l.nom}</span>
                       <span style={{flex:1.5,color:'#6b7280',fontSize:'12px'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
-                      <span style={{flex:1,textAlign:'right',fontWeight:900,color:VIOLET}}>{l.val}</span>
+                      <span style={{flex:1,textAlign:'right',fontWeight:900,color:medaille||couleurSport}}>{l.val}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
