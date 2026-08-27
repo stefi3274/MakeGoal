@@ -255,7 +255,7 @@ export default function PostPage() {
     <div style={{minHeight:'100vh',background:'#fff',fontFamily:'sans-serif'}}><Header /><main style={{maxWidth:'700px',margin:'0 auto',padding:'48px 24px',textAlign:'center'}}><h1 style={{fontWeight:900,fontSize:'24px'}}>Post introuvable</h1><a href="/" style={{color:VIOLET,fontWeight:600}}>← Accueil</a></main><Footer /></div>
   );
 
-  const dims = format === 'carre' ? { width: 500, minHeight: 500 } : { width: 400, minHeight: 640 };
+  const dims = format === 'carre' ? { width: 500, height: 500 } : { width: 400, minHeight: 640 };
   const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
   const estResultatMatch = !!(post.quarts_temps?.length || (post.resultat_details && (post.resultat_details.buts?.length || post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length)));
   const VERT = '#16a34a', ROUGE = '#dc2626', VIOLET_EGALITE = '#8b5cf6';
@@ -274,6 +274,9 @@ export default function PostPage() {
     return null;
   })();
 
+  const limiteClassement = post.classement_type === 'equipes' ? 10 : 7;
+  const classementAffiche = post.classement ? post.classement.slice(0, limiteClassement) : [];
+
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
@@ -288,24 +291,24 @@ export default function PostPage() {
 
         <div style={{display:'flex',justifyContent:'center',marginBottom:'24px'}}>
           <div ref={cardRef} style={{
-            width: dims.width + 'px', minHeight: dims.minHeight + 'px',
+            width: dims.width + 'px', height: format==='carre' ? dims.height + 'px' : undefined, minHeight: format==='vertical' ? dims.minHeight + 'px' : undefined,
             background:'#ffffff', border:'1px solid #eee',
             display:'flex', flexDirection:'column', padding:'40px 36px', boxSizing:'border-box',
-            position:'relative'
+            position:'relative', overflow: format==='carre' ? 'hidden' : 'visible'
           }}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'28px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'8px'}}>
               {LOGO_URL ? (
-                <img src={LOGO_URL} alt="MakeGoal" style={{height:'76px'}}/>
+                <img src={LOGO_URL} alt="MakeGoal" style={{height:'72px'}}/>
               ) : (
                 <span style={{color:VIOLET,fontWeight:900,fontSize:'26px'}}>MakeGoal</span>
               )}
-              <span style={{marginLeft:'auto',fontSize:'13px',fontWeight:700,color:'#fff',background:couleurSport,padding:'4px 12px',borderRadius:'999px'}}>
+              <span style={{marginLeft:'auto',fontSize:'11px',fontWeight:700,color:'#fff',background:couleurSport,padding:'3px 10px',borderRadius:'999px'}}>
                 {new Date().toLocaleDateString('fr-FR', { timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', year:'numeric' })}
               </span>
             </div>
 
             {banniere && (
-              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'12px',textAlign:'center',padding:'9px',borderRadius:'10px',marginBottom:'18px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
+              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'14px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
             )}
 
             {post.tags && post.tags.length > 0 && (
@@ -493,27 +496,32 @@ export default function PostPage() {
             {post.classement_type && post.classement && post.classement.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
                 {post.classement_titre && (
-                  <div style={{textAlign:'center',marginBottom:'12px'}}>
-                    <span style={{display:'inline-block',background:couleurSport,color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px'}}>📊 {post.classement_titre}</span>
+                  <div style={{textAlign:'center',marginBottom:'20px'}}>
+                    <span style={{display:'inline-flex',alignItems:'center',gap:'10px',background:'linear-gradient(135deg,'+couleurSport+','+SPORT_COULEURS[(post.sport as Sport) || 'football'].sombre+')',color:'#fff',fontSize:'20px',fontWeight:900,padding:'12px 28px',borderRadius:'999px',boxShadow:'0 10px 24px '+couleurSport+'45'}}>🏆 {post.classement_titre}</span>
                   </div>
                 )}
-                <div style={{border:'1px solid #e5e7eb',borderRadius:'12px',overflow:'hidden'}}>
-                  <div style={{display:'flex',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'8px 10px 8px 14px',fontSize:'11px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px'}}>
-                    <span style={{width:'28px'}}>#</span>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'20px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
+                  <div style={{height:'7px',background:'linear-gradient(90deg,'+couleurSport+',#16a34a,'+couleurSport+')'}}/>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'14px 18px 14px 22px'}}>
+                    <span style={{fontSize:'12px',fontWeight:900,color:couleurSport,letterSpacing:'1px'}}>⚽ TOP {limiteClassement}</span>
+                  </div>
+                  <div style={{display:'flex',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'2px 18px 16px 22px',fontSize:'16px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.6px'}}>
+                    <span style={{width:'46px'}}>#</span>
                     <span style={{flex:2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
                     <span style={{flex:1.5}}>{post.classement_type === 'equipes' ? 'J' : 'Équipe'}</span>
                     {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right'}}>Diff</span>}
                     <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : 'Nb'}</span>
                   </div>
-                  {post.classement.map((l, i) => {
+                  {classementAffiche.map((l, i) => {
                     const medaille = i===0?'#D4AF37':i===1?'#9CA3AF':i===2?'#B87333':null;
+                    const fondLigne = i===0?'#FFFBEB':i===1?'#F9FAFB':i===2?'#FFF7ED':(i % 2 === 0 ? '#fff' : '#fcfcfd');
                     return (
-                    <div key={i} style={{display:'flex',padding:'9px 10px',fontSize:'13px',borderTop:'1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd',alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
-                      <span style={{width:'26px',height:'26px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'12px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent'}}>{l.pos}</span>
-                      <span style={{flex:2,fontWeight:700,color:'#111',marginLeft:'8px'}}>{l.nom}</span>
-                      <span style={{flex:1.5,color:'#6b7280',fontSize:'12px'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
-                      {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:700,fontSize:'12px'}}>{l.diff}</span>}
-                      <span style={{flex:1,textAlign:'right',fontWeight:900,color:medaille||couleurSport}}>{l.val}</span>
+                    <div key={i} style={{display:'flex',padding:'20px 18px',fontSize:'23px',borderTop:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'6px solid '+couleurLigne(l.couleur)}}>
+                      <span style={{width:'44px',height:'44px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'19px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent',boxShadow:medaille?'0 5px 12px '+medaille+'66':'none',flexShrink:0}}>{l.pos}</span>
+                      <span style={{flex:2,fontWeight:900,color:'#0a0a0a',marginLeft:'16px',fontSize:'23px'}}>{l.nom}</span>
+                      <span style={{flex:1.5,color:'#6b7280',fontSize:'18px',fontWeight:700}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
+                      {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:800,fontSize:'19px'}}>{l.diff}</span>}
+                      <span style={{flex:1,textAlign:'right',fontWeight:900,color:medaille||couleurSport,fontSize:'26px'}}>{l.val}</span>
                     </div>
                     );
                   })}
@@ -523,22 +531,16 @@ export default function PostPage() {
 
             {post.pub_actif && (post.pub_nom || post.pub_logo) && (
               <a href={post.pub_lien || '#'} target="_blank" rel="noopener noreferrer" style={{textDecoration:'none',display:'block',margin:'0 0 20px'}}>
-                <div style={{display:'flex',alignItems:'center',gap:'14px',background:'linear-gradient(135deg,#faf5ff,#f3e8ff)',border:'1px solid #e9d5ff',borderRadius:'14px',padding:'14px 18px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'14px',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,border:'1px solid '+couleurSport+'33',borderRadius:'14px',padding:'14px 18px'}}>
                   {post.pub_logo && <img src={post.pub_logo} alt={post.pub_nom || 'pub'} style={{height:'48px',width:'48px',objectFit:'contain',borderRadius:'8px',background:'#fff',padding:'4px'}}/>}
                   <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontSize:'10px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 2px'}}>Sponsorisé</p>
+                    <p style={{fontSize:'10px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 2px'}}>Sponsorisé</p>
                     <p style={{fontSize:'15px',fontWeight:700,color:'#111',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.pub_nom}</p>
                   </div>
-                  {post.pub_lien && <span style={{fontSize:'20px',color:VIOLET}}>→</span>}
+                  {post.pub_lien && <span style={{fontSize:'20px',color:couleurSport}}>→</span>}
                 </div>
               </a>
             )}
-
-            <div style={{width:'40px',height:'4px',background:VIOLET,borderRadius:'2px',marginBottom:'24px'}}/>
-
-            <h1 style={{color:'#111',fontWeight:900,fontSize: format==='carre'?'26px':'28px',lineHeight:'1.25',margin:'0 0 20px'}}>
-              {post.titre}
-            </h1>
 
             {post.contenu && (
               <p style={{color:'#374151',fontSize:'17px',lineHeight:'1.6',margin:'0 0 24px',whiteSpace:'pre-wrap',flex:1}}>
