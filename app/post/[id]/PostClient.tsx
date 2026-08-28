@@ -263,7 +263,7 @@ export default function PostPage() {
     <div style={{minHeight:'100vh',background:'#fff',fontFamily:'sans-serif'}}><Header /><main style={{maxWidth:'700px',margin:'0 auto',padding:'48px 24px',textAlign:'center'}}><h1 style={{fontWeight:900,fontSize:'24px'}}>Post introuvable</h1><a href="/" style={{color:VIOLET,fontWeight:600}}>← Accueil</a></main><Footer /></div>
   );
 
-  const dims = format === 'carre' ? { width: 500, height: 500 } : { width: 400, minHeight: 640 };
+  const dims = format === 'carre' ? { width: 540, height: 540 } : { width: 400, minHeight: 640 };
   const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
   const estResultatMatch = !!(post.quarts_temps?.length || (post.resultat_details && (post.resultat_details.buts?.length || post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length)));
   const VERT = '#16a34a', ROUGE = '#dc2626', VIOLET_EGALITE = '#8b5cf6';
@@ -302,10 +302,10 @@ export default function PostPage() {
           <div ref={cardRef} style={{
             width: dims.width + 'px', height: format==='carre' ? dims.height + 'px' : undefined, minHeight: format==='vertical' ? dims.minHeight + 'px' : undefined,
             background:'#ffffff', border:'1px solid #eee',
-            display:'flex', flexDirection:'column', padding:'40px 36px', boxSizing:'border-box',
+            display:'flex', flexDirection:'column', justifyContent: format==='carre' ? 'center' : 'flex-start', padding:'26px 32px', boxSizing:'border-box',
             position:'relative', overflow: format==='carre' ? 'hidden' : 'visible'
           }}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'8px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'4px'}}>
               {LOGO_URL ? (
                 <img src={LOGO_URL} alt="MakeGoal" style={{height:'72px'}}/>
               ) : (
@@ -317,7 +317,7 @@ export default function PostPage() {
             </div>
 
             {banniere && (
-              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'14px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
+              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'6px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
             )}
 
             {post.tags && post.tags.length > 0 && (
@@ -390,26 +390,26 @@ export default function PostPage() {
             )}
 
             {post.parcours && post.parcours.adversaires && post.parcours.adversaires.length > 0 && (
-              <div style={{margin:'8px 0 24px'}}>
-                <div style={{textAlign:'center',marginBottom:'10px'}}>
-                  <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
+              <div style={{margin:'2px 0 16px'}}>
+                <div style={{textAlign:'center',marginBottom:'8px'}}>
+                  <p style={{fontWeight:900,fontSize:'19px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
                   <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:0}}>{post.parcours.competition}{post.parcours.poule ? ' · ' + post.parcours.poule : ''}</p>
                 </div>
-                <div style={{border:'1px solid #e5e7eb',borderRadius:'14px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
                   {post.parcours.adversaires.map((a, i) => {
                     const joue = a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe !== undefined && a.scoreAdversaire !== undefined;
                     const gagne = joue && parseInt(a.scoreEquipe) > parseInt(a.scoreAdversaire);
                     const perdu = joue && parseInt(a.scoreEquipe) < parseInt(a.scoreAdversaire);
                     const couleurEquipeAdv = couleurEquipeParcours(a.nom);
                     return (
-                    <div key={i} style={{display:'flex',alignItems:'center',padding:'8px 12px',fontSize:'13px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
-                      <span style={{width:'9px',height:'9px',borderRadius:'50%',background:couleurEquipeAdv,marginRight:'10px',flexShrink:0}}/>
-                      {a.label && <span style={{fontSize:'8.5px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 6px',borderRadius:'999px',marginRight:'8px',flexShrink:0}}>{a.label}</span>}
-                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'6px'}}>
-                        <span style={{fontWeight:900,color:'#0a0a0a',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</span>
-                        {a.date && <span style={{fontSize:'10px',color:'#9ca3af',fontWeight:600,whiteSpace:'nowrap'}}>{a.date}</span>}
+                    <div key={i} style={{display:'flex',alignItems:'center',padding:'11px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
+                      <span style={{width:'10px',height:'10px',borderRadius:'50%',background:couleurEquipeAdv,marginRight:'11px',flexShrink:0}}/>
+                      {a.label && <span style={{fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 7px',borderRadius:'999px',marginRight:'9px',flexShrink:0}}>{a.label}</span>}
+                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'7px'}}>
+                        <span style={{fontWeight:900,color:'#0a0a0a',fontSize:'16px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</span>
+                        {a.date && <span style={{fontSize:'10.5px',color:'#9ca3af',fontWeight:600,whiteSpace:'nowrap'}}>{a.date}</span>}
                       </div>
-                      <div style={{fontWeight:900,fontSize:'14px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap',marginLeft:'8px'}}>
+                      <div style={{fontWeight:900,fontSize:'15px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap',marginLeft:'8px'}}>
                         {joue ? a.scoreEquipe + '-' + a.scoreAdversaire : '—'}
                       </div>
                     </div>
