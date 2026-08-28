@@ -551,7 +551,15 @@ export default function AdminMedia() {
   const toggleTag = (t: string) => setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const sauvegarder = async (publier: boolean) => {
-    if (!titre) { setMessage('❌ Titre obligatoire.'); return; }
+    let titreFinal = titre;
+    if (!titreFinal) {
+      if (modePost === 'classement' && classementTitre) titreFinal = classementTitre;
+      else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
+      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + ' — Stats';
+      else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
+      else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
+      else titreFinal = 'Post MakeGoal — ' + new Date().toLocaleDateString('fr-FR');
+    }
     setSaving(true); setMessage('');
     const { data: sess } = await supabase.auth.getSession();
     if (!sess.session) {
@@ -561,7 +569,7 @@ export default function AdminMedia() {
       return;
     }
     const payload = {
-      titre, type, langue, categorie,
+      titre: titreFinal, type, langue, categorie,
       source_nom: sourceNom || null, source_url: sourceUrl || null,
       tags, pays1: pays1 || null, pays2: pays2 || null,
       ligue: ligue || null, ligue_logo: ligueLogo || null,
