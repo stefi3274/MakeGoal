@@ -94,6 +94,13 @@ const couleurLigne = (c: string | undefined) => {
   return 'transparent';
 };
 
+const PALETTE_EQUIPES = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f43f5e','#84cc16','#0ea5e9'];
+const couleurEquipeParcours = (nom: string) => {
+  let h = 0;
+  for (let i = 0; i < nom.length; i++) h = (h * 31 + nom.charCodeAt(i)) % PALETTE_EQUIPES.length;
+  return PALETTE_EQUIPES[Math.abs(h) % PALETTE_EQUIPES.length];
+};
+
 const couleurStatut = (s: string) => {
   if (s === 'Mi-temps') return '#ef4444';
   if (s === 'Match terminé') return '#111111';
@@ -384,23 +391,25 @@ export default function PostPage() {
 
             {post.parcours && post.parcours.adversaires && post.parcours.adversaires.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
-                <div style={{textAlign:'center',marginBottom:'14px'}}>
+                <div style={{textAlign:'center',marginBottom:'10px'}}>
                   <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
                   <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:0}}>{post.parcours.competition}{post.parcours.poule ? ' · ' + post.parcours.poule : ''}</p>
                 </div>
-                <div style={{border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'14px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
                   {post.parcours.adversaires.map((a, i) => {
                     const joue = a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe !== undefined && a.scoreAdversaire !== undefined;
                     const gagne = joue && parseInt(a.scoreEquipe) > parseInt(a.scoreAdversaire);
                     const perdu = joue && parseInt(a.scoreEquipe) < parseInt(a.scoreAdversaire);
+                    const couleurEquipeAdv = couleurEquipeParcours(a.nom);
                     return (
-                    <div key={i} style={{display:'flex',alignItems:'center',padding:'12px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd',borderLeft:'4px solid '+(joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#e5e7eb')}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        {a.label && <span style={{display:'inline-block',fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 8px',borderRadius:'999px',marginBottom:'3px'}}>{a.label}</span>}
-                        <div style={{fontWeight:900,color:'#0a0a0a',fontSize:'15px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</div>
-                        {a.date && <div style={{fontSize:'11px',color:'#9ca3af',fontWeight:600}}>{a.date}</div>}
+                    <div key={i} style={{display:'flex',alignItems:'center',padding:'8px 12px',fontSize:'13px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
+                      <span style={{width:'9px',height:'9px',borderRadius:'50%',background:couleurEquipeAdv,marginRight:'10px',flexShrink:0}}/>
+                      {a.label && <span style={{fontSize:'8.5px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 6px',borderRadius:'999px',marginRight:'8px',flexShrink:0}}>{a.label}</span>}
+                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'6px'}}>
+                        <span style={{fontWeight:900,color:'#0a0a0a',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</span>
+                        {a.date && <span style={{fontSize:'10px',color:'#9ca3af',fontWeight:600,whiteSpace:'nowrap'}}>{a.date}</span>}
                       </div>
-                      <div style={{fontWeight:900,fontSize:'16px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap'}}>
+                      <div style={{fontWeight:900,fontSize:'14px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap',marginLeft:'8px'}}>
                         {joue ? a.scoreEquipe + '-' + a.scoreAdversaire : '—'}
                       </div>
                     </div>
