@@ -108,6 +108,9 @@ type Match = {
   date_match: string; score_home: number | null; score_away: number | null;
 };
 
+type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string };
+type Parcours = { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] };
+
 type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
   source_nom: string | null; source_url: string | null;
@@ -124,6 +127,7 @@ type Article = {
   matchs_jour: MatchJour[] | null;
   resultat_details: { buts: But[]; rouges: CarteEvenement[]; jaunes: CarteEvenement[] } | null;
   quarts_temps: QuartTemps[] | null;
+  parcours: Parcours | null;
   stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
@@ -203,6 +207,15 @@ export default function AdminMedia() {
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
   const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
   const [statsTexteColle, setStatsTexteColle] = useState('');
+
+  const [pEquipe, setPEquipe] = useState('');
+  const [pCompetition, setPCompetition] = useState('');
+  const [pPoule, setPPoule] = useState('');
+  const [pAdversaires, setPAdversaires] = useState<AdversaireParcours[]>([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+  const [pTexteColle, setPTexteColle] = useState('');
+  const [lotParcoursOuvert, setLotParcoursOuvert] = useState(false);
+  const [texteLotParcours, setTexteLotParcours] = useState('');
+  const [importLotParcours, setImportLotParcours] = useState(false);
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
@@ -337,6 +350,66 @@ export default function AdminMedia() {
   const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
+  const modifierAdversaire = (i: number, champ: keyof AdversaireParcours, val: string) => setPAdversaires(prev => prev.map((a, idx) => idx === i ? { ...a, [champ]: val } : a));
+  const ajouterAdversaire = () => setPAdversaires(prev => [...prev, { nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+  const retirerAdversaire = (i: number) => setPAdversaires(prev => prev.filter((_, idx) => idx !== i));
+
+  const parserLigneAdversaire = (l: string): AdversaireParcours => {
+    const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+    const score = parts[3] || '';
+    const scoreParts = score.split('-').map(p => p.trim());
+    return {
+      nom: parts[0] || '',
+      label: parts[1] || '',
+      date: parts[2] || '',
+      scoreEquipe: scoreParts.length === 2 ? scoreParts[0] : '',
+      scoreAdversaire: scoreParts.length === 2 ? scoreParts[1] : ''
+    };
+  };
+
+  const analyserParcours = () => {
+    const lignes = pTexteColle.split('\n').map(l => l.trim());
+    let i = 0;
+    while (i < lignes.length && !lignes[i]) i++;
+    const enTete = (lignes[i] || '').split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+    if (enTete.length < 2) { setMessage('❌ Première ligne non reconnue. Format attendu : "Équipe - Compétition - Poule (optionnel)"'); return; }
+    setPEquipe(enTete[0]); setPCompetition(enTete[1]); setPPoule(enTete[2] || '');
+    const adversaires: AdversaireParcours[] = [];
+    for (let k = i + 1; k < lignes.length; k++) {
+      const l = lignes[k];
+      if (!l) continue;
+      adversaires.push(parserLigneAdversaire(l));
+    }
+    if (adversaires.length === 0) { setMessage('❌ Aucun adversaire reconnu.'); return; }
+    setPAdversaires(adversaires);
+    setMessage('✅ Parcours analysé (' + adversaires.length + ' adversaires). Vérifiez et corrigez si besoin.');
+  };
+
+  const creerParcoursEnLot = async () => {
+    const blocs = texteLotParcours.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    const aCreer: { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] }[] = [];
+    for (const bloc of blocs) {
+      const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lignes.length < 2) continue;
+      const enTete = lignes[0].split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+      if (enTete.length < 2) continue;
+      const adversaires = lignes.slice(1).map(l => parserLigneAdversaire(l));
+      aCreer.push({ equipe: enTete[0], competition: enTete[1], poule: enTete[2] || '', adversaires });
+    }
+    if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un bloc par équipe : 1ère ligne "Équipe - Compétition - Poule", puis une ligne par adversaire.'); return; }
+    setImportLotParcours(true);
+    const rows = aCreer.map(c => ({
+      type: 'post', langue, categorie: 'Ponctuel', sport: sportForm, titre: 'Parcours — ' + c.equipe,
+      parcours: c, publie: true
+    }));
+    const { error } = await supabase.from('articles').insert(rows);
+    setImportLotParcours(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ ' + rows.length + ' parcours créés et publiés (' + aCreer.map(c => c.equipe).join(', ') + ').');
+    setTexteLotParcours('');
+    chargerArticles();
+  };
+
   const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
   const analyserStats = () => {
@@ -434,6 +507,9 @@ export default function AdminMedia() {
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
     setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
     setStatsTexteColle('');
+    setPEquipe(''); setPCompetition(''); setPPoule('');
+    setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+    setPTexteColle('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -454,13 +530,14 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
     else if (a.stats_joueur && a.stats_joueur.joueurs?.length) setModePost('stats');
     else if (a.matchs_jour && a.matchs_jour.length) setModePost('matchsjour');
     else if ((a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) || (a.quarts_temps && a.quarts_temps.length)) setModePost('resultat');
+    else if (a.parcours && a.parcours.adversaires?.length) setModePost('parcours');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
@@ -472,6 +549,13 @@ export default function AdminMedia() {
     setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
     setResButs(a.resultat_details?.buts || []); setResRouges(a.resultat_details?.rouges || []); setResJaunes(a.resultat_details?.jaunes || []);
     setResQuarts(a.quarts_temps || []);
+    if (a.parcours) {
+      setPEquipe(a.parcours.equipe || ''); setPCompetition(a.parcours.competition || ''); setPPoule(a.parcours.poule || '');
+      setPAdversaires(a.parcours.adversaires?.length ? a.parcours.adversaires : [{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+    } else {
+      setPEquipe(''); setPCompetition(''); setPPoule('');
+      setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+    }
     setSportForm((a.sport as Sport) || 'football');
     setResTexteColle('');
     if (a.stats_joueur && a.stats_joueur.joueurs?.length) {
@@ -558,6 +642,7 @@ export default function AdminMedia() {
       else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + ' — Stats';
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
+      else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else titreFinal = 'Post MakeGoal — ' + new Date().toLocaleDateString('fr-FR');
     }
     setSaving(true); setMessage('');
@@ -592,6 +677,7 @@ export default function AdminMedia() {
       matchs_jour: modePost === 'matchsjour' ? matchsJourSelection : null,
       resultat_details: modePost === 'resultat' && sportForm === 'football' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
       quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
+      parcours: modePost === 'parcours' ? { equipe: pEquipe, competition: pCompetition, poule: pPoule, adversaires: pAdversaires.filter(a=>a.nom) } : null,
       stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
       sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
@@ -712,6 +798,7 @@ export default function AdminMedia() {
                     <option value="classement">📊 Classement</option>
                     <option value="onze">👥 Onze type</option>
                     <option value="sponsorise">📣 Sponsorisé (pub)</option>
+                    <option value="parcours">🧭 Parcours d'équipe</option>
                   </select>
                 </>
               )}
@@ -836,6 +923,52 @@ export default function AdminMedia() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'parcours' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🧭 Parcours d'équipe</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Inscrivez une équipe dans une compétition et listez ses adversaires, avec ou sans date. Fonctionne pour une phase de ligue (ex: Ligue des Champions), une poule, ou un tableau à élimination directe.</p>
+
+                <button type="button" onClick={() => setLotParcoursOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotParcoursOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotParcoursOuvert ? '✕ Fermer' : '📚 Coller plusieurs équipes à la fois'}</button>
+
+                {lotParcoursOuvert && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post "Parcours" par équipe, en une fois. Un bloc par équipe, séparé par une ligne vide.</p>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>1ère ligne du bloc : "Équipe - Compétition - Poule (optionnel)". Puis une ligne par adversaire : "Adversaire - Étiquette (optionnel) - Date (optionnel) - Score (optionnel, ex: 3-1)".</p>
+                    <textarea value={texteLotParcours} onChange={e => setTexteLotParcours(e.target.value)} rows={12} placeholder={"Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct.\n\nBarcelone - Ligue des Champions - Phase ligue\nPSG - J1 - 17 sept.\nBayern Munich - J2 - 30 sept. - 2-2"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={creerParcoursEnLot} disabled={importLotParcours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotParcours ? '⏳ Création...' : '🚀 Créer tous les parcours'}</button>
+                  </div>
+                )}
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour une seule équipe (remplit le formulaire ci-dessous)</p>
+                <textarea value={pTexteColle} onChange={e => setPTexteColle(e.target.value)} rows={6} placeholder={"Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <button type="button" onClick={analyserParcours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                  <input value={pEquipe} onChange={e => setPEquipe(e.target.value)} placeholder="Équipe (ex: Real Madrid)" style={inputStyle}/>
+                  <input value={pCompetition} onChange={e => setPCompetition(e.target.value)} placeholder="Compétition (ex: Ligue des Champions)" style={inputStyle}/>
+                </div>
+                <input value={pPoule} onChange={e => setPPoule(e.target.value)} placeholder="Poule / Groupe (optionnel, ex: Phase ligue)" style={{...inputStyle,marginBottom:'20px'}}/>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Adversaires ({pAdversaires.length})</p>
+                {pAdversaires.map((a, i) => (
+                  <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'12px',marginBottom:'10px'}}>
+                    <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
+                      <input value={a.nom} onChange={e => modifierAdversaire(i,'nom',e.target.value)} placeholder="Nom de l'adversaire" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                      <input value={a.label} onChange={e => modifierAdversaire(i,'label',e.target.value)} placeholder="Étiquette (J1, Quart...)" style={{...inputStyle,flex:1.3,padding:'8px'}}/>
+                      <button onClick={() => retirerAdversaire(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                    </div>
+                    <div style={{display:'flex',gap:'6px'}}>
+                      <input value={a.date} onChange={e => modifierAdversaire(i,'date',e.target.value)} placeholder="Date (optionnel, ex: 18 sept.)" style={{...inputStyle,flex:1.6,padding:'8px'}}/>
+                      <input value={a.scoreEquipe} onChange={e => modifierAdversaire(i,'scoreEquipe',e.target.value)} placeholder="Score" style={{...inputStyle,width:'55px',padding:'8px',textAlign:'center'}}/>
+                      <span style={{color:'#6b7280',alignSelf:'center'}}>-</span>
+                      <input value={a.scoreAdversaire} onChange={e => modifierAdversaire(i,'scoreAdversaire',e.target.value)} placeholder="Score" style={{...inputStyle,width:'55px',padding:'8px',textAlign:'center'}}/>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={ajouterAdversaire} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un adversaire</button>
               </div>
             )}
 

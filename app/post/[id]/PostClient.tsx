@@ -118,6 +118,7 @@ type Post = {
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
+  parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
   stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
@@ -271,6 +272,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
+    if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
     return null;
   })();
 
@@ -377,6 +379,34 @@ export default function PostPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {post.parcours && post.parcours.adversaires && post.parcours.adversaires.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'14px'}}>
+                  <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
+                  <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:0}}>{post.parcours.competition}{post.parcours.poule ? ' · ' + post.parcours.poule : ''}</p>
+                </div>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
+                  {post.parcours.adversaires.map((a, i) => {
+                    const joue = a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe !== undefined && a.scoreAdversaire !== undefined;
+                    const gagne = joue && parseInt(a.scoreEquipe) > parseInt(a.scoreAdversaire);
+                    const perdu = joue && parseInt(a.scoreEquipe) < parseInt(a.scoreAdversaire);
+                    return (
+                    <div key={i} style={{display:'flex',alignItems:'center',padding:'12px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd',borderLeft:'4px solid '+(joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#e5e7eb')}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        {a.label && <span style={{display:'inline-block',fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 8px',borderRadius:'999px',marginBottom:'3px'}}>{a.label}</span>}
+                        <div style={{fontWeight:900,color:'#0a0a0a',fontSize:'15px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</div>
+                        {a.date && <div style={{fontSize:'11px',color:'#9ca3af',fontWeight:600}}>{a.date}</div>}
+                      </div>
+                      <div style={{fontWeight:900,fontSize:'16px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap'}}>
+                        {joue ? a.scoreEquipe + '-' + a.scoreAdversaire : '—'}
+                      </div>
+                    </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
