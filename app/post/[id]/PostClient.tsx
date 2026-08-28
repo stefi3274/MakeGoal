@@ -302,10 +302,10 @@ export default function PostPage() {
           <div ref={cardRef} style={{
             width: dims.width + 'px', height: format==='carre' ? dims.height + 'px' : undefined, minHeight: format==='vertical' ? dims.minHeight + 'px' : undefined,
             background:'#ffffff', border:'1px solid #eee',
-            display:'flex', flexDirection:'column', justifyContent: format==='carre' ? 'center' : 'flex-start', padding:'26px 32px', boxSizing:'border-box',
+            display:'flex', flexDirection:'column', justifyContent: format==='carre' ? 'center' : 'flex-start', padding:'18px 32px', boxSizing:'border-box',
             position:'relative', overflow: format==='carre' ? 'hidden' : 'visible'
           }}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'4px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'0px'}}>
               {LOGO_URL ? (
                 <img src={LOGO_URL} alt="MakeGoal" style={{height:'72px'}}/>
               ) : (
@@ -317,7 +317,7 @@ export default function PostPage() {
             </div>
 
             {banniere && (
-              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'6px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
+              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'2px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
             )}
 
             {post.tags && post.tags.length > 0 && (
@@ -390,7 +390,7 @@ export default function PostPage() {
             )}
 
             {post.parcours && post.parcours.adversaires && post.parcours.adversaires.length > 0 && (
-              <div style={{margin:'2px 0 16px'}}>
+              <div style={{margin:'0px 0 12px'}}>
                 <div style={{textAlign:'center',marginBottom:'8px'}}>
                   <p style={{fontWeight:900,fontSize:'19px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
                   <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:0}}>{post.parcours.competition}{post.parcours.poule ? ' · ' + post.parcours.poule : ''}</p>
@@ -402,7 +402,7 @@ export default function PostPage() {
                     const perdu = joue && parseInt(a.scoreEquipe) < parseInt(a.scoreAdversaire);
                     const couleurEquipeAdv = couleurEquipeParcours(a.nom);
                     return (
-                    <div key={i} style={{display:'flex',alignItems:'center',padding:'11px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
+                    <div key={i} style={{display:'flex',alignItems:'center',padding:'8px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
                       <span style={{width:'10px',height:'10px',borderRadius:'50%',background:couleurEquipeAdv,marginRight:'11px',flexShrink:0}}/>
                       {a.label && <span style={{fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 7px',borderRadius:'999px',marginRight:'9px',flexShrink:0}}>{a.label}</span>}
                       <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'7px'}}>
@@ -589,7 +589,7 @@ export default function PostPage() {
               </div>
             )}
 
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'auto',paddingTop:'16px',borderTop:'1px solid #f3f4f6'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop: format==='carre' ? '14px' : 'auto',paddingTop:'12px',borderTop:'1px solid #f3f4f6'}}>
               <span style={{color:'#9ca3af',fontSize:'12px',fontWeight:600}}>makegoal.vercel.app</span>
               <span style={{color:VIOLET,fontSize:'12px',fontWeight:900}}>⚽ MakeGoal</span>
             </div>
