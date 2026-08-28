@@ -265,7 +265,7 @@ export default function PostPage() {
     ? (post.score2 > post.score1 ? VERT : post.score2 < post.score1 ? ROUGE : VIOLET_EGALITE) : '#0a0a0a';
   const banniere = (() => {
     if (estResultatMatch) return { label: 'RÉSULTAT DE MATCH', couleur: '#3b82f6' };
-    if (post.classement_type) return { label: 'CLASSEMENT', couleur: '#f59e0b' };
+    if (post.classement_type && !post.classement_titre) return { label: 'CLASSEMENT', couleur: '#f59e0b' };
     if (post.distinction_type === 'Meilleur buteur') return { label: 'MEILLEUR BUTEUR', couleur: '#ef4444' };
     if (post.distinction_type === 'Meilleur passeur') return { label: 'MEILLEUR PASSEUR', couleur: '#14b8a6' };
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
@@ -496,29 +496,26 @@ export default function PostPage() {
             {post.classement_type && post.classement && post.classement.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
                 {post.classement_titre && (
-                  <div style={{textAlign:'center',marginBottom:'14px'}}>
-                    <span style={{display:'inline-flex',alignItems:'center',gap:'6px',background:'linear-gradient(135deg,'+couleurSport+','+SPORT_COULEURS[(post.sport as Sport) || 'football'].sombre+')',color:'#fff',fontSize:'14px',fontWeight:900,padding:'8px 18px',borderRadius:'999px',boxShadow:'0 6px 16px '+couleurSport+'40',maxWidth:'90%'}}>🏆 <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_titre}</span></span>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'15px',fontWeight:900,padding:'11px 16px',borderRadius:'12px',marginBottom:'12px',boxShadow:'0 6px 16px #f59e0b40'}}>
+                    <span>🏆</span><span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_titre}</span>
                   </div>
                 )}
                 <div style={{border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
                   <div style={{height:'5px',background:'linear-gradient(90deg,'+couleurSport+',#16a34a,'+couleurSport+')'}}/>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'8px 14px 6px 16px'}}>
-                    <span style={{fontSize:'10px',fontWeight:900,color:couleurSport,letterSpacing:'0.8px'}}>⚽ TOP {limiteClassement}</span>
-                  </div>
-                  <div style={{display:'flex',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'0 14px 10px 16px',fontSize:'11px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                  <div style={{display:'flex',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,padding:'10px 18px 12px 20px',fontSize:'11px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px'}}>
                     <span style={{width:'32px'}}>#</span>
-                    <span style={{flex:2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
+                    <span style={{flex:2.2}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
                     <span style={{flex:1.5}}>{post.classement_type === 'equipes' ? 'J' : 'Équipe'}</span>
                     {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right'}}>Diff</span>}
-                    <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : 'Nb'}</span>
+                    <span style={{flex:1,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : (post.classement_titre||'').toLowerCase().includes('passeur') ? 'Passes' : 'Buts'}</span>
                   </div>
                   {classementAffiche.map((l, i) => {
-                    const medaille = i===0?'#D4AF37':i===1?'#9CA3AF':i===2?'#B87333':null;
-                    const fondLigne = i===0?'#FFFBEB':i===1?'#F9FAFB':i===2?'#FFF7ED':(i % 2 === 0 ? '#fff' : '#fcfcfd');
+                    const medaille = i===0?'#D4AF37':i===1?'#C0C0C0':couleurSport;
+                    const fondLigne = i===0?'#FFFBEB':i===1?'#F9FAFB':(i % 2 === 0 ? '#fff' : '#fcfcfd');
                     return (
-                    <div key={i} style={{display:'flex',padding:'11px 14px',fontSize:'14px',borderTop:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
+                    <div key={i} style={{display:'flex',padding:'13px 18px',fontSize:'14px',borderTop:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
                       <span style={{width:'28px',height:'28px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'12px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent',boxShadow:medaille?'0 3px 8px '+medaille+'66':'none',flexShrink:0}}>{l.pos}</span>
-                      <span style={{flex:2,fontWeight:900,color:'#0a0a0a',marginLeft:'10px',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.nom}</span>
+                      <span style={{flex:2.2,fontWeight:900,color:'#0a0a0a',marginLeft:'10px',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.nom}</span>
                       <span style={{flex:1.5,color:'#6b7280',fontSize:'11px',fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
                       {post.classement_type === 'equipes' && <span style={{flex:1,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:800,fontSize:'12px'}}>{l.diff}</span>}
                       <span style={{flex:1,textAlign:'right',fontWeight:900,color:medaille||couleurSport,fontSize:'16px'}}>{l.val}</span>
