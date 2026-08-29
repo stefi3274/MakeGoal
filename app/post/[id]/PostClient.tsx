@@ -126,6 +126,7 @@ type Post = {
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
   parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
+  declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
   stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
@@ -280,6 +281,7 @@ export default function PostPage() {
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
     if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
+    if (post.declaration?.citation) return { label: 'DÉCLARATION', couleur: '#0ea5e9' };
     return null;
   })();
 
@@ -416,6 +418,19 @@ export default function PostPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {post.declaration && post.declaration.citation && (
+              <div style={{margin:'8px 0 24px',textAlign:'center'}}>
+                <div style={{width:'62px',height:'62px',borderRadius:'50%',background:'linear-gradient(135deg,#0ea5e9,#0369a1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px',margin:'0 auto 12px',boxShadow:'0 8px 20px rgba(14,165,233,0.4)'}}>🎤</div>
+                <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.declaration.nom}</p>
+                {post.declaration.fonction && <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:'0 0 16px'}}>{post.declaration.fonction}</p>}
+                <div style={{background:'#f0f9ff',borderRadius:'16px',padding:'20px',position:'relative',textAlign:'left'}}>
+                  <span style={{position:'absolute',top:'2px',left:'14px',fontSize:'42px',color:'rgba(14,165,233,0.25)',fontWeight:900,lineHeight:1}}>&ldquo;</span>
+                  <p style={{fontSize:'16px',fontStyle:'italic',fontWeight:700,color:'#0c4a6e',margin:0,lineHeight:1.5,position:'relative'}}>{post.declaration.citation}</p>
+                </div>
+                {post.declaration.contexte && <p style={{fontSize:'11px',color:'#9ca3af',fontWeight:600,marginTop:'10px'}}>{post.declaration.contexte}</p>}
               </div>
             )}
 

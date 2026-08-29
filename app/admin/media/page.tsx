@@ -110,6 +110,7 @@ type Match = {
 
 type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string };
 type Parcours = { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] };
+type Declaration = { nom: string; fonction: string; citation: string; contexte: string };
 
 type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
@@ -128,6 +129,7 @@ type Article = {
   resultat_details: { buts: But[]; rouges: CarteEvenement[]; jaunes: CarteEvenement[] } | null;
   quarts_temps: QuartTemps[] | null;
   parcours: Parcours | null;
+  declaration: Declaration | null;
   stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
@@ -216,6 +218,15 @@ export default function AdminMedia() {
   const [lotParcoursOuvert, setLotParcoursOuvert] = useState(false);
   const [texteLotParcours, setTexteLotParcours] = useState('');
   const [importLotParcours, setImportLotParcours] = useState(false);
+
+  const [dNom, setDNom] = useState('');
+  const [dFonction, setDFonction] = useState('');
+  const [dCitation, setDCitation] = useState('');
+  const [dContexte, setDContexte] = useState('');
+  const [dTexteColle, setDTexteColle] = useState('');
+  const [lotDeclarationsOuvert, setLotDeclarationsOuvert] = useState(false);
+  const [texteLotDeclarations, setTexteLotDeclarations] = useState('');
+  const [importLotDeclarations, setImportLotDeclarations] = useState(false);
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
@@ -410,6 +421,46 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
+  const parserDeclaration = (bloc: string): Declaration => {
+    const lignes = bloc.split('\n').map(l => l.trim());
+    let i = 0;
+    while (i < lignes.length && !lignes[i]) i++;
+    const entete = (lignes[i] || '').split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+    i++;
+    while (i < lignes.length && !lignes[i]) i++;
+    const citation = lignes.slice(i).filter(l => l).join(' ').trim();
+    return { nom: entete[0] || '', fonction: entete[1] || '', contexte: entete[2] || '', citation };
+  };
+
+  const analyserDeclaration = () => {
+    if (!dTexteColle.trim()) { setMessage('❌ Collez du texte à analyser.'); return; }
+    const d = parserDeclaration(dTexteColle);
+    if (!d.nom || !d.citation) { setMessage('❌ Format non reconnu. 1ère ligne : "Nom - Fonction - Contexte (optionnel)", ligne vide, puis la citation.'); return; }
+    setDNom(d.nom); setDFonction(d.fonction); setDContexte(d.contexte); setDCitation(d.citation);
+    setMessage('✅ Déclaration analysée. Vérifiez et corrigez si besoin.');
+  };
+
+  const creerDeclarationsEnLot = async () => {
+    const blocs = texteLotDeclarations.split(/\n-{3,}\n/).map(b => b.trim()).filter(Boolean);
+    const aCreer: Declaration[] = [];
+    for (const bloc of blocs) {
+      const d = parserDeclaration(bloc);
+      if (d.nom && d.citation) aCreer.push(d);
+    }
+    if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un bloc par déclaration, séparés par une ligne "---".'); return; }
+    setImportLotDeclarations(true);
+    const rows = aCreer.map(d => ({
+      type: 'post', langue, categorie: 'Ponctuel', sport: sportForm, titre: 'Déclaration — ' + d.nom,
+      declaration: d, publie: true
+    }));
+    const { error } = await supabase.from('articles').insert(rows);
+    setImportLotDeclarations(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ ' + rows.length + ' déclarations créées et publiées (' + aCreer.map(d => d.nom).join(', ') + ').');
+    setTexteLotDeclarations('');
+    chargerArticles();
+  };
+
   const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
   const analyserStats = () => {
@@ -510,6 +561,8 @@ export default function AdminMedia() {
     setPEquipe(''); setPCompetition(''); setPPoule('');
     setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
     setPTexteColle('');
+    setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
+    setDTexteColle('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -530,7 +583,7 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
@@ -538,6 +591,7 @@ export default function AdminMedia() {
     else if (a.matchs_jour && a.matchs_jour.length) setModePost('matchsjour');
     else if ((a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) || (a.quarts_temps && a.quarts_temps.length)) setModePost('resultat');
     else if (a.parcours && a.parcours.adversaires?.length) setModePost('parcours');
+    else if (a.declaration && a.declaration.citation) setModePost('declaration');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
@@ -555,6 +609,12 @@ export default function AdminMedia() {
     } else {
       setPEquipe(''); setPCompetition(''); setPPoule('');
       setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
+    }
+    if (a.declaration) {
+      setDNom(a.declaration.nom || ''); setDFonction(a.declaration.fonction || '');
+      setDCitation(a.declaration.citation || ''); setDContexte(a.declaration.contexte || '');
+    } else {
+      setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
     }
     setSportForm((a.sport as Sport) || 'football');
     setResTexteColle('');
@@ -643,6 +703,7 @@ export default function AdminMedia() {
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
+      else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
       else titreFinal = 'Post MakeGoal — ' + new Date().toLocaleDateString('fr-FR');
     }
     setSaving(true); setMessage('');
@@ -678,6 +739,7 @@ export default function AdminMedia() {
       resultat_details: modePost === 'resultat' && sportForm === 'football' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
       quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
       parcours: modePost === 'parcours' ? { equipe: pEquipe, competition: pCompetition, poule: pPoule, adversaires: pAdversaires.filter(a=>a.nom) } : null,
+      declaration: modePost === 'declaration' ? { nom: dNom, fonction: dFonction, citation: dCitation, contexte: dContexte } : null,
       stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
       sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
@@ -789,16 +851,27 @@ export default function AdminMedia() {
                 <>
                   <label style={labelStyle}>Type de post</label>
                   <select value={modePost} onChange={e => setModePost(e.target.value)} style={inputStyle}>
-                    <option value="simple">✍️ Simple (texte / image)</option>
-                    <option value="match">⚽ Affiche de match</option>
-                    <option value="matchsjour">📅 Matchs du jour</option>
-                    <option value="resultat">📋 Résultat de match</option>
-                    <option value="stats">📈 Stats joueur</option>
-                    <option value="distinction">🏆 Distinction</option>
-                    <option value="classement">📊 Classement</option>
-                    <option value="onze">👥 Onze type</option>
-                    <option value="sponsorise">📣 Sponsorisé (pub)</option>
-                    <option value="parcours">🧭 Parcours d'équipe</option>
+                    <optgroup label="Contenu">
+                      <option value="simple">✍️ Simple (texte / image)</option>
+                      <option value="sponsorise">📣 Sponsorisé (pub)</option>
+                    </optgroup>
+                    <optgroup label="Matchs">
+                      <option value="match">⚽ Affiche de match</option>
+                      <option value="matchsjour">📅 Matchs du jour</option>
+                      <option value="resultat">📋 Résultat de match</option>
+                      <option value="parcours">🧭 Parcours d'équipe</option>
+                    </optgroup>
+                    <optgroup label="Stats & classements">
+                      <option value="stats">📈 Stats joueur</option>
+                      <option value="classement">📊 Classement</option>
+                    </optgroup>
+                    <optgroup label="Distinctions & citations">
+                      <option value="distinction">🏆 Distinction</option>
+                      <option value="declaration">🎤 Déclaration</option>
+                    </optgroup>
+                    <optgroup label="Composition">
+                      <option value="onze">👥 Onze type</option>
+                    </optgroup>
                   </select>
                 </>
               )}
@@ -969,6 +1042,34 @@ export default function AdminMedia() {
                   </div>
                 ))}
                 <button type="button" onClick={ajouterAdversaire} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un adversaire</button>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'declaration' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🎤 Déclaration</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Pour une citation d'un joueur, entraîneur ou toute autre personnalité.</p>
+
+                <button type="button" onClick={() => setLotDeclarationsOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotDeclarationsOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotDeclarationsOuvert ? '✕ Fermer' : '📚 Coller plusieurs déclarations à la fois'}</button>
+
+                {lotDeclarationsOuvert && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post par déclaration, en une fois. Séparez chaque déclaration par une ligne "---".</p>
+                    <textarea value={texteLotDeclarations} onChange={e => setTexteLotDeclarations(e.target.value)} rows={12} placeholder={"Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent.\n---\nXabi Alonso - Entraîneur du Bayern Munich\n\nNous avons un groupe difficile mais très motivant."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={creerDeclarationsEnLot} disabled={importLotDeclarations} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotDeclarations ? '⏳ Création...' : '🚀 Créer toutes les déclarations'}</button>
+                  </div>
+                )}
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour une seule déclaration (remplit le formulaire ci-dessous)</p>
+                <textarea value={dTexteColle} onChange={e => setDTexteColle(e.target.value)} rows={5} placeholder={"Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <button type="button" onClick={analyserDeclaration} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+                  <input value={dNom} onChange={e => setDNom(e.target.value)} placeholder="Nom (ex: Carlo Ancelotti)" style={inputStyle}/>
+                  <input value={dFonction} onChange={e => setDFonction(e.target.value)} placeholder="Fonction (ex: Entraîneur du Real Madrid)" style={inputStyle}/>
+                </div>
+                <textarea value={dCitation} onChange={e => setDCitation(e.target.value)} rows={5} placeholder="Le texte de la déclaration, entre guillemets ou non..." style={{...inputStyle,marginBottom:'14px',lineHeight:'1.5'}}/>
+                <input value={dContexte} onChange={e => setDContexte(e.target.value)} placeholder="Contexte (optionnel, ex: Conférence d'avant-match)" style={inputStyle}/>
               </div>
             )}
 
