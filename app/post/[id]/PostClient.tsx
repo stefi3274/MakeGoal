@@ -304,7 +304,7 @@ export default function PostPage() {
           <div ref={cardRef} style={{
             width: dims.width + 'px', height: format==='carre' ? dims.height + 'px' : undefined, minHeight: format==='vertical' ? dims.minHeight + 'px' : undefined,
             background:'#ffffff', border:'1px solid #eee',
-            display:'flex', flexDirection:'column', justifyContent: format==='carre' ? 'center' : 'flex-start', padding:'18px 32px', boxSizing:'border-box',
+            display:'flex', flexDirection:'column', justifyContent:'center', padding:'18px 32px', boxSizing:'border-box',
             position:'relative', overflow: format==='carre' ? 'hidden' : 'visible'
           }}>
             <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'0px'}}>
@@ -592,9 +592,11 @@ export default function PostPage() {
             )}
 
             {post.contenu && (
-              <p style={{color:'#374151',fontSize:'17px',lineHeight:'1.6',margin:'0 0 24px',whiteSpace:'pre-wrap',flex:1}}>
-                {post.contenu}
-              </p>
+              <div style={{background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,borderLeft:'4px solid '+couleurSport,borderRadius:'12px',padding:'20px 22px',margin:'0 0 24px'}}>
+                <p style={{color:'#111',fontSize:'20px',fontWeight:600,lineHeight:'1.5',margin:0,whiteSpace:'pre-wrap'}}>
+                  {post.contenu}
+                </p>
+              </div>
             )}
 
             {post.source_nom && (
