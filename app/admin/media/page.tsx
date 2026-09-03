@@ -123,8 +123,8 @@ type Article = {
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   relance_at: string | null;
-  classement_type: string | null; classement_titre: string | null;
-  classement: { pos: string; nom: string; extra: string; diff: string; val: string; couleur?: string }[] | null;
+  classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
+  classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: MatchJour[] | null;
   resultat_details: { buts: But[]; rouges: CarteEvenement[]; jaunes: CarteEvenement[] } | null;
   quarts_temps: QuartTemps[] | null;
@@ -182,8 +182,10 @@ export default function AdminMedia() {
   const [uploadingPub, setUploadingPub] = useState(false);
   const [classementType, setClassementType] = useState('');
   const [classementTitre, setClassementTitre] = useState('');
-  const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; diff: string; val: string; couleur: string }[]>(
-    Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',val:'',couleur:''}))
+  const [classementPays, setClassementPays] = useState('');
+  const [classementPositionDepart, setClassementPositionDepart] = useState('1');
+  const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur: string }[]>(
+    Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''}))
   );
   const [classementTexteColle, setClassementTexteColle] = useState('');
   const [lotClassementOuvert, setLotClassementOuvert] = useState(false);
@@ -547,9 +549,9 @@ export default function AdminMedia() {
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
-    setModePost('simple'); setClassementType(''); setClassementTitre('');
+    setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
-    setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',val:'',couleur:''})));
+    setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setClassementTexteColle('');
     setMatchsJourSelection([]);
     setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]); setResQuarts([]);
@@ -594,9 +596,9 @@ export default function AdminMedia() {
     else if (a.declaration && a.declaration.citation) setModePost('declaration');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
-    setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || '');
+    setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || ''); setClassementPays(a.classement_pays || ''); setClassementPositionDepart('1');
     if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
-    else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',val:'',couleur:''})));
+    else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
@@ -630,29 +632,35 @@ export default function AdminMedia() {
     setVue('editer');
   };
 
-  const setLigne = (i: number, champ: 'pos' | 'nom' | 'extra' | 'diff' | 'val' | 'couleur', val: string) => {
+  const setLigne = (i: number, champ: 'pos' | 'nom' | 'extra' | 'diff' | 'pays' | 'val' | 'couleur', val: string) => {
     setClassement(prev => prev.map((l, idx) => idx === i ? { ...l, [champ]: val } : l));
   };
 
-  const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', diff:'', val:'', couleur:'' }]);
+  const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', diff:'', pays:'', val:'', couleur:'' }]);
 
   const collerClassement = () => {
     const lignes = classementTexteColle.split('\n').map(l => l.trim()).filter(l => l);
     if (lignes.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
+    const depart = parseInt(classementPositionDepart) || 1;
     const parsees = lignes.map((l, i) => {
       const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
       if (classementType === 'equipes') {
-        return { pos: String(i + 1), nom: parts[0] || '', extra: parts[1] || '', diff: parts[2] || '', val: parts[3] || '', couleur: '' };
+        return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: parts[2] || '', val: parts[3] || '', pays: '', couleur: '' };
       }
-      return { pos: String(i + 1), nom: parts[0] || '', extra: parts[1] || '', diff: '', val: parts[2] || '', couleur: '' };
+      // Joueurs : "Joueur - Équipe - Buts" (3) ou "Joueur - Équipe - Pays - Buts" (4, avec drapeau)
+      if (parts.length >= 4) {
+        return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: '', pays: parts[2] || '', val: parts[3] || '', couleur: '' };
+      }
+      return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: '', pays: '', val: parts[2] || '', couleur: '' };
     });
     setClassement(parsees);
-    setMessage('✅ Classement analysé (' + parsees.length + ' lignes). Vérifiez et corrigez si besoin.');
+    setMessage('✅ Classement analysé (' + parsees.length + ' lignes, à partir de la position ' + depart + '). Vérifiez et corrigez si besoin.');
   };
 
   const creerClassementsEnLot = async () => {
     const blocs = texteLotClassements.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-    const aCreer: { nomLigue: string; lignes: { pos: string; nom: string; extra: string; diff: string; val: string; couleur: string }[] }[] = [];
+    const depart = parseInt(classementPositionDepart) || 1;
+    const aCreer: { nomLigue: string; lignes: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur: string }[] }[] = [];
     for (const bloc of blocs) {
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       if (lignes.length < 2) continue;
@@ -660,9 +668,12 @@ export default function AdminMedia() {
       const equipes = lignes.slice(1).map((l, i) => {
         const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
         if (typeLotClassements === 'equipes') {
-          return { pos: String(i + 1), nom: parts[0] || '', extra: parts[1] || '', diff: parts[2] || '', val: parts[3] || '', couleur: '' };
+          return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: parts[2] || '', val: parts[3] || '', pays: '', couleur: '' };
         }
-        return { pos: String(i + 1), nom: parts[0] || '', extra: parts[1] || '', diff: '', val: parts[2] || '', couleur: '' };
+        if (parts.length >= 4) {
+          return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: '', pays: parts[2] || '', val: parts[3] || '', couleur: '' };
+        }
+        return { pos: String(depart + i), nom: parts[0] || '', extra: parts[1] || '', diff: '', pays: '', val: parts[2] || '', couleur: '' };
       });
       aCreer.push({ nomLigue, lignes: equipes });
     }
@@ -670,7 +681,7 @@ export default function AdminMedia() {
     setImportLotClassements(true);
     const rows = aCreer.map(c => ({
       type: 'post', langue, categorie: 'Classement', titre: 'Classement — ' + c.nomLigue,
-      classement_type: typeLotClassements, classement_titre: c.nomLigue, classement: c.lignes,
+      classement_type: typeLotClassements, classement_titre: c.nomLigue, classement_pays: classementPays || null, classement: c.lignes,
       publie: true
     }));
     const { error } = await supabase.from('articles').insert(rows);
@@ -734,6 +745,7 @@ export default function AdminMedia() {
       onze: formation ? onze : null,
       classement_type: classementType || null,
       classement_titre: classementTitre || null,
+      classement_pays: classementType ? (classementPays || null) : null,
       classement: classementType ? classement.filter(l => l.nom) : null,
       matchs_jour: modePost === 'matchsjour' ? matchsJourSelection : null,
       resultat_details: modePost === 'resultat' && sportForm === 'football' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
@@ -1277,8 +1289,14 @@ export default function AdminMedia() {
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
                     <input value={classementTitre} onChange={e => setClassementTitre(e.target.value)} placeholder={classementType==='equipes'?'Ex: Groupe A / Classement FIFA':'Ex: Meilleurs buteurs Ligue 1'} style={{...inputStyle,marginBottom:'14px'}}/>
 
+                    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'8px',marginBottom:'14px'}}>
+                      <input value={classementPays} onChange={e => setClassementPays(e.target.value)} placeholder="Pays pour le drapeau de la bannière (optionnel, ex: Espagne)" style={inputStyle}/>
+                      <input type="number" min={1} value={classementPositionDepart} onChange={e => setClassementPositionDepart(e.target.value)} placeholder="Position de départ" style={inputStyle}/>
+                    </div>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 14px'}}>La position de départ sert à créer un extrait "milieu de tableau" ou "bas de tableau" (ex: 11 pour démarrer au 11ᵉ rang) au lieu de toujours recommencer à 1.</p>
+
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Coller le classement (une ligne par {classementType==='equipes'?'équipe':'joueur'})</p>
-                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Format : {classementType==='equipes' ? 'Équipe - Joués - Diff. buts - Points' : 'Joueur - Équipe - Buts/Passes'} (un tiret entre chaque valeur)</p>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Format : {classementType==='equipes' ? 'Équipe - Joués - Diff. buts - Points' : 'Joueur - Équipe - Buts/Passes (ou Joueur - Équipe - Pays - Buts/Passes pour afficher le drapeau du joueur)'} (un tiret entre chaque valeur)</p>
                     <textarea value={classementTexteColle} onChange={e => setClassementTexteColle(e.target.value)} placeholder={classementType==='equipes' ? 'France - 6 - +12 - 16\nArgentine - 6 - +8 - 15\nBrésil - 6 - +5 - 13' : 'Mbappé - France - 8\nMessi - Argentine - 7'} rows={6} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={collerClassement} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
@@ -1305,6 +1323,9 @@ export default function AdminMedia() {
                         <input value={l.extra} onChange={e => setLigne(i,'extra',e.target.value)} placeholder={classementType==='equipes'?'Joués':'Équipe'} style={{...inputStyle,flex:1.5,padding:'8px'}}/>
                         {classementType === 'equipes' && (
                           <input value={l.diff} onChange={e => setLigne(i,'diff',e.target.value)} placeholder="Diff" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                        )}
+                        {classementType === 'joueurs' && (
+                          <input value={l.pays} onChange={e => setLigne(i,'pays',e.target.value)} placeholder="Pays (drapeau)" style={{...inputStyle,flex:1.2,padding:'8px'}}/>
                         )}
                         <input value={l.val} onChange={e => setLigne(i,'val',e.target.value)} placeholder={classementType==='equipes'?'Pts':'Nb'} style={{...inputStyle,flex:1,padding:'8px'}}/>
                       </div>

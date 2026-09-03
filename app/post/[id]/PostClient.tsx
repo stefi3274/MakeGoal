@@ -120,8 +120,8 @@ type Post = {
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
-  classement_type: string | null; classement_titre: string | null;
-  classement: { pos: string; nom: string; extra: string; diff: string; val: string; couleur?: string }[] | null;
+  classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
+  classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
@@ -287,6 +287,14 @@ export default function PostPage() {
 
   const limiteClassement = post.classement_type === 'equipes' ? 10 : 7;
   const classementAffiche = post.classement ? post.classement.slice(0, limiteClassement) : [];
+  // Système adaptatif : moins de lignes = tout plus grand, pour bien remplir le cadre
+  const nbLignesClassement = classementAffiche.length;
+  const tailleClassement = nbLignesClassement <= 3 ? 'xl' : nbLignesClassement <= 6 ? 'lg' : 'md';
+  const CLASSEMENT_TAILLES = {
+    xl: { entete: 13, ligne: 19, nom: 19, extra: 14, val: 22, pos: 36, posFont: 15, padding: '19px 6px 19px 10px' },
+    lg: { entete: 12, ligne: 16, nom: 16, extra: 12, val: 19, pos: 32, posFont: 13, padding: '15px 5px 15px 9px' },
+    md: { entete: 11, ligne: 14, nom: 14, extra: 11, val: 16, pos: 28, posFont: 12, padding: '13px 4px 13px 8px' }
+  }[tailleClassement];
 
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
@@ -551,12 +559,12 @@ export default function PostPage() {
               <div style={{margin:'8px 0 24px'}}>
                 {post.classement_titre && (
                   <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'15px',fontWeight:900,padding:'11px 16px',borderRadius:'12px',marginBottom:'12px',boxShadow:'0 6px 16px #f59e0b40'}}>
-                    <span>🏆</span><span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_titre}</span>
+                    <span>{post.classement_pays && drapeau(post.classement_pays) !== '🏳️' ? drapeau(post.classement_pays) : '🏆'}</span><span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_titre}</span>
                   </div>
                 )}
                 <div style={{height:'4px',background:'linear-gradient(90deg,'+couleurSport+',#16a34a,'+couleurSport+')',borderRadius:'999px',marginBottom:'2px'}}/>
-                <div style={{display:'flex',padding:'10px 4px 10px 8px',fontSize:'11px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',borderBottom:'2px solid '+couleurSport+'33'}}>
-                  <span style={{width:'32px'}}>#</span>
+                <div style={{display:'flex',padding:'10px 4px 10px 8px',fontSize:CLASSEMENT_TAILLES.entete+'px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',borderBottom:'2px solid '+couleurSport+'33'}}>
+                  <span style={{width:CLASSEMENT_TAILLES.pos+'px'}}>#</span>
                   <span style={{flex:3}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
                   <span style={{flex:1.3}}>{post.classement_type === 'equipes' ? 'Match' : 'Équipe'}</span>
                   {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right'}}>Diff</span>}
@@ -566,12 +574,14 @@ export default function PostPage() {
                     const medaille = i===0?'#D4AF37':i===1?'#C0C0C0':couleurSport;
                     const fondLigne = i===0?'#FFFBEB':i===1?'#F9FAFB':(i % 2 === 0 ? '#fff' : '#fcfcfd');
                     return (
-                    <div key={i} style={{display:'flex',padding:'13px 4px 13px 8px',fontSize:'14px',borderBottom:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
-                      <span style={{width:'28px',height:'28px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'12px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent',boxShadow:medaille?'0 3px 8px '+medaille+'66':'none',flexShrink:0}}>{l.pos}</span>
-                      <span style={{flex:3,fontWeight:900,color:'#0a0a0a',marginLeft:'10px',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.nom}</span>
-                      <span style={{flex:1.3,color:'#6b7280',fontSize:'11px',fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
-                      {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:800,fontSize:'12px'}}>{l.diff}</span>}
-                      <span style={{flex:0.9,textAlign:'right',fontWeight:900,color:medaille||couleurSport,fontSize:'16px'}}>{l.val}</span>
+                    <div key={i} style={{display:'flex',padding:CLASSEMENT_TAILLES.padding,fontSize:CLASSEMENT_TAILLES.ligne+'px',borderBottom:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
+                      <span style={{width:CLASSEMENT_TAILLES.pos+'px',height:CLASSEMENT_TAILLES.pos+'px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:CLASSEMENT_TAILLES.posFont+'px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent',boxShadow:medaille?'0 3px 8px '+medaille+'66':'none',flexShrink:0}}>{l.pos}</span>
+                      <span style={{flex:3,fontWeight:900,color:'#0a0a0a',marginLeft:'10px',fontSize:CLASSEMENT_TAILLES.nom+'px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {post.classement_type === 'joueurs' && l.pays && drapeau(l.pays) !== '🏳️' ? drapeau(l.pays) + ' ' : ''}{l.nom}
+                      </span>
+                      <span style={{flex:1.3,color:'#6b7280',fontSize:CLASSEMENT_TAILLES.extra+'px',fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_type === 'equipes' && drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
+                      {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:800,fontSize:(CLASSEMENT_TAILLES.extra+1)+'px'}}>{l.diff}</span>}
+                      <span style={{flex:0.9,textAlign:'right',fontWeight:900,color:medaille||couleurSport,fontSize:CLASSEMENT_TAILLES.val+'px'}}>{l.val}</span>
                     </div>
                     );
                   })}
