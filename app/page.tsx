@@ -199,38 +199,38 @@ export default function Home() {
     </div>
   );};
 
+  const [indexDefile, setIndexDefile] = useState(0);
+  useEffect(() => {
+    if (matchs.length === 0) return;
+    const t = setInterval(() => setIndexDefile(i => (i + 1) % matchs.length), 5000);
+    return () => clearInterval(t);
+  }, [matchs.length]);
+
   const DefileMatchsVote = () => {
     if (matchs.length === 0) return null;
-    const liste = [...matchs, ...matchs]; // doublé pour un défilement continu sans coupure
+    const m = matchs[indexDefile % matchs.length];
+    const aCotes = !!(m.cote_1 && m.cote_2);
     return (
-      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'18px 0',overflow:'hidden',position:'relative'}}>
-        <style>{`
-          @keyframes defileMatchs { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-          .defile-piste { display: flex; width: max-content; animation: defileMatchs 45s linear infinite; }
-          .defile-piste:hover { animation-play-state: paused; }
-        `}</style>
-        <div className="defile-piste">
-          {liste.map((m, i) => {
-            const aCotes = !!(m.cote_1 && m.cote_2);
-            return (
-              <a key={m.id + '-' + i} href={aCotes ? '/paris' : '/matchs'} style={{
-                display:'flex', alignItems:'center', gap:'10px', textDecoration:'none',
-                background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.25)',
-                borderRadius:'12px', padding:'10px 16px', margin:'0 8px', whiteSpace:'nowrap', flexShrink:0
-              }}>
-                <span style={{color:'#fff',fontWeight:800,fontSize:'13px'}}>{m.equipe1} <span style={{opacity:0.6,fontWeight:400}}>vs</span> {m.equipe2}</span>
-                {aCotes ? (
-                  <span style={{display:'flex',gap:'6px'}}>
-                    <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>1: {m.cote_1!.toFixed(2)}</span>
-                    {m.cote_x && <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>X: {m.cote_x.toFixed(2)}</span>}
-                    <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>2: {m.cote_2!.toFixed(2)}</span>
-                  </span>
-                ) : (
-                  <span style={{background:'#06b6d4',color:'#fff',fontWeight:900,fontSize:'11px',padding:'3px 10px',borderRadius:'999px'}}>🗳️ Voter</span>
-                )}
-              </a>
-            );
-          })}
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'28px 0',overflow:'hidden',position:'relative'}}>
+        <a key={m.id} href={aCotes ? '/paris' : '/matchs'} style={{
+          display:'flex', alignItems:'center', justifyContent:'center', gap:'20px', textDecoration:'none',
+          flexWrap:'wrap', padding:'0 20px'
+        }}>
+          <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(20px,3.5vw,30px)',textAlign:'center'}}>{m.equipe1} <span style={{opacity:0.6,fontWeight:400}}>vs</span> {m.equipe2}</span>
+          {aCotes ? (
+            <span style={{display:'flex',gap:'10px',flexWrap:'wrap',justifyContent:'center'}}>
+              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>1: {m.cote_1!.toFixed(2)}</span>
+              {m.cote_x && <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>X: {m.cote_x.toFixed(2)}</span>}
+              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>2: {m.cote_2!.toFixed(2)}</span>
+            </span>
+          ) : (
+            <span style={{background:'#06b6d4',color:'#fff',fontWeight:900,fontSize:'clamp(14px,2vw,18px)',padding:'6px 18px',borderRadius:'999px'}}>🗳️ Voter</span>
+          )}
+        </a>
+        <div style={{display:'flex',justifyContent:'center',gap:'6px',marginTop:'16px'}}>
+          {matchs.map((_, i) => (
+            <span key={i} style={{width:'6px',height:'6px',borderRadius:'999px',background: i===indexDefile%matchs.length ? '#fff' : 'rgba(255,255,255,0.35)'}}/>
+          ))}
         </div>
       </div>
     );
@@ -275,7 +275,7 @@ export default function Home() {
           <a href="/concours" style={{textDecoration:'none',display:'block',marginBottom:'28px'}}>
             <div style={{background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',borderRadius:'16px',padding:'20px 24px',border:'2px solid #ffd700',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}}>
               <div>
-                <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'8px',textTransform:'uppercase'}}>🏆 Concours en cours</div>
+                <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'8px',textTransform:'uppercase'}}>🏆 Kiyès k ap bat? Kiyès k ap fè Gòl?</div>
                 <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'20px',margin:'0 0 4px'}}>{concours.titre}</h2>
                 {concours.lots && <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>🎁 {concours.lots}</p>}
               </div>

@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Championnat non reconnu. Valeurs possibles : ' + Object.keys(CLES_SPORT).join(', ') }, { status: 400 });
   }
 
-  const urlOdds = 'https://api.the-odds-api.com/v4/sports/' + cleSport + '/odds?regions=eu,uk&markets=h2h&oddsFormat=decimal&apiKey=' + process.env.THE_ODDS_API_KEY;
+  const urlOdds = 'https://api.the-odds-api.com/v4/sports/' + cleSport + '/odds?regions=eu,uk&markets=h2h,totals&oddsFormat=decimal&apiKey=' + process.env.THE_ODDS_API_KEY;
   const reponseOdds = await fetch(urlOdds);
   if (!reponseOdds.ok) {
     const texte = await reponseOdds.text();
@@ -101,13 +101,23 @@ export async function POST(request: Request) {
 
   for (const ev of evenements) {
     const bookmaker = ev.bookmakers?.[0];
-    const marche = bookmaker?.markets?.find((m: any) => m.key === 'h2h');
-    if (!marche) continue;
+    const marcheH2h = bookmaker?.markets?.find((m: any) => m.key === 'h2h');
+    if (!marcheH2h) continue;
 
-    const cote1 = marche.outcomes.find((o: any) => o.name === ev.home_team)?.price;
-    const cote2 = marche.outcomes.find((o: any) => o.name === ev.away_team)?.price;
-    const coteX = marche.outcomes.find((o: any) => o.name === 'Draw')?.price;
+    const cote1 = marcheH2h.outcomes.find((o: any) => o.name === ev.home_team)?.price;
+    const cote2 = marcheH2h.outcomes.find((o: any) => o.name === ev.away_team)?.price;
+    const coteX = marcheH2h.outcomes.find((o: any) => o.name === 'Draw')?.price;
     if (!cote1 || !cote2) continue;
+
+    // Marché "Buts" (totals) : cherche la ligne à 2.5 buts en priorité, sinon la première disponible
+    const marcheTotals = bookmaker?.markets?.find((m: any) => m.key === 'totals');
+    let cotePlus, coteMoins;
+    if (marcheTotals) {
+      const ligne25 = marcheTotals.outcomes.filter((o: any) => o.point === 2.5);
+      const outcomesRetenus = ligne25.length === 2 ? ligne25 : marcheTotals.outcomes;
+      cotePlus = outcomesRetenus.find((o: any) => o.name === 'Over')?.price;
+      coteMoins = outcomesRetenus.find((o: any) => o.name === 'Under')?.price;
+    }
 
     const trouve = matchsLocaux?.find(m =>
       correspondent(m.equipe1, ev.home_team) && correspondent(m.equipe2, ev.away_team)
@@ -116,7 +126,8 @@ export async function POST(request: Request) {
     if (!trouve) { nonTrouves.push(ev.home_team + ' vs ' + ev.away_team); continue; }
 
     const { error } = await supabaseAdmin.from('matchs').update({
-      cote_1: cote1, cote_x: coteX || null, cote_2: cote2
+      cote_1: cote1, cote_x: coteX || null, cote_2: cote2,
+      cote_plus2_5: cotePlus || null, cote_moins2_5: coteMoins || null
     }).eq('id', trouve.id);
     if (!error) miseAJour++;
   }

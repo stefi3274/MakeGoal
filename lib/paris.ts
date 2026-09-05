@@ -2,35 +2,59 @@ import { supabase } from './supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
-// MOTEUR DE PARIS — MakeGoal (v2)
+// MOTEUR DE PARIS — MakeGoal (v3)
 // - 1 000 Gourdes virtuelles à l'inscription
 // - Paris COMBINÉS uniquement : 10 sélections minimum
-// - Cote ≥ 2.00 par sélection pour que la mise compte dans
-//   l'objectif de mise cumulée (25 × 1 000 = 25 000 Gourdes)
 // - Mise minimum : 100 Gourdes par combiné
-// - Si UNE SEULE sélection est perdante sur les 10+ : la mise est
-//   REMBOURSÉE (ni gain, ni perte). 2 pertes ou plus : mise perdue.
-//   0 perte : gain complet (mise × cote totale).
-// - Une fois l'objectif de mise cumulée atteint, l'utilisateur peut
-//   À TOUT MOMENT choisir de retirer 1 000 Gourdes (montant fixe,
-//   peu importe le solde réel), ou continuer à parier avec son
-//   solde actuel. Le retrait ne se déclenche jamais automatiquement.
+// - Types de sélection : 1 / X / 2, Double Chance (1X, X2, 12),
+//   Buts (+2.5 / -2.5 buts au total dans le match)
+// - Cote minimum PAR SÉLECTION pour qu'une mise compte dans
+//   l'objectif de retrait, PROGRESSIVE selon le nombre de
+//   sélections du combiné :
+//     10 à 19 sélections → cote ≥ 2.00
+//     20 à 39 sélections → cote ≥ 1.50
+//     40 sélections ou plus → cote ≥ 1.20
+// - Si UNE SEULE sélection est perdante : mise REMBOURSÉE.
+//   2 pertes ou plus : mise perdue. 0 perte : gain complet.
+// - Objectif de mise cumulée : 25 000 Gourdes (25 × 1 000).
+//   Une fois atteint, retrait fixe de 1 000 Gourdes à tout moment,
+//   au choix de l'utilisateur — rien n'est automatique.
 // ============================================================
 
 const SOLDE_INITIAL = 1000;
-const COTE_MIN_QUALIFIANTE = 2.00;
 const SELECTIONS_MIN = 10;
 const MISE_MIN = 100;
-const OBJECTIF_MISE_CUMULEE = 25000; // 25 × 1 000
+const OBJECTIF_MISE_CUMULEE = 25000;
 const MONTANT_RETRAIT = 1000;
 
-export type Pronostic = '1' | 'X' | '2';
+// Paliers de cote minimum qualifiante, du plus exigeant au plus large.
+// Le premier palier dont le seuil de sélections est atteint s'applique.
+const PALIERS_COTE_MIN = [
+  { minSelections: 40, coteMin: 1.2 },
+  { minSelections: 20, coteMin: 1.5 },
+  { minSelections: 10, coteMin: 2.0 }
+];
+
+export function coteMinRequise(nbSelections: number): number {
+  for (const p of PALIERS_COTE_MIN) {
+    if (nbSelections >= p.minSelections) return p.coteMin;
+  }
+  return Infinity; // en dessous de 10 sélections : jamais qualifiant (de toute façon refusé avant)
+}
+
+export type Pronostic = '1' | 'X' | '2' | '1X' | 'X2' | '12' | 'plus2.5' | 'moins2.5';
 
 export type SelectionPari = {
   matchId: string;
   pronostic: Pronostic;
   cote: number;
 };
+
+// Combine deux cotes mutuellement exclusives en une cote de Double Chance
+// (formule standard : 1 / (1/cote_A + 1/cote_B))
+export function coteDoubleChance(coteA: number, coteB: number): number {
+  return Math.round((1 / (1 / coteA + 1 / coteB)) * 100) / 100;
+}
 
 // ------------------------------------------------------------
 // Initialisation : appelé une fois à l'inscription d'un compte
@@ -77,7 +101,8 @@ export async function placerCombine(
 
   const coteTotale = selections.reduce((acc, s) => acc * s.cote, 1);
   const gainPotentiel = Math.round(mise * coteTotale * 100) / 100;
-  const miseQualifiante = selections.every(s => s.cote >= COTE_MIN_QUALIFIANTE);
+  const seuil = coteMinRequise(selections.length);
+  const miseQualifiante = selections.every(s => s.cote >= seuil);
 
   const { data: combine, error } = await client.from('paris_combines').insert({
     user_id: userId, mise, cote_totale: coteTotale, gain_potentiel: gainPotentiel,
@@ -91,33 +116,52 @@ export async function placerCombine(
   const { error: erreurLignes } = await client.from('paris_selections').insert(lignes);
   if (erreurLignes) return { ok: false, erreur: erreurLignes.message };
 
-  // Débit immédiat de la mise
   const { error: erreurSolde } = await client
     .from('paris_soldes').update({ solde: solde.solde - mise }).eq('user_id', userId);
   if (erreurSolde) return { ok: false, erreur: erreurSolde.message };
 
-  return { ok: true, combineId: combine.id, coteTotale, gainPotentiel, miseQualifiante };
+  return { ok: true, combineId: combine.id, coteTotale, gainPotentiel, miseQualifiante, seuilApplique: seuil };
+}
+
+// Détermine si une sélection est gagnante, à partir du résultat 1X2 réel
+// et du total de buts marqués dans le match.
+function selectionGagnante(pronostic: Pronostic, resultat1x2: '1' | 'X' | '2', totalButs: number): boolean {
+  switch (pronostic) {
+    case '1': return resultat1x2 === '1';
+    case 'X': return resultat1x2 === 'X';
+    case '2': return resultat1x2 === '2';
+    case '1X': return resultat1x2 !== '2';
+    case 'X2': return resultat1x2 !== '1';
+    case '12': return resultat1x2 !== 'X';
+    case 'plus2.5': return totalButs > 2.5;
+    case 'moins2.5': return totalButs < 2.5;
+    default: return false;
+  }
 }
 
 // ------------------------------------------------------------
 // ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role) : résout
 // tous les combinés en attente qui contiennent ce match, une fois
-// son résultat réel connu. Ne JAMAIS appeler depuis le navigateur.
+// son résultat réel (et son score) connus. Ne JAMAIS appeler
+// depuis le navigateur.
 //
 // Règle : 0 sélection perdante = gain complet. Exactement 1 = mise
 // remboursée. 2 ou plus = mise perdue.
 // ------------------------------------------------------------
 export async function resoudreCombinesPourMatch(
   matchId: string,
-  resultatReel: Pronostic,
+  resultatReel: '1' | 'X' | '2',
   client: SupabaseClient = supabase
 ) {
+  const { data: match } = await client.from('matchs').select('score_home, score_away').eq('id', matchId).single();
+  const totalButs = (match?.score_home ?? 0) + (match?.score_away ?? 0);
+
   const { data: selections } = await client
     .from('paris_selections').select('*').eq('match_id', matchId).eq('statut', 'en_attente');
   if (!selections || selections.length === 0) return { ok: true, traites: 0 };
 
   for (const sel of selections) {
-    const correcte = sel.pronostic === resultatReel;
+    const correcte = selectionGagnante(sel.pronostic as Pronostic, resultatReel, totalButs);
     await client.from('paris_selections')
       .update({ statut: correcte ? 'gagne' : 'perdu', resultat_reel: resultatReel })
       .eq('id', sel.id);
@@ -129,7 +173,7 @@ export async function resoudreCombinesPourMatch(
   for (const combineId of combineIds) {
     const { data: toutesSelections } = await client
       .from('paris_selections').select('statut').eq('combine_id', combineId);
-    if (!toutesSelections || toutesSelections.some(s => s.statut === 'en_attente')) continue; // combiné pas encore complet
+    if (!toutesSelections || toutesSelections.some(s => s.statut === 'en_attente')) continue;
 
     const { data: combine } = await client.from('paris_combines').select('*').eq('id', combineId).single();
     if (!combine || combine.statut !== 'en_attente') continue;
@@ -147,7 +191,7 @@ export async function resoudreCombinesPourMatch(
 
     let nouveauSolde = solde.solde;
     if (resultat === 'gagne') nouveauSolde += combine.gain_potentiel;
-    else if (resultat === 'rembourse') nouveauSolde += combine.mise; // remise de la mise, sans gain
+    else if (resultat === 'rembourse') nouveauSolde += combine.mise;
 
     const nouvelleMiseCumulee = combine.mise_qualifiante
       ? solde.mise_cumulee_valide + combine.mise
@@ -164,10 +208,9 @@ export async function resoudreCombinesPourMatch(
 }
 
 // ------------------------------------------------------------
-// ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role) : vérifie
-// l'objectif et effectue le retrait fixe de 1 000 Gourdes.
-// Peut être demandé à tout moment après l'objectif atteint —
-// l'utilisateur choisit, rien n'est automatique.
+// ⚠️ RÉSERVÉ AU SERVEUR : vérifie l'objectif et effectue le
+// retrait fixe de 1 000 Gourdes. Demandé à tout moment, jamais
+// automatique.
 // ------------------------------------------------------------
 export async function demanderRetraitParis(userId: string, client: SupabaseClient = supabase) {
   const solde = await soldeParis(userId, client);
@@ -177,7 +220,7 @@ export async function demanderRetraitParis(userId: string, client: SupabaseClien
     return {
       ok: false,
       erreur: 'Condition non remplie : ' + Math.round(solde.mise_cumulee_valide).toLocaleString('fr-FR') +
-        ' / ' + OBJECTIF_MISE_CUMULEE.toLocaleString('fr-FR') + ' Gourdes misées (cote ≥ 2.00 par sélection).'
+        ' / ' + OBJECTIF_MISE_CUMULEE.toLocaleString('fr-FR') + ' Gourdes misées en mises qualifiantes.'
     };
   }
 
@@ -191,12 +234,8 @@ export async function demanderRetraitParis(userId: string, client: SupabaseClien
 }
 
 // ------------------------------------------------------------
-// ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role, admin
-// uniquement) : octroie manuellement des Gourdes à un compte —
-// en attendant un futur système de récompenses par publicité.
-// N'affecte QUE le solde jouable, jamais la mise cumulée validée
-// ni le statut de retrait : l'utilisateur doit encore parier ces
-// Gourdes avec de vraies mises qualifiantes pour progresser.
+// ⚠️ RÉSERVÉ AU SERVEUR (admin uniquement) : octroie manuellement
+// des Gourdes à un compte.
 // ------------------------------------------------------------
 export async function octroyerBonusAdmin(userId: string, montant: number, client: SupabaseClient = supabase) {
   if (montant <= 0) return { ok: false, erreur: 'Montant invalide.' };
@@ -210,5 +249,5 @@ export async function octroyerBonusAdmin(userId: string, montant: number, client
 }
 
 export const PARIS_CONSTANTES = {
-  SOLDE_INITIAL, COTE_MIN_QUALIFIANTE, SELECTIONS_MIN, MISE_MIN, OBJECTIF_MISE_CUMULEE, MONTANT_RETRAIT
+  SOLDE_INITIAL, SELECTIONS_MIN, MISE_MIN, OBJECTIF_MISE_CUMULEE, MONTANT_RETRAIT, PALIERS_COTE_MIN
 };

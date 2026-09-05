@@ -110,6 +110,11 @@ export default function MesPoints() {
     <div style={{minHeight:'100vh',background:'#f9fafb',fontFamily:'sans-serif'}}>
       <Header />
 
+      <div style={{display:'flex',gap:'8px',maxWidth:'700px',margin:'16px auto 0',padding:'0 16px'}}>
+        <a href="/mes-points" style={{flex:1,textAlign:'center',padding:'10px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',background:VIOLET,color:'#fff'}}>🎯 Points</a>
+        <a href="/paris" style={{flex:1,textAlign:'center',padding:'10px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',background:'#f3f4f6',color:'#6b7280'}}>🎲 Paris</a>
+      </div>
+
       <div style={{background:'linear-gradient(135deg,#1a0033,'+VIOLET+')',padding:'40px 24px',textAlign:'center'}}>
         <p style={{color:'rgba(255,255,255,0.75)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>Mes points</p>
         <h1 style={{color:'#fff',fontWeight:900,fontSize:'52px',margin:'0 0 4px'}}>{loading ? '…' : solde.toLocaleString('fr-FR')}</h1>
