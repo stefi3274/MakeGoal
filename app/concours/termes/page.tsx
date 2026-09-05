@@ -34,11 +34,16 @@ export default function TermesConcours() {
         <div style={section}>
           <h2 style={titre}>3. Comment gagner des points</h2>
           <p style={texte}>Les points sont attribués comme suit :</p>
-          <p style={texte}>• Voter le résultat du match (1, X ou 2) : <strong>10 points</strong></p>
-          <p style={texte}>• Deviner le score exact : <strong>20 points</strong></p>
-          <p style={texte}>• Voter un buteur correct : <strong>10 points par buteur</strong></p>
-          <p style={texte}>• Buteur exact (bonus) : <strong>25 points</strong></p>
-          <p style={texte}>• Chaque personne inscrite via votre lien de parrainage : <strong>15 points</strong></p>
+          <p style={texte}>• Participer à un pronostic (jouer) : <strong>+5 points</strong></p>
+          <p style={texte}>• Pronostic correct (résultat, score, buteur ou passeur) : <strong>+10 points</strong> supplémentaires</p>
+          <p style={texte}>• Pronostic incorrect : <strong>-25 points</strong></p>
+          <p style={texte}>• Chaque personne inscrite via votre lien de parrainage : <strong>+15 points</strong>, et <strong>+5 points</strong> pour chaque parrain « ancêtre » dans la chaîne</p>
+          <p style={texte}>• Gagnant du tirage au sort d&apos;une Question Éclair : <strong>+15 points</strong></p>
+        </div>
+
+        <div style={section}>
+          <h2 style={titre}>3bis. Conversion en Gourdes</h2>
+          <p style={texte}>À partir de 10 000 points, vous pouvez demander la conversion de votre solde en Gourdes réelles, au taux de <strong>10 000 points = 2 000 Gourdes</strong> (20%). Cette conversion peut être répétée tant que le solde de points le permet.</p>
         </div>
 
         <div style={section}>

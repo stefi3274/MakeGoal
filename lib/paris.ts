@@ -105,31 +105,41 @@ export async function placerCombine(
     return { ok: false, erreur: 'La mise minimum est de ' + MISE_MIN + ' Gourdes.' };
   }
 
-  const solde = await soldeParis(userId, client);
-  if (!solde) return { ok: false, erreur: 'Compte de paris introuvable.' };
-  if (mise > solde.solde) return { ok: false, erreur: 'Solde insuffisant (solde actuel : ' + solde.solde + ' Gourdes).' };
-
   const coteTotale = selections.reduce((acc, s) => acc * s.cote, 1);
   const gainPotentiel = Math.round(mise * coteTotale * 100) / 100;
   const coteMinDuCombine = Math.min(...selections.map(s => s.cote));
   const palier = palierPourCoteMin(coteMinDuCombine);
   const miseQualifiante = !!palier && coteTotale >= palier.coteTotaleExigee;
 
+  // Débit ATOMIQUE de la mise, vérifié et effectué en une seule opération
+  // indivisible côté base de données — aucune double dépense possible même
+  // avec des clics rapides ou un script.
+  const { error: erreurDebit } = await client.rpc('deduire_mise_paris', { p_user_id: userId, p_mise: mise });
+  if (erreurDebit) {
+    if (erreurDebit.message.includes('SOLDE_INSUFFISANT')) {
+      return { ok: false, erreur: 'Solde insuffisant pour cette mise.' };
+    }
+    return { ok: false, erreur: erreurDebit.message };
+  }
+
   const { data: combine, error } = await client.from('paris_combines').insert({
     user_id: userId, mise, cote_totale: coteTotale, gain_potentiel: gainPotentiel,
     statut: 'en_attente', mise_qualifiante: miseQualifiante
   }).select().single();
-  if (error) return { ok: false, erreur: error.message };
+  if (error) {
+    await client.rpc('crediter_paris', { p_user_id: userId, p_montant: mise }); // remboursement : la mise avait déjà été débitée
+    return { ok: false, erreur: error.message };
+  }
 
   const lignes = selections.map(s => ({
     combine_id: combine.id, match_id: s.matchId, pronostic: s.pronostic, cote: s.cote, statut: 'en_attente'
   }));
   const { error: erreurLignes } = await client.from('paris_selections').insert(lignes);
-  if (erreurLignes) return { ok: false, erreur: erreurLignes.message };
-
-  const { error: erreurSolde } = await client
-    .from('paris_soldes').update({ solde: solde.solde - mise }).eq('user_id', userId);
-  if (erreurSolde) return { ok: false, erreur: erreurSolde.message };
+  if (erreurLignes) {
+    await client.rpc('crediter_paris', { p_user_id: userId, p_montant: mise }); // remboursement
+    await client.from('paris_combines').delete().eq('id', combine.id); // annule le combiné orphelin
+    return { ok: false, erreur: erreurLignes.message };
+  }
 
   return { ok: true, combineId: combine.id, coteTotale, gainPotentiel, miseQualifiante, palierApplique: palier };
 }
@@ -197,20 +207,13 @@ export async function resoudreCombinesPourMatch(
       .update({ statut: resultat, resolu_at: new Date().toISOString() })
       .eq('id', combineId);
 
-    const solde = await soldeParis(combine.user_id, client);
-    if (!solde) continue;
+    const credit = resultat === 'gagne' ? combine.gain_potentiel : resultat === 'rembourse' ? combine.mise : 0;
+    const ajoutMiseCumulee = combine.mise_qualifiante ? combine.mise : 0;
 
-    let nouveauSolde = solde.solde;
-    if (resultat === 'gagne') nouveauSolde += combine.gain_potentiel;
-    else if (resultat === 'rembourse') nouveauSolde += combine.mise;
-
-    const nouvelleMiseCumulee = combine.mise_qualifiante
-      ? solde.mise_cumulee_valide + combine.mise
-      : solde.mise_cumulee_valide;
-
-    await client.from('paris_soldes')
-      .update({ solde: nouveauSolde, mise_cumulee_valide: nouvelleMiseCumulee })
-      .eq('user_id', combine.user_id);
+    // Crédit + mise cumulée mis à jour en une seule opération atomique
+    await client.rpc('resoudre_paris_credit', {
+      p_user_id: combine.user_id, p_credit: credit, p_ajout_mise_cumulee: ajoutMiseCumulee
+    });
 
     traites++;
   }
@@ -253,10 +256,10 @@ export async function octroyerBonusAdmin(userId: string, montant: number, client
   const solde = await soldeParis(userId, client);
   if (!solde) return { ok: false, erreur: 'Compte de paris introuvable.' };
 
-  const { error } = await client.from('paris_soldes').update({ solde: solde.solde + montant }).eq('user_id', userId);
+  const { data: nouveauSolde, error } = await client.rpc('crediter_paris', { p_user_id: userId, p_montant: montant });
   if (error) return { ok: false, erreur: error.message };
 
-  return { ok: true, nouveauSolde: solde.solde + montant };
+  return { ok: true, nouveauSolde };
 }
 
 export const PARIS_CONSTANTES = {

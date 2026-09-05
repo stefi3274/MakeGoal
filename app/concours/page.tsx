@@ -216,6 +216,7 @@ export default function ConcoursPage() {
               <p style={{color:'#ffd700',fontSize:'15px',fontWeight:700,margin:0}}>🎁 {concours.lots}</p>
             </div>
           )}
+          <p style={{color:'#fde68a',fontSize:'11px',fontWeight:700,margin:'10px 0 0'}}>🔞 Réservé aux personnes de 18 ans ou plus</p>
         </div>
 
         <div style={{display:'flex',gap:'8px',marginBottom:'24px',background:'#f3f4f6',borderRadius:'12px',padding:'4px'}}>

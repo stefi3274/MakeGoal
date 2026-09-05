@@ -183,6 +183,7 @@ export default function ParisPage() {
         <p style={{color:'rgba(255,255,255,0.75)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>🎲 Paris MakeGoal</p>
         <h1 style={{color:'#fff',fontWeight:900,fontSize:'26px',margin:'0 0 8px'}}>Paris combinés</h1>
         <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>1 000 Gourdes offertes · Cotes ≥2.00 → total ≥20 · ≥1.50 → total ≥50 · ≥1.20 → total ≥70 · 1 seule perte = remboursé</p>
+        <p style={{color:'#fde68a',fontSize:'12px',fontWeight:700,margin:'10px 0 0'}}>🔞 Réservé aux personnes de 18 ans ou plus</p>
       </div>
 
       <main style={{maxWidth:'700px',margin:'0 auto',padding:'24px 16px'}}>
@@ -288,6 +289,10 @@ export default function ParisPage() {
             )}
           </>
         )}
+
+        <p style={{textAlign:'center',marginTop:'24px'}}>
+          <a href="/paris/termes" style={{color:COULEUR,fontSize:'14px',fontWeight:600}}>📜 Termes et conditions des paris</a>
+        </p>
 
       </main>
       <Footer />

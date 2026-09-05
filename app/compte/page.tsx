@@ -14,6 +14,7 @@ function CompteContent() {
   const refParrain = searchParams.get('ref');
   const [mode, setMode] = useState<'connexion' | 'inscription'>(refParrain ? 'inscription' : 'connexion');
   const [email, setEmail] = useState('');
+  const [majeur, setMajeur] = useState(false);
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
@@ -59,6 +60,7 @@ function CompteContent() {
   const sinscrire = async () => {
     if (!email || !password) { setMessage('❌ Email et mot de passe obligatoires.'); return; }
     if (password.length < 6) { setMessage('❌ Le mot de passe doit contenir au moins 6 caractères.'); return; }
+    if (!majeur) { setMessage('❌ Vous devez confirmer avoir 18 ans ou plus pour créer un compte.'); return; }
     setLoading(true); setMessage('');
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -144,6 +146,13 @@ function CompteContent() {
             placeholder="Mot de passe" style={inputStyle}
             onKeyDown={e => e.key === 'Enter' && (mode === 'connexion' ? seConnecter() : sinscrire())}
           />
+
+          {mode === 'inscription' && (
+            <label style={{display:'flex',alignItems:'flex-start',gap:'8px',fontSize:'13px',color:'#374151',cursor:'pointer'}}>
+              <input type="checkbox" checked={majeur} onChange={e => setMajeur(e.target.checked)} style={{marginTop:'2px'}}/>
+              <span>Je confirme avoir <strong>18 ans ou plus</strong>. Ce site propose du vote communautaire et des paris avec Gourdes virtuelles.</span>
+            </label>
+          )}
 
           <button
             onClick={mode === 'connexion' ? seConnecter : sinscrire}
