@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { traiterPrediction } from '../../../lib/points';
 
 // Client admin avec la clé service_role (côté serveur uniquement)
 const supabaseAdmin = createClient(
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
   }
 
   const buteursReels: string[] = (match.buteurs_reels || []).map((b: string) => b.toLowerCase().trim());
+  const passeursReels: string[] = (match.passeurs_reels || []).map((p: string) => p.toLowerCase().trim());
 
   const { data: participations } = await supabaseAdmin
     .from('participations_matchs')
@@ -58,23 +60,46 @@ export async function POST(request: Request) {
   }
 
   for (const part of participations) {
+    // points local = affichage propre à CE concours (classement/lots de ce concours précis)
     let points = 0;
 
+    // --- Résultat (1X2) : correct = +10, faux = -5 ---
     if (part.choix_1x2) {
-      points += 10;
-      if (part.choix_1x2 === match.resultat_1x2) points += 25;
+      const correct = part.choix_1x2 === match.resultat_1x2;
+      points += correct ? 15 : -20;
+      if (part.user_id) {
+        await traiterPrediction(part.user_id, 'resultat', correct, concours_match_id, supabaseAdmin);
+      }
     }
 
+    // --- Score exact : correct = +10, faux = -5 ---
     if (part.score_home !== null && part.score_away !== null) {
-      points += 10;
-      if (part.score_home === match.score_home && part.score_away === match.score_away) points += 25;
+      const correct = part.score_home === match.score_home && part.score_away === match.score_away;
+      points += correct ? 15 : -20;
+      if (part.user_id) {
+        await traiterPrediction(part.user_id, 'score_exact', correct, concours_match_id, supabaseAdmin);
+      }
     }
 
+    // --- Buteurs : un mouvement par buteur proposé, correct = +10, faux = -5 ---
     const buteursJoueur: string[] = (part.buteurs || []).map((b: string) => b.toLowerCase().trim()).filter((b: string) => b);
-    buteursJoueur.forEach(b => {
-      points += 10;
-      if (buteursReels.includes(b)) points += 25;
-    });
+    for (const b of buteursJoueur) {
+      const correct = buteursReels.includes(b);
+      points += correct ? 15 : -20;
+      if (part.user_id) {
+        await traiterPrediction(part.user_id, 'buteur', correct, concours_match_id, supabaseAdmin);
+      }
+    }
+
+    // --- Passeurs : un mouvement par passeur proposé, correct = +10, faux = -5 ---
+    const passeursJoueur: string[] = (part.passeurs || []).map((p: string) => p.toLowerCase().trim()).filter((p: string) => p);
+    for (const p of passeursJoueur) {
+      const correct = passeursReels.includes(p);
+      points += correct ? 15 : -20;
+      if (part.user_id) {
+        await traiterPrediction(part.user_id, 'passeur', correct, concours_match_id, supabaseAdmin);
+      }
+    }
 
     await supabaseAdmin
       .from('participations_matchs')

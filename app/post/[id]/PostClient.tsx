@@ -122,7 +122,7 @@ type Post = {
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
-  matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
+  matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
   parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
@@ -384,6 +384,12 @@ export default function PostPage() {
 
             {post.matchs_jour && post.matchs_jour.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
+                {post.pays1 && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'14px'}}>
+                    <span style={{fontSize:'26px'}}>{drapeau(post.pays1)}</span>
+                    <span style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{post.pays1}</span>
+                  </div>
+                )}
                 {post.matchs_jour.map((m, i) => (
                   <div key={m.id || i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'14px',borderRadius:'12px',background:i%2===0?SPORT_COULEURS[(post.sport as Sport) || 'football'].clair:'#fff',border:'1px solid #f3f4f6',marginBottom:'8px'}}>
                     <div style={{flex:1,minWidth:0}}>

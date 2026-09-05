@@ -72,7 +72,7 @@ const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
 ];
 
 type MatchJour = {
-  id: string; equipe1: string; equipe2: string; competition: string | null;
+  id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null;
   date_match: string; score1: number | null; score2: number | null;
 };
 
@@ -104,7 +104,7 @@ const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
 type QuartTemps = { quart: string; score1: string; score2: string };
 
 type Match = {
-  id: string; equipe1: string; equipe2: string; competition: string | null;
+  id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null;
   date_match: string; score_home: number | null; score_away: number | null;
 };
 
@@ -245,11 +245,42 @@ export default function AdminMedia() {
     setMatchsJourSelection(prev => {
       const existe = prev.find(x => x.id === m.id);
       if (existe) return prev.filter(x => x.id !== m.id);
-      return [...prev, { id: m.id, equipe1: m.equipe1, equipe2: m.equipe2, competition: m.competition, date_match: m.date_match, score1: m.score_home, score2: m.score_away }];
+      return [...prev, { id: m.id, equipe1: m.equipe1, equipe2: m.equipe2, competition: m.competition, pays: m.pays, date_match: m.date_match, score1: m.score_home, score2: m.score_away }];
     });
   };
 
   const retirerMatchJour = (id: string) => setMatchsJourSelection(prev => prev.filter(x => x.id !== id));
+
+  // Regroupe les matchs sélectionnés par pays + date (jour), puis crée UN post par groupe (façon carrousel)
+  const [creationCarrouselEnCours, setCreationCarrouselEnCours] = useState(false);
+  const creerMatchsDuJourParGroupe = async () => {
+    if (matchsJourSelection.length === 0) { setMessage('❌ Sélectionnez au moins un match.'); return; }
+    setCreationCarrouselEnCours(true);
+    const groupes: Record<string, MatchJour[]> = {};
+    matchsJourSelection.forEach(m => {
+      const jour = new Date(m.date_match).toLocaleDateString('fr-CA', { timeZone: 'America/Port-au-Prince' }); // AAAA-MM-JJ stable
+      const cle = (m.pays || 'Autre') + '|' + jour;
+      if (!groupes[cle]) groupes[cle] = [];
+      groupes[cle].push(m);
+    });
+    const rows = Object.entries(groupes).map(([cle, matchs]) => {
+      const [pays, jour] = cle.split('|');
+      const dateLisible = new Date(jour + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      return {
+        type: 'post', langue, categorie: 'Ponctuel', sport: sportForm,
+        titre: 'Matchs du jour — ' + (pays !== 'Autre' ? pays + ' — ' : '') + dateLisible,
+        pays1: pays !== 'Autre' ? pays : null,
+        matchs_jour: matchs,
+        publie: true
+      };
+    });
+    const { error } = await supabase.from('articles').insert(rows);
+    setCreationCarrouselEnCours(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ ' + rows.length + ' post(s) créés, un par pays et par date (' + rows.map(r => r.titre).join(' · ') + ').');
+    setMatchsJourSelection([]);
+    chargerArticles();
+  };
 
   const piocherMatch = (m: Match) => {
     setEquipe1(m.equipe1);
@@ -270,21 +301,14 @@ export default function AdminMedia() {
     setMatchsJourSelection(prev => prev.map(x => x.id === id ? { ...x, [champ]: val === '' ? null : parseInt(val) } : x));
   };
 
-  const analyserResultat = () => {
-    const lignes = resTexteColle.split('\n').map(l => l.trim());
+  const parserResultatFootball = (texte: string) => {
+    const lignes = texte.split('\n').map(l => l.trim());
     let i = 0;
     while (i < lignes.length && !lignes[i]) i++;
     const header = lignes[i] || '';
     const mHeader = header.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)$/);
-    if (mHeader) {
-      setEquipe1(mHeader[1].trim());
-      setScore1(mHeader[2]);
-      setScore2(mHeader[3]);
-      setEquipe2(mHeader[4].trim());
-    } else {
-      setMessage('❌ Première ligne non reconnue. Format attendu : "Equipe1 3 - 1 Equipe2"');
-      return;
-    }
+    if (!mHeader) return null;
+    const equipe1 = mHeader[1].trim(), score1 = mHeader[2], score2 = mHeader[3], equipe2 = mHeader[4].trim();
     const buts: But[] = [];
     const rouges: CarteEvenement[] = [];
     const jaunes: CarteEvenement[] = [];
@@ -306,9 +330,44 @@ export default function AdminMedia() {
         else if (section.type === 'jaune') jaunes.push({ joueur, minute });
       }
     }
-    setResButs(buts); setResRouges(rouges); setResJaunes(jaunes);
+    return { equipe1, score1, score2, equipe2, buts, rouges, jaunes };
+  };
+
+  const analyserResultat = () => {
+    const r = parserResultatFootball(resTexteColle);
+    if (!r) { setMessage('❌ Première ligne non reconnue. Format attendu : "Equipe1 3 - 1 Equipe2"'); return; }
+    setEquipe1(r.equipe1); setScore1(r.score1); setScore2(r.score2); setEquipe2(r.equipe2);
+    setResButs(r.buts); setResRouges(r.rouges); setResJaunes(r.jaunes);
     setStatutMatch('Match terminé');
     setMessage('✅ Résultat analysé. Vérifiez et corrigez si besoin avant de publier.');
+  };
+
+  const [lotResultatsOuvert, setLotResultatsOuvert] = useState(false);
+  const [texteLotResultats, setTexteLotResultats] = useState('');
+  const [importLotResultats, setImportLotResultats] = useState(false);
+  const creerResultatsEnLot = async () => {
+    const blocs = texteLotResultats.split(/\n-{3,}\n/).map(b => b.trim()).filter(Boolean);
+    const aCreer = [];
+    for (const bloc of blocs) {
+      const r = parserResultatFootball(bloc);
+      if (r) aCreer.push(r);
+    }
+    if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un résultat par bloc, séparés par une ligne "---".'); return; }
+    setImportLotResultats(true);
+    const rows = aCreer.map(r => ({
+      type: 'post', langue, categorie: 'Actualités', sport: 'football',
+      titre: r.equipe1 + ' vs ' + r.equipe2,
+      equipe1: r.equipe1, equipe2: r.equipe2, score1: parseInt(r.score1), score2: parseInt(r.score2),
+      statut_match: 'Match terminé',
+      resultat_details: { buts: r.buts, rouges: r.rouges, jaunes: r.jaunes },
+      publie: true
+    }));
+    const { error } = await supabase.from('articles').insert(rows);
+    setImportLotResultats(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ ' + rows.length + ' résultats créés et publiés (' + aCreer.map(r => r.equipe1 + '-' + r.equipe2).join(', ') + ').');
+    setTexteLotResultats('');
+    chargerArticles();
   };
 
   const analyserResultatBasket = () => {
@@ -657,6 +716,27 @@ export default function AdminMedia() {
     setMessage('✅ Classement analysé (' + parsees.length + ' lignes, à partir de la position ' + depart + '). Vérifiez et corrigez si besoin.');
   };
 
+  const [genererClassementPointsEnCours, setGenererClassementPointsEnCours] = useState(false);
+  const genererClassementPoints = async () => {
+    setGenererClassementPointsEnCours(true);
+    setMessage('');
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setGenererClassementPointsEnCours(false); setMessage('\u274c Session expir\u00e9e, reconnectez-vous.'); return; }
+    const res = await fetch('/api/classement-points', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    setGenererClassementPointsEnCours(false);
+    if (!res.ok) { setMessage('\u274c ' + (data.error || 'Erreur lors de la g\u00e9n\u00e9ration.')); return; }
+    if (!data.classement || data.classement.length === 0) { setMessage('\u274c Aucun joueur avec des points pour le moment.'); return; }
+    const parsees = data.classement.map((ligne: { nom: string; solde: number }, i: number) => ({
+      pos: String(i + 1), nom: ligne.nom, extra: '', diff: '', pays: '', val: String(ligne.solde), couleur: ''
+    }));
+    setClassementType('joueurs');
+    setClassementTitre('Classement de la semaine \u2014 Points MakeGoal');
+    setClassement(parsees);
+    setMessage('\u2705 Classement g\u00e9n\u00e9r\u00e9 \u00e0 partir des soldes r\u00e9els (' + parsees.length + ' joueurs). V\u00e9rifiez avant de publier.');
+  };
+
   const creerClassementsEnLot = async () => {
     const blocs = texteLotClassements.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     const depart = parseInt(classementPositionDepart) || 1;
@@ -975,6 +1055,13 @@ export default function AdminMedia() {
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Cochez les matchs à afficher sur une seule image. Les scores peuvent être ajoutés ou modifiés à tout moment en rééditant ce post.</p>
 
                 {matchsJourSelection.length > 0 && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #6366f1',borderRadius:'10px',padding:'14px',marginBottom:'18px'}}>
+                    <p style={{fontSize:'11px',color:'#c7d2fe',margin:'0 0 10px'}}>🎠 Plusieurs championnats sélectionnés ? Regroupe automatiquement par pays et par date, et publie un post par groupe (façon carrousel), au lieu d'un seul post avec tout mélangé.</p>
+                    <button type="button" onClick={creerMatchsDuJourParGroupe} disabled={creationCarrouselEnCours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:'#6366f1',color:'#fff'}}>{creationCarrouselEnCours ? '⏳ Création...' : '🎠 Créer un post par pays/date'}</button>
+                  </div>
+                )}
+
+                {matchsJourSelection.length > 0 && (
                   <>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Sélectionnés ({matchsJourSelection.length}) — scores</p>
                     {matchsJourSelection.map(m => (
@@ -1002,7 +1089,7 @@ export default function AdminMedia() {
                         <input type="checkbox" checked={coche} onChange={() => toggleMatchJour(m)}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{color:'#fff',fontSize:'13px',fontWeight:700}}>{m.equipe1} vs {m.equipe2}</div>
-                          <div style={{color:'#6b7280',fontSize:'11px'}}>{m.competition ? m.competition + ' · ' : ''}{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
+                          <div style={{color:'#6b7280',fontSize:'11px'}}>{m.pays ? m.pays + ' · ' : ''}{m.competition ? m.competition + ' · ' : ''}{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
                         </div>
                       </label>
                     );
@@ -1089,6 +1176,18 @@ export default function AdminMedia() {
               <div style={sectionStyle}>
                 <label style={labelStyle}>📋 Résultat de match</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Collez le résultat au format : première ligne "Equipe1 3 - 1 Equipe2", puis des sections "Buts Equipe1" / "Rouges" / "Jaunes" (optionnel) suivies d'une ligne par joueur "Nom minute (passeur)".</p>
+
+                <button type="button" onClick={() => setLotResultatsOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotResultatsOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotResultatsOuvert ? '✕ Fermer' : '📚 Coller plusieurs résultats à la fois'}</button>
+
+                {lotResultatsOuvert && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post par résultat, en une fois. Séparez chaque résultat par une ligne "---".</p>
+                    <textarea value={texteLotResultats} onChange={e => setTexteLotResultats(e.target.value)} rows={14} placeholder={"Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n---\nPSG 2 - 0 Monaco\n\nButs PSG\nMbappé 10 (Hakimi)\nDembélé 67"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={creerResultatsEnLot} disabled={importLotResultats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotResultats ? '⏳ Création...' : '🚀 Créer tous les résultats'}</button>
+                  </div>
+                )}
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour un seul résultat (remplit le formulaire ci-dessous)</p>
                 <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={"Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n\nRouges\nAraújo 80"} rows={10} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserResultat} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'18px'}}>🔍 Analyser le texte</button>
 
@@ -1273,6 +1372,8 @@ export default function AdminMedia() {
                 {classementType && (
                   <div>
                     <button type="button" onClick={() => setLotClassementOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotClassementOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotClassementOuvert ? '✕ Fermer' : '📚 Coller plusieurs championnats à la fois'}</button>
+                    {' '}
+                    <button type="button" onClick={genererClassementPoints} disabled={genererClassementPointsEnCours} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:'#10b981',color:'#fff',marginBottom:'16px'}}>{genererClassementPointsEnCours ? '⏳ Génération...' : '🏆 Générer le classement des points (top 10)'}</button>
 
                     {lotClassementOuvert && (
                       <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>

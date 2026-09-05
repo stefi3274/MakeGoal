@@ -24,20 +24,24 @@ function CompteContent() {
     }
   }, [refParrain]);
 
-  const enregistrerParrainage = async (filleulId: string) => {
-    if (!refParrain || refParrain === filleulId) return;
-    const { data: concoursActif } = await supabase
-      .from('concours')
-      .select('id')
-      .in('statut', ['ouvert', 'ferme'])
-      .order('date_match', { ascending: false })
-      .limit(1)
-      .single();
-    await supabase.from('parrainages').insert({
-      parrain_id: refParrain,
-      filleul_id: filleulId,
-      concours_id: concoursActif?.id || null
-    });
+  // Le parrainage passe par une route API sécurisée : c'est elle qui distribue
+  // les points (au parrain et à toute la chaîne au-dessus), jamais le navigateur
+  // directement — pour qu'il soit impossible de trafiquer son solde depuis la console.
+  const enregistrerParrainage = async () => {
+    if (!refParrain) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+    try {
+      await fetch('/api/parrainage-confirmer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ parrainId: refParrain })
+      });
+    } catch {
+      // Le compte est créé même si le parrainage échoue à s'enregistrer ;
+      // on ne bloque jamais l'inscription pour ça.
+    }
   };
 
   const seConnecter = async () => {
@@ -65,7 +69,11 @@ function CompteContent() {
       setMessage('❌ ' + error.message);
     } else {
       if (data.user && refParrain) {
-        await enregistrerParrainage(data.user.id);
+        // Si l'email doit être confirmé, la session n'existe pas encore : le
+        // parrainage sera retenté à la première connexion (voir useEffect ci-dessous
+        // si vous activez la confirmation par email plus tard). Si la confirmation
+        // par email est désactivée dans Supabase, la session existe déjà ici.
+        await enregistrerParrainage();
       }
       setMessage('✅ Inscription réussie ! Vérifiez votre email pour confirmer votre compte.');
       setEmail(''); setPassword(''); setUsername('');

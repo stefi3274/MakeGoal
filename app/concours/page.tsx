@@ -5,11 +5,14 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../lib/sport';
+import { getSport, Sport } from '../../lib/sport';
 
-const VIOLET = '#bf00ff';
+// Couleur propre au Concours — indépendante du sport (foot violet / basket orange),
+// comme chaque type de contenu a désormais sa couleur dédiée (Résultat=bleu, Classement=ambre...).
+const CONCOURS_COULEUR = '#059669';
+const CONCOURS_COULEUR_SOMBRE = '#047857';
 
-type Concours = {
+type ConcoursType = {
   id: string;
   titre: string;
   description: string | null;
@@ -32,6 +35,7 @@ type Prono = {
   score_home: string;
   score_away: string;
   buteurs: string[];
+  passeurs: string[];
 };
 
 type Classement = {
@@ -43,7 +47,7 @@ type Classement = {
 export default function ConcoursPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [concours, setConcours] = useState<Concours | null>(null);
+  const [concours, setConcours] = useState<ConcoursType | null>(null);
   const [matchs, setMatchs] = useState<ConcoursMatch[]>([]);
   const [pronos, setPronos] = useState<Record<string, Prono>>({});
   const [loading, setLoading] = useState(true);
@@ -58,7 +62,7 @@ export default function ConcoursPage() {
   useEffect(() => { chargerConcours(); }, [sport]);
   useEffect(() => { if (user && matchs.length > 0) chargerMesPronos(); }, [user, matchs]);
 
-  const couleur = SPORT_COULEURS[sport].primaire;
+  const couleur = CONCOURS_COULEUR;
 
   const chargerConcours = async () => {
     setLoading(true);
@@ -80,7 +84,7 @@ export default function ConcoursPage() {
       if (m) {
         setMatchs(m);
         const init: Record<string, Prono> = {};
-        m.forEach(match => { init[match.id] = { choix_1x2: '', score_home: '', score_away: '', buteurs: ['', '', ''] }; });
+        m.forEach(match => { init[match.id] = { choix_1x2: '', score_home: '', score_away: '', buteurs: ['', '', ''], passeurs: ['', '', ''] }; });
         setPronos(init);
       }
       chargerClassement(c.id);
@@ -106,7 +110,8 @@ export default function ConcoursPage() {
             choix_1x2: p.choix_1x2 || '',
             score_home: p.score_home?.toString() || '',
             score_away: p.score_away?.toString() || '',
-            buteurs: [p.buteurs?.[0] || '', p.buteurs?.[1] || '', p.buteurs?.[2] || '']
+            buteurs: [p.buteurs?.[0] || '', p.buteurs?.[1] || '', p.buteurs?.[2] || ''],
+            passeurs: [p.passeurs?.[0] || '', p.passeurs?.[1] || '', p.passeurs?.[2] || '']
           };
         });
         return copie;
@@ -117,12 +122,15 @@ export default function ConcoursPage() {
   const chargerClassement = async (concoursId: string) => {
     const { data } = await supabase.rpc('classement_concours', { cid: concoursId });
     if (data) setClassement(data);
-  };const sauvegarderMatch = async (matchId: string) => {
+  };
+
+  const sauvegarderMatch = async (matchId: string) => {
     if (!user) { router.push('/compte'); return; }
     const p = pronos[matchId];
     if (!p.choix_1x2) { setMessage('❌ Choisissez un résultat (1, X ou 2).'); return; }
     setSaving(matchId); setMessage('');
     const buteursNettoyes = p.buteurs.filter(b => b.trim() !== '');
+    const passeursNettoyes = p.passeurs.filter(p => p.trim() !== '');
 
     const { error } = await supabase.from('participations_matchs').upsert({
       user_id: user.id,
@@ -130,7 +138,8 @@ export default function ConcoursPage() {
       choix_1x2: p.choix_1x2,
       score_home: p.score_home !== '' ? parseInt(p.score_home) : null,
       score_away: p.score_away !== '' ? parseInt(p.score_away) : null,
-      buteurs: buteursNettoyes
+      buteurs: buteursNettoyes,
+      passeurs: passeursNettoyes
     }, { onConflict: 'user_id,concours_match_id' });
 
     setSaving('');
@@ -164,6 +173,9 @@ export default function ConcoursPage() {
   const setButeur = (matchId: string, idx: number, val: string) => {
     setPronos(prev => ({ ...prev, [matchId]: { ...prev[matchId], buteurs: prev[matchId].buteurs.map((b, i) => i === idx ? val : b) } }));
   };
+  const setPasseur = (matchId: string, idx: number, val: string) => {
+    setPronos(prev => ({ ...prev, [matchId]: { ...prev[matchId], passeurs: prev[matchId].passeurs.map((p, i) => i === idx ? val : p) } }));
+  };
 
   const formatDate = (d: string) => new Date(d).toLocaleString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Port-au-Prince'
@@ -189,13 +201,15 @@ export default function ConcoursPage() {
   );
 
   const inputStyle = {width:'100%',padding:'12px',borderRadius:'10px',border:'1px solid #e5e7eb',fontSize:'15px',boxSizing:'border-box' as const};
-  const ferme = concours.statut === 'ferme';return (
+  const ferme = concours.statut === 'ferme';
+
+  return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
       <main style={{maxWidth:'800px',margin:'0 auto',padding:'32px 24px'}}>
 
-        <div style={{background:'linear-gradient(135deg,#1a0033,'+couleur+')',borderRadius:'20px',padding:'32px',textAlign:'center',marginBottom:'24px'}}>
-          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>{SPORT_LABEL[sport].emoji} Concours MakeGoal</p>
+        <div style={{background:'linear-gradient(135deg,'+CONCOURS_COULEUR_SOMBRE+','+couleur+')',borderRadius:'20px',padding:'32px',textAlign:'center',marginBottom:'24px'}}>
+          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>🏆 Concours MakeGoal</p>
           <h1 style={{color:'#fff',fontWeight:900,fontSize:'28px',margin:'0 0 12px'}}>{concours.titre}</h1>
           {concours.lots && (
             <div style={{background:'rgba(255,255,255,0.15)',borderRadius:'12px',padding:'12px',marginTop:'8px'}}>
@@ -216,7 +230,7 @@ export default function ConcoursPage() {
             {ferme && <div style={{padding:'12px 16px',borderRadius:'12px',marginBottom:'16px',background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:'14px',textAlign:'center'}}>⏰ Les pronostics sont fermés.</div>}
 
             {matchs.map(m => {
-              const p = pronos[m.id] || { choix_1x2:'', score_home:'', score_away:'', buteurs:['','',''] };
+              const p = pronos[m.id] || { choix_1x2:'', score_home:'', score_away:'', buteurs:['','',''], passeurs:['','',''] };
               const optionsResultat = sport === 'basketball' ? [['1',m.equipe1],['2',m.equipe2]] : [['1',m.equipe1],['X','Nul'],['2',m.equipe2]];
               return (
                 <div key={m.id} style={{border:'2px solid #e5e7eb',borderRadius:'20px',padding:'24px',marginBottom:'20px'}}>
@@ -230,14 +244,16 @@ export default function ConcoursPage() {
                       <button key={val} disabled={ferme} onClick={() => setChoix(m.id, val)} style={{
                         flex:1,padding:'14px 8px',borderRadius:'12px',cursor:ferme?'default':'pointer',
                         border:p.choix_1x2===val?'2px solid '+couleur:'2px solid #e5e7eb',
-                        background:p.choix_1x2===val?'#faf5ff':'#fff',
+                        background:p.choix_1x2===val?'#ecfdf5':'#fff',
                         fontWeight:700,fontSize:'13px',color:p.choix_1x2===val?couleur:'#374151'
                       }}>
                         <div style={{fontSize:'18px',fontWeight:900,marginBottom:'2px'}}>{val}</div>
                         <div style={{fontSize:'11px'}}>{label}</div>
                       </button>
                     ))}
-                  </div><p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Score exact <span style={{color:couleur}}>(10 pts, +25 si exact)</span></p>
+                  </div>
+
+                  <p style={{fontWeight:700,fontSize:'14px',margin:'0 0 8px'}}>Score exact <span style={{color:couleur}}>(10 pts, +25 si exact)</span></p>
                   <div style={{display:'flex',gap:'12px',alignItems:'center',justifyContent:'center',marginBottom:'20px'}}>
                     <input type="number" min={0} disabled={ferme} value={p.score_home} onChange={e => setScore(m.id,'home',e.target.value)} placeholder="0" style={{...inputStyle,width:'64px',textAlign:'center',fontSize:'22px',fontWeight:900}}/>
                     <span style={{fontSize:'22px',fontWeight:900,color:'#9ca3af'}}>—</span>
@@ -250,6 +266,11 @@ export default function ConcoursPage() {
                       {p.buteurs.map((b, i) => (
                         <input key={i} disabled={ferme} value={b} onChange={e => setButeur(m.id, i, e.target.value)} placeholder={'Buteur ' + (i+1)} style={{...inputStyle,marginBottom:'8px'}}/>
                       ))}
+
+                      <p style={{fontWeight:700,fontSize:'14px',margin:'16px 0 8px'}}>Passeurs <span style={{color:couleur}}>(10 pts chacun, +25 si exact)</span></p>
+                      {p.passeurs.map((ps, i) => (
+                        <input key={i} disabled={ferme} value={ps} onChange={e => setPasseur(m.id, i, e.target.value)} placeholder={'Passeur ' + (i+1)} style={{...inputStyle,marginBottom:'8px'}}/>
+                      ))}
                     </>
                   )}
 
@@ -260,8 +281,10 @@ export default function ConcoursPage() {
                   )}
                 </div>
               );
-            })}{user && (
-              <div style={{background:'#faf5ff',border:'2px solid '+couleur,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
+            })}
+
+            {user && (
+              <div style={{background:'#ecfdf5',border:'2px solid '+couleur,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
                 <h3 style={{fontWeight:900,fontSize:'18px',marginBottom:'8px'}}>🔥 Gagnez 15 points par ami recruté !</h3>
                 <p style={{color:'#6b7280',fontSize:'14px',marginBottom:'16px'}}>Partagez votre lien. Chaque personne qui s'inscrit via votre lien vous rapporte 15 points immédiatement.</p>
                 {partageMsg && <p style={{color:'#10b981',fontWeight:700,marginBottom:'12px'}}>{partageMsg}</p>}

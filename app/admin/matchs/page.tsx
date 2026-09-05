@@ -10,6 +10,7 @@ type Match = {
   equipe1: string;
   equipe2: string;
   competition: string | null;
+  pays: string | null;
   date_match: string;
   statut: string;
   score_home: number | null;
@@ -35,6 +36,7 @@ export default function AdminMatchs() {
   const [equipe1, setEquipe1] = useState('');
   const [equipe2, setEquipe2] = useState('');
   const [competition, setCompetition] = useState('');
+  const [pays, setPays] = useState('');
   const [dateMatch, setDateMatch] = useState('');
 
   const [scores, setScores] = useState<Record<string, { sh: string; sa: string }>>({});
@@ -57,14 +59,14 @@ export default function AdminMatchs() {
   };
 
   const nouveauMatch = () => {
-    setEditId(null); setEquipe1(''); setEquipe2(''); setCompetition(''); setDateMatch('');
+    setEditId(null); setEquipe1(''); setEquipe2(''); setCompetition(''); setPays(''); setDateMatch('');
     setSportForm(sportFiltre);
     setVue('nouveau');
   };
 
   const editerMatch = (m: Match) => {
     setEditId(m.id); setEquipe1(m.equipe1); setEquipe2(m.equipe2);
-    setCompetition(m.competition || ''); setDateMatch(m.date_match ? versLocal(m.date_match) : '');
+    setCompetition(m.competition || ''); setPays(m.pays || ''); setDateMatch(m.date_match ? versLocal(m.date_match) : '');
     setSportForm((m.sport as Sport) || 'football');
     setVue('nouveau');
   };
@@ -99,17 +101,25 @@ export default function AdminMatchs() {
     setImportLot(true); setMessage('');
     const lignes = texteLot.split('\n').map(l => l.trim());
     let competitionCourante = '';
-    const aCreer: { equipe1: string; equipe2: string; competition: string; date_match: string; sport: Sport }[] = [];
+    let paysCourant = '';
+    const aCreer: { equipe1: string; equipe2: string; competition: string; pays: string; date_match: string; sport: Sport }[] = [];
     const erreurs: string[] = [];
 
     for (const ligne of lignes) {
       if (!ligne) continue;
       const parts = ligne.split(' - ').map(p => p.trim());
       // Ligne d'en-tête : "Journée 5 - Ligue 1" (2 parties, pas de date à la fin)
+      // OU "Espagne - La Liga - Journée 3" (3 parties, la 1ère est le pays)
       const derniere = parts[parts.length - 1];
       const ressembleDate = /\d{4}-\d{2}-\d{2}/.test(derniere);
       if (!ressembleDate) {
-        competitionCourante = ligne;
+        if (parts.length >= 3) {
+          paysCourant = parts[0];
+          competitionCourante = parts.slice(1).join(' - ');
+        } else {
+          paysCourant = '';
+          competitionCourante = ligne;
+        }
         continue;
       }
       // Ligne de match : "Equipe1 - Equipe2 - 2026-08-15 15:00"
@@ -119,7 +129,7 @@ export default function AdminMatchs() {
       const equipe1 = parts.slice(0, parts.length - 2).join(' - ');
       if (!equipe1 || !equipe2) { erreurs.push(ligne); continue; }
       try {
-        aCreer.push({ equipe1, equipe2, competition: competitionCourante, date_match: texteVersUTC(dateStr, fuseauLot), sport: sportForm });
+        aCreer.push({ equipe1, equipe2, competition: competitionCourante, pays: paysCourant, date_match: texteVersUTC(dateStr, fuseauLot), sport: sportForm });
       } catch { erreurs.push(ligne); }
     }
 
@@ -142,7 +152,7 @@ export default function AdminMatchs() {
 
   const sauvegarder = async () => {
     if (!equipe1 || !equipe2 || !dateMatch) { setMessage('❌ Équipes et date obligatoires.'); return; }
-    const payload = { equipe1, equipe2, competition: competition || null, date_match: versUTC(dateMatch), sport: sportForm };
+    const payload = { equipe1, equipe2, competition: competition || null, pays: pays || null, date_match: versUTC(dateMatch), sport: sportForm };
     if (editId) {
       const { error } = await supabase.from('matchs').update(payload).eq('id', editId);
       if (error) { setMessage('❌ ' + error.message); return; }
@@ -152,7 +162,7 @@ export default function AdminMatchs() {
       if (error) { setMessage('❌ ' + error.message); return; }
       setMessage('✅ Match créé ! Les visiteurs peuvent voter.');
     }
-    setEquipe1(''); setEquipe2(''); setCompetition(''); setDateMatch(''); setEditId(null);
+    setEquipe1(''); setEquipe2(''); setCompetition(''); setPays(''); setDateMatch(''); setEditId(null);
     chargerMatchs();
     setTimeout(() => setVue('liste'), 1200);
   };
@@ -231,7 +241,10 @@ export default function AdminMatchs() {
               <div><label style={labelStyle}>Équipe 1 (domicile)</label><input value={equipe1} onChange={e => setEquipe1(e.target.value)} placeholder="Espagne" style={inputStyle}/></div>
               <div><label style={labelStyle}>Équipe 2 (extérieur)</label><input value={equipe2} onChange={e => setEquipe2(e.target.value)} placeholder="Argentine" style={inputStyle}/></div>
             </div>
-            <div style={{marginBottom:'16px'}}><label style={labelStyle}>Compétition</label><input value={competition} onChange={e => setCompetition(e.target.value)} placeholder="Coupe du Monde 2026" style={inputStyle}/></div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
+              <div><label style={labelStyle}>Compétition</label><input value={competition} onChange={e => setCompetition(e.target.value)} placeholder="Coupe du Monde 2026" style={inputStyle}/></div>
+              <div><label style={labelStyle}>Pays (pour le drapeau)</label><input value={pays} onChange={e => setPays(e.target.value)} placeholder="Espagne" style={inputStyle}/></div>
+            </div>
             <div style={{marginBottom:'20px'}}><label style={labelStyle}>Date et heure</label><input type="datetime-local" value={dateMatch} onChange={e => setDateMatch(e.target.value)} style={inputStyle}/></div>
             <button onClick={sauvegarder} style={{width:'100%',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{editId ? 'Enregistrer' : 'Créer le match'}</button>
           </div>
@@ -246,12 +259,13 @@ export default function AdminMatchs() {
               ))}
             </div>
             <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'8px'}}>Une ligne de titre par compétition, puis un match par ligne. Ligne vide entre deux compétitions.</p>
-            <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'12px',padding:'12px',borderRadius:'8px',overflow:'auto',lineHeight:'1.5'}}>{`Journée 5 - Ligue 1
-Marseille - Lyon - 2026-08-15 15:00
-PSG - Monaco - 2026-08-15 17:00
+            <p style={{color:'#c7d2fe',fontSize:'12px',marginBottom:'8px'}}>💡 Pour afficher le drapeau du pays sur les posts, mettez le pays en premier dans la ligne de titre : "Espagne - La Liga - Journée 3" (3 parties). Sans pays, gardez l'ancien format à 2 parties.</p>
+            <pre style={{background:'#0f0f0f',color:'#6ee7b7',fontSize:'12px',padding:'12px',borderRadius:'8px',overflow:'auto',lineHeight:'1.5'}}>{`Espagne - La Liga - Journée 3
+Real Betis - Real Madrid - 2026-09-04 15:00
+Valencia - FC Barcelone - 2026-09-06 10:15
 
-Journée 3 - Premier League
-Arsenal - Chelsea - 2026-08-16 14:00`}</pre>
+France - Ligue 1 - Journée 4
+PSG - Monaco - 2026-09-04 15:00`}</pre>
             <p style={{color:'#6b7280',fontSize:'11px',margin:'8px 0 6px'}}>Format d'un match : Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM</p>
             <p style={{color:'#9ca3af',fontSize:'12px',fontWeight:700,margin:'0 0 8px'}}>Cette heure collée est dans le fuseau :</p>
             <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
@@ -270,7 +284,7 @@ Arsenal - Chelsea - 2026-08-16 14:00`}</pre>
               <div key={m.id} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'20px',marginBottom:'16px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
                   <div>
-                    {m.competition && <p style={{color:'#6b7280',fontSize:'11px',margin:'0 0 4px',textTransform:'uppercase',letterSpacing:'1px'}}>{m.competition}</p>}
+                    {(m.pays || m.competition) && <p style={{color:'#6b7280',fontSize:'11px',margin:'0 0 4px',textTransform:'uppercase',letterSpacing:'1px'}}>{m.pays ? m.pays + ' · ' : ''}{m.competition}</p>}
                     <h3 style={{color:'#fff',fontWeight:900,fontSize:'17px',margin:'0 0 4px'}}>{m.equipe1} vs {m.equipe2}</h3>
                     <p style={{color:'#6b7280',fontSize:'12px',margin:0}}>{new Date(m.date_match).toLocaleString('fr-FR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',timeZone:'America/Port-au-Prince'})}</p>
                   </div>

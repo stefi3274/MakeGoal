@@ -27,6 +27,7 @@ type ConcoursMatch = {
   score_home: number | null;
   score_away: number | null;
   buteurs_reels: string[] | null;
+  passeurs_reels: string[] | null;
 };
 
 export default function AdminConcours() {
@@ -55,13 +56,12 @@ export default function AdminConcours() {
   const [nLabel, setNLabel] = useState('');
   const [ajoutMatchEnCours, setAjoutMatchEnCours] = useState(false);
 
-  const [resultats, setResultats] = useState<Record<string, { r1x2: string; sh: string; sa: string; buteurs: string }>>({});
+  const [resultats, setResultats] = useState<Record<string, { r1x2: string; sh: string; sa: string; buteurs: string; passeurs: string }>>({});
   const [calculEnCours, setCalculEnCours] = useState<string>('');
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { if (connecte) chargerConcours(); }, [connecte]);
 
-  // Haïti est à UTC-4. La saisie datetime-local n'a pas de fuseau : on l'ancre à -04:00.
   const versUTC = (local: string) => {
     if (!local) return local;
     const d = new Date(local + ':00-04:00');
@@ -140,11 +140,13 @@ export default function AdminConcours() {
     const r = resultats[m.id];
     if (!r || !r.r1x2 || r.sh === '' || r.sa === '') { setMessage('❌ Remplissez résultat et score pour ce match.'); return; }
     const buteursArray = r.buteurs ? r.buteurs.split(',').map(b => b.trim()).filter(b => b) : [];
+    const passeursArray = r.passeurs ? r.passeurs.split(',').map(p => p.trim()).filter(p => p) : [];
     const { error } = await supabase.from('concours_matchs').update({
       resultat_1x2: r.r1x2,
       score_home: parseInt(r.sh),
       score_away: parseInt(r.sa),
-      buteurs_reels: buteursArray
+      buteurs_reels: buteursArray,
+      passeurs_reels: passeursArray
     }).eq('id', m.id);
     if (error) { setMessage('❌ ' + error.message); return; }
     setMessage('✅ Résultat enregistré. Cliquez sur "Calculer les points" pour ce match.');
@@ -299,25 +301,29 @@ export default function AdminConcours() {
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'8px'}}>
                             <div>
                               <label style={labelStyle}>Résultat</label>
-                              <select value={resultats[m.id]?.r1x2 || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: e.target.value, sh: resultats[m.id]?.sh||'', sa: resultats[m.id]?.sa||'', buteurs: resultats[m.id]?.buteurs||''}})} style={inputStyle}>
+                              <select value={resultats[m.id]?.r1x2 || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: e.target.value, sh: resultats[m.id]?.sh||'', sa: resultats[m.id]?.sa||'', buteurs: resultats[m.id]?.buteurs||'', passeurs: resultats[m.id]?.passeurs||''}})} style={inputStyle}>
                                 <option value="">—</option>
                                 <option value="1">1 ({m.equipe1})</option>
                                 <option value="X">X (Nul)</option>
                                 <option value="2">2 ({m.equipe2})</option>
                               </select>
                             </div>
-                            <div><label style={labelStyle}>Score {m.equipe1}</label><input type="number" min={0} value={resultats[m.id]?.sh || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: e.target.value, sa: resultats[m.id]?.sa||'', buteurs: resultats[m.id]?.buteurs||''}})} style={inputStyle}/></div>
-                            <div><label style={labelStyle}>Score {m.equipe2}</label><input type="number" min={0} value={resultats[m.id]?.sa || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: resultats[m.id]?.sh||'', sa: e.target.value, buteurs: resultats[m.id]?.buteurs||''}})} style={inputStyle}/></div>
+                            <div><label style={labelStyle}>Score {m.equipe1}</label><input type="number" min={0} value={resultats[m.id]?.sh || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: e.target.value, sa: resultats[m.id]?.sa||'', buteurs: resultats[m.id]?.buteurs||'', passeurs: resultats[m.id]?.passeurs||''}})} style={inputStyle}/></div>
+                            <div><label style={labelStyle}>Score {m.equipe2}</label><input type="number" min={0} value={resultats[m.id]?.sa || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: resultats[m.id]?.sh||'', sa: e.target.value, buteurs: resultats[m.id]?.buteurs||'', passeurs: resultats[m.id]?.passeurs||''}})} style={inputStyle}/></div>
                           </div>
                           <div style={{marginBottom:'10px'}}>
                             <label style={labelStyle}>Buteurs réels (séparés par des virgules)</label>
-                            <input value={resultats[m.id]?.buteurs || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: resultats[m.id]?.sh||'', sa: resultats[m.id]?.sa||'', buteurs: e.target.value}})} placeholder="Mbappé, Messi, Griezmann" style={inputStyle}/>
+                            <input value={resultats[m.id]?.buteurs || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: resultats[m.id]?.sh||'', sa: resultats[m.id]?.sa||'', buteurs: e.target.value, passeurs: resultats[m.id]?.passeurs||''}})} placeholder="Mbappé, Messi, Griezmann" style={inputStyle}/>
+                          </div>
+                          <div style={{marginBottom:'10px'}}>
+                            <label style={labelStyle}>Passeurs réels (séparés par des virgules)</label>
+                            <input value={resultats[m.id]?.passeurs || ''} onChange={e => setResultats({...resultats, [m.id]: {...resultats[m.id], r1x2: resultats[m.id]?.r1x2||'', sh: resultats[m.id]?.sh||'', sa: resultats[m.id]?.sa||'', buteurs: resultats[m.id]?.buteurs||'', passeurs: e.target.value}})} placeholder="Valverde, Hakimi, Griezmann" style={inputStyle}/>
                           </div>
                           <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
                             <button onClick={() => enregistrerResultatMatch(m)} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:'#3b82f6',color:'#fff'}}>💾 Enregistrer résultat</button>
                             {m.resultat_1x2 && <button onClick={() => calculerPointsMatch(m.id, c.id)} disabled={calculEnCours===m.id} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:VIOLET,color:'#fff'}}>{calculEnCours===m.id ? '⏳...' : '🧮 Calculer les points'}</button>}
                           </div>
-                          {m.resultat_1x2 && <p style={{color:'#6ee7b7',fontSize:'12px',margin:'8px 0 0'}}>Résultat : {m.resultat_1x2} · {m.score_home}-{m.score_away} · Buteurs : {(m.buteurs_reels||[]).join(', ') || '—'}</p>}
+                          {m.resultat_1x2 && <p style={{color:'#6ee7b7',fontSize:'12px',margin:'8px 0 0'}}>Résultat : {m.resultat_1x2} · {m.score_home}-{m.score_away} · Buteurs : {(m.buteurs_reels||[]).join(', ') || '—'} · Passeurs : {(m.passeurs_reels||[]).join(', ') || '—'}</p>}
                         </div>
                       ))}
                     </div>
