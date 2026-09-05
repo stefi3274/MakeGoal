@@ -1,0 +1,102 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
+
+// Clés de championnat reconnues par The Odds API (the-odds-api.com)
+const CLES_SPORT: Record<string, string> = {
+  'Angleterre': 'soccer_epl',
+  'Espagne': 'soccer_spain_la_liga',
+  'Italie': 'soccer_italy_serie_a',
+  'France': 'soccer_france_ligue_one',
+  'Portugal': 'soccer_portugal_primeira_liga',
+  'Ligue des Champions': 'soccer_uefa_champs_league'
+};
+
+// Retire accents, préfixes de club et espaces superflus pour comparer deux noms d'équipe
+const normaliser = (nom: string) => nom
+  .toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/\b(fc|cf|cd|ac|as|rc|club|real|deportivo|calcio|united|city)\b/g, '')
+  .replace(/[^a-z0-9]/g, '')
+  .trim();
+
+const correspondent = (nomLocal: string, nomApi: string) => {
+  const a = normaliser(nomLocal), b = normaliser(nomApi);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+};
+
+export async function POST(request: Request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return Response.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  const token = authHeader.replace('Bearer ', '');
+
+  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+  if (userError || !userData.user) {
+    return Response.json({ error: 'Session invalide' }, { status: 401 });
+  }
+
+  const { data: adminData } = await supabaseAdmin
+    .from('admins').select('user_id').eq('user_id', userData.user.id).single();
+  if (!adminData) {
+    return Response.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 });
+  }
+
+  if (!process.env.THE_ODDS_API_KEY) {
+    return Response.json({ error: "La clé THE_ODDS_API_KEY n'est pas configurée sur le serveur." }, { status: 500 });
+  }
+
+  const { championnat } = await request.json();
+  const cleSport = CLES_SPORT[championnat];
+  if (!cleSport) {
+    return Response.json({ error: 'Championnat non reconnu. Valeurs possibles : ' + Object.keys(CLES_SPORT).join(', ') }, { status: 400 });
+  }
+
+  const urlOdds = 'https://api.the-odds-api.com/v4/sports/' + cleSport + '/odds?regions=eu,uk&markets=h2h&oddsFormat=decimal&apiKey=' + process.env.THE_ODDS_API_KEY;
+  const reponseOdds = await fetch(urlOdds);
+  if (!reponseOdds.ok) {
+    const texte = await reponseOdds.text();
+    return Response.json({ error: 'The Odds API a répondu : ' + reponseOdds.status + ' — ' + texte.slice(0, 200) }, { status: 502 });
+  }
+  const evenements: any[] = await reponseOdds.json();
+
+  const { data: matchsLocaux } = await supabaseAdmin
+    .from('matchs').select('id, equipe1, equipe2, resultat_reel').is('resultat_reel', null);
+
+  let miseAJour = 0;
+  const nonTrouves: string[] = [];
+
+  for (const ev of evenements) {
+    const bookmaker = ev.bookmakers?.[0];
+    const marche = bookmaker?.markets?.find((m: any) => m.key === 'h2h');
+    if (!marche) continue;
+
+    const cote1 = marche.outcomes.find((o: any) => o.name === ev.home_team)?.price;
+    const cote2 = marche.outcomes.find((o: any) => o.name === ev.away_team)?.price;
+    const coteX = marche.outcomes.find((o: any) => o.name === 'Draw')?.price;
+    if (!cote1 || !cote2) continue;
+
+    const trouve = matchsLocaux?.find(m =>
+      correspondent(m.equipe1, ev.home_team) && correspondent(m.equipe2, ev.away_team)
+    );
+
+    if (!trouve) { nonTrouves.push(ev.home_team + ' vs ' + ev.away_team); continue; }
+
+    const { error } = await supabaseAdmin.from('matchs').update({
+      cote_1: cote1, cote_x: coteX || null, cote_2: cote2
+    }).eq('id', trouve.id);
+    if (!error) miseAJour++;
+  }
+
+  return Response.json({
+    success: true,
+    miseAJour,
+    totalEvenementsApi: evenements.length,
+    nonTrouves
+  });
+}

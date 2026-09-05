@@ -224,11 +224,16 @@ export default function ConcoursPage() {
         </div>
 
         {user && (
-          <a href="/mes-points" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'20px',textDecoration:'none'}}>
+          <a href="/mes-points" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'12px',textDecoration:'none'}}>
             <span style={{fontWeight:700,fontSize:'14px',color:'#111'}}>🎯 Voir mon solde de points et mon historique</span>
             <span style={{color:couleur,fontWeight:900,fontSize:'18px'}}>→</span>
           </a>
         )}
+
+        <a href="/paris" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'20px',textDecoration:'none'}}>
+          <span style={{fontWeight:700,fontSize:'14px',color:'#111'}}>🎲 Tenter les paris combinés (1 000 Gourdes offertes)</span>
+          <span style={{color:couleur,fontWeight:900,fontSize:'18px'}}>→</span>
+        </a>
 
         {message && <div style={{padding:'12px 16px',borderRadius:'12px',marginBottom:'16px',fontWeight:600,fontSize:'14px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981'}}>{message}</div>}
 

@@ -32,6 +32,11 @@ export default function AdminMatchs() {
   const [message, setMessage] = useState('');
   const [vue, setVue] = useState<'liste' | 'nouveau' | 'lot'>('liste');
   const [texteLot, setTexteLot] = useState('');
+  const [texteLotCotes, setTexteLotCotes] = useState('');
+  const [lotCotesEnCours, setLotCotesEnCours] = useState(false);
+  const [lotCotesOuvert, setLotCotesOuvert] = useState(false);
+  const [championnatCotes, setChampionnatCotes] = useState('Espagne');
+  const [actualisationEnCours, setActualisationEnCours] = useState(false);
   const [importLot, setImportLot] = useState(false);
   const [fuseauLot, setFuseauLot] = useState<'Haiti' | 'Europe'>('Haiti');
   const [editId, setEditId] = useState<string | null>(null);
@@ -156,6 +161,62 @@ export default function AdminMatchs() {
     setTexteLot('');
     chargerMatchs();
     setTimeout(() => setVue('liste'), 1800);
+  };
+
+  const appliquerCotesEnLot = async () => {
+    const lignes = texteLotCotes.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lignes.length === 0) { setMessage('❌ Collez au moins une ligne.'); return; }
+    setLotCotesEnCours(true);
+    let appliquees = 0;
+    const nonTrouves: string[] = [];
+
+    for (const ligne of lignes) {
+      const parts = ligne.split(/\s+-\s+/).map(p => p.trim()).filter(Boolean);
+      if (parts.length < 4) { nonTrouves.push(ligne); continue; }
+
+      const equipe1 = parts[0], equipe2 = parts[1];
+      // Foot (3 cotes : 1/X/2) ou basket (2 cotes : 1/2)
+      const troisCotes = parts.length >= 5;
+      const cote1 = parseFloat(parts[2]);
+      const coteX = troisCotes ? parseFloat(parts[3]) : null;
+      const cote2 = parseFloat(troisCotes ? parts[4] : parts[3]);
+
+      const matchTrouve = matchs.find(m =>
+        m.equipe1.toLowerCase().trim() === equipe1.toLowerCase() &&
+        m.equipe2.toLowerCase().trim() === equipe2.toLowerCase()
+      );
+      if (!matchTrouve) { nonTrouves.push(ligne); continue; }
+
+      const { error } = await supabase.from('matchs').update({ cote_1: cote1, cote_x: coteX, cote_2: cote2 }).eq('id', matchTrouve.id);
+      if (!error) appliquees++;
+      else nonTrouves.push(ligne);
+    }
+
+    setLotCotesEnCours(false);
+    let msg = '✅ Cotes appliquées sur ' + appliquees + ' match(s).';
+    if (nonTrouves.length > 0) msg += ' ⚠️ ' + nonTrouves.length + ' ligne(s) non reconnue(s) ou match introuvable (vérifiez l\'orthographe exacte des équipes).';
+    setMessage(msg);
+    setTexteLotCotes('');
+    chargerMatchs();
+  };
+
+  const actualiserCotesReelles = async () => {
+    setActualisationEnCours(true); setMessage('');
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setActualisationEnCours(false); setMessage('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/cotes-actualiser', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ championnat: championnatCotes })
+    });
+    const data = await res.json();
+    setActualisationEnCours(false);
+    if (!res.ok) { setMessage('❌ ' + (data.error || 'Erreur.')); return; }
+    let msg = '✅ ' + data.miseAJour + ' match(s) mis à jour avec les vraies cotes (' + data.totalEvenementsApi + ' rencontres trouvées côté API).';
+    if (data.nonTrouves.length > 0) msg += ' ⚠️ Non reconnus : ' + data.nonTrouves.join(', ') + ' — utilisez le collage manuel ci-dessous pour ceux-là.';
+    setMessage(msg);
+    chargerMatchs();
   };
 
   const sauvegarder = async () => {
@@ -311,6 +372,37 @@ PSG - Monaco - 2026-09-04 15:00`}</pre>
             </div>
             <textarea value={texteLot} onChange={e => setTexteLot(e.target.value)} rows={12} placeholder="Collez vos matchs ici..." style={{...inputStyle,resize:'vertical',fontFamily:'monospace',lineHeight:'1.6'}}/>
             <button onClick={importerLot} disabled={importLot} style={{width:'100%',marginTop:'16px',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{importLot ? '⏳ Import...' : '🚀 Créer tous les matchs'}</button>
+          </div>
+        )}
+
+        {vue === 'lot' && (
+          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'24px',marginTop:'16px'}}>
+            <h2 style={{color:'#fff',fontWeight:900,fontSize:'18px',marginBottom:'8px'}}>🌐 Vraies cotes (The Odds API)</h2>
+            <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'12px'}}>Va chercher les cotes réelles de vrais bookmakers et les applique automatiquement aux matchs déjà créés, en retrouvant chaque match par le nom de ses équipes.</p>
+            <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
+              <select value={championnatCotes} onChange={e => setChampionnatCotes(e.target.value)} style={{...inputStyle,flex:1}}>
+                <option value="Angleterre">🇬🇧 Angleterre — Premier League</option>
+                <option value="Espagne">🇪🇸 Espagne — La Liga</option>
+                <option value="Italie">🇮🇹 Italie — Serie A</option>
+                <option value="France">🇫🇷 France — Ligue 1</option>
+                <option value="Portugal">🇵🇹 Portugal — Primeira Liga</option>
+                <option value="Ligue des Champions">🇪🇺 Ligue des Champions</option>
+              </select>
+              <button onClick={actualiserCotesReelles} disabled={actualisationEnCours} style={{padding:'12px 20px',background:'#16a34a',color:'#fff',border:'none',borderRadius:'8px',fontWeight:700,fontSize:'13px',cursor:'pointer',whiteSpace:'nowrap'}}>{actualisationEnCours ? '⏳...' : '🔄 Actualiser'}</button>
+            </div>
+
+            <button type="button" onClick={() => setLotCotesOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotCotesOuvert?'#333':'#a855f7',color:'#fff',marginBottom:'16px'}}>{lotCotesOuvert ? '✕ Fermer' : '✏️ Coller des cotes manuellement (secours)'}</button>
+
+            {lotCotesOuvert && (
+              <>
+                <h2 style={{color:'#fff',fontWeight:900,fontSize:'18px',marginBottom:'8px'}}>Coller les cotes en lot</h2>
+                <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'8px'}}>Retrouve chaque match par le nom exact des équipes (déjà créés) et applique les cotes. Une ligne par match.</p>
+                <p style={{color:'#c7d2fe',fontSize:'12px',marginBottom:'8px'}}>Football (3 cotes) : Équipe1 - Équipe2 - Cote1 - CoteX - Cote2</p>
+                <p style={{color:'#c7d2fe',fontSize:'12px',marginBottom:'8px'}}>Basketball (2 cotes) : Équipe1 - Équipe2 - Cote1 - Cote2</p>
+                <textarea value={texteLotCotes} onChange={e => setTexteLotCotes(e.target.value)} rows={10} placeholder={"Juventus - AC Milan - 1.85 - 3.40 - 4.20\nFC Barcelone - Valencia - 1.30 - 5.50 - 8.00\nArsenal - Chelsea - 1.90 - 3.60 - 3.80"} style={{...inputStyle,resize:'vertical',fontFamily:'monospace',lineHeight:'1.6'}}/>
+                <button onClick={appliquerCotesEnLot} disabled={lotCotesEnCours} style={{width:'100%',marginTop:'16px',padding:'14px',background:'#a855f7',color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{lotCotesEnCours ? '⏳ Application...' : '🎲 Appliquer les cotes'}</button>
+              </>
+            )}
           </div>
         )}
 
