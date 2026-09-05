@@ -127,6 +127,7 @@ type Post = {
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
   parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
   declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
+  invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
@@ -445,6 +446,39 @@ export default function PostPage() {
                   <p style={{fontSize:'16px',fontStyle:'italic',fontWeight:700,color:'#0c4a6e',margin:0,lineHeight:1.5,position:'relative'}}>{post.declaration.citation}</p>
                 </div>
                 {post.declaration.contexte && <p style={{fontSize:'11px',color:'#9ca3af',fontWeight:600,marginTop:'10px'}}>{post.declaration.contexte}</p>}
+              </div>
+            )}
+
+            {post.invitation_concours && post.invitation_concours.titreConcours && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'20px',padding:'26px 22px',textAlign:'center',marginBottom:'16px'}}>
+                  <p style={{color:'rgba(255,255,255,0.8)',fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 6px'}}>🏆 Konkou MakeGoal — {post.invitation_concours.titreConcours}</p>
+                  {post.invitation_concours.slogan && (
+                    <h2 style={{color:'#fff',fontWeight:900,fontSize:'25px',lineHeight:'1.2',margin:'0 0 10px'}}>{post.invitation_concours.slogan}</h2>
+                  )}
+                  <div style={{display:'inline-block',background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'32px',padding:'4px 24px',borderRadius:'10px',marginBottom:'14px',transform:'rotate(-2deg)'}}>GRATIS</div>
+                  {post.invitation_concours.lots && (
+                    <div style={{background:'rgba(255,255,255,0.15)',borderRadius:'12px',padding:'10px 16px'}}>
+                      <p style={{color:'#ffd700',fontSize:'13px',fontWeight:700,margin:0}}>🎁 {post.invitation_concours.lots}</p>
+                    </div>
+                  )}
+                </div>
+
+                {post.invitation_concours.matchs && post.invitation_concours.matchs.length > 0 && (
+                  <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                    {post.invitation_concours.matchs.map((m, i) => (
+                      <div key={i} style={{border:'2px solid #e5e7eb',borderRadius:'14px',padding:'12px 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+                        <span style={{flex:1,fontWeight:900,fontSize:'14px',color:'#111',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1}</span>
+                        <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                          {['1','X','2'].map(opt => (
+                            <span key={opt} style={{width:'26px',height:'26px',borderRadius:'8px',background:'#f3f4f6',color:'#9ca3af',fontWeight:900,fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center'}}>{opt}</span>
+                          ))}
+                        </div>
+                        <span style={{flex:1,fontWeight:900,fontSize:'14px',color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe2}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

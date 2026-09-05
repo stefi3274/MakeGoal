@@ -111,6 +111,8 @@ type Match = {
 type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string };
 type Parcours = { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] };
 type Declaration = { nom: string; fonction: string; citation: string; contexte: string };
+type MatchInvitation = { equipe1: string; equipe2: string };
+type InvitationConcours = { titreConcours: string; lots: string; slogan: string; matchs: MatchInvitation[] };
 
 type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
@@ -130,6 +132,7 @@ type Article = {
   quarts_temps: QuartTemps[] | null;
   parcours: Parcours | null;
   declaration: Declaration | null;
+  invitation_concours: InvitationConcours | null;
   stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
@@ -226,6 +229,11 @@ export default function AdminMedia() {
   const [dCitation, setDCitation] = useState('');
   const [dContexte, setDContexte] = useState('');
   const [dTexteColle, setDTexteColle] = useState('');
+
+  const [icTitreConcours, setIcTitreConcours] = useState('');
+  const [icLots, setIcLots] = useState('');
+  const [icSlogan, setIcSlogan] = useState('VOTE. FÈ PWEN. RETIRE LAJAN.');
+  const [icTexteMatchs, setIcTexteMatchs] = useState('');
   const [lotDeclarationsOuvert, setLotDeclarationsOuvert] = useState(false);
   const [texteLotDeclarations, setTexteLotDeclarations] = useState('');
   const [importLotDeclarations, setImportLotDeclarations] = useState(false);
@@ -624,6 +632,7 @@ export default function AdminMedia() {
     setPTexteColle('');
     setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
     setDTexteColle('');
+    setIcTitreConcours(''); setIcLots(''); setIcSlogan('VOTE. FÈ PWEN. RETIRE LAJAN.'); setIcTexteMatchs('');
   };
 
   const nouvelArticle = () => { setEditId(null); resetForm(); setVue('editer'); };
@@ -795,6 +804,7 @@ export default function AdminMedia() {
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
+      else if (modePost === 'invitation' && icTitreConcours) titreFinal = 'Invitation — ' + icTitreConcours;
       else titreFinal = 'Post MakeGoal — ' + new Date().toLocaleDateString('fr-FR');
     }
     setSaving(true); setMessage('');
@@ -832,6 +842,13 @@ export default function AdminMedia() {
       quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
       parcours: modePost === 'parcours' ? { equipe: pEquipe, competition: pCompetition, poule: pPoule, adversaires: pAdversaires.filter(a=>a.nom) } : null,
       declaration: modePost === 'declaration' ? { nom: dNom, fonction: dFonction, citation: dCitation, contexte: dContexte } : null,
+      invitation_concours: modePost === 'invitation' ? {
+        titreConcours: icTitreConcours, lots: icLots, slogan: icSlogan,
+        matchs: icTexteMatchs.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+          const parts = l.split(/\s+-\s+|\s+vs\s+|\s+VS\s+/i).map(p => p.trim()).filter(Boolean);
+          return { equipe1: parts[0] || '', equipe2: parts[1] || '' };
+        }).filter(m => m.equipe1 && m.equipe2)
+      } : null,
       stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
       sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
@@ -960,6 +977,7 @@ export default function AdminMedia() {
                     <optgroup label="Distinctions & citations">
                       <option value="distinction">🏆 Distinction</option>
                       <option value="declaration">🎤 Déclaration</option>
+                      <option value="invitation">🏆 Invitation Concours</option>
                     </optgroup>
                     <optgroup label="Composition">
                       <option value="onze">👥 Onze type</option>
@@ -1141,6 +1159,19 @@ export default function AdminMedia() {
                   </div>
                 ))}
                 <button type="button" onClick={ajouterAdversaire} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un adversaire</button>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'invitation' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🏆 Invitation Concours</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Affiche les matchs comme des cartes de vote (Équipe A vs Équipe B), en créole, pour donner envie de participer.</p>
+
+                <input value={icTitreConcours} onChange={e => setIcTitreConcours(e.target.value)} placeholder="Titre du concours (ex: Chocs)" style={{...inputStyle,marginBottom:'12px'}}/>
+                <input value={icLots} onChange={e => setIcLots(e.target.value)} placeholder="Lots (ex: 10 000 Gourdes, tablettes, Netflix)" style={{...inputStyle,marginBottom:'12px'}}/>
+                <input value={icSlogan} onChange={e => setIcSlogan(e.target.value)} placeholder="Slogan" style={{...inputStyle,marginBottom:'12px',fontWeight:700}}/>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Matchs à afficher (un par ligne : Équipe1 - Équipe2)</p>
+                <textarea value={icTexteMatchs} onChange={e => setIcTexteMatchs(e.target.value)} rows={7} placeholder={"Juventus - AC Milan\nFC Barcelone - Valencia\nArsenal - Chelsea\nMarseille - Paris FC\nMarítimo - Benfica\nReal Madrid - Inter Milan"} style={{...inputStyle,fontFamily:'monospace',fontSize:'13px'}}/>
               </div>
             )}
 
