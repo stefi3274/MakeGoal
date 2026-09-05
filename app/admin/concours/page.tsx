@@ -55,6 +55,8 @@ export default function AdminConcours() {
   const [nDateMatch, setNDateMatch] = useState('');
   const [nLabel, setNLabel] = useState('');
   const [ajoutMatchEnCours, setAjoutMatchEnCours] = useState(false);
+  const [texteLotMatchs, setTexteLotMatchs] = useState('');
+  const [lotMatchsEnCours, setLotMatchsEnCours] = useState(false);
 
   const [resultats, setResultats] = useState<Record<string, { r1x2: string; sh: string; sa: string; buteurs: string; passeurs: string }>>({});
   const [calculEnCours, setCalculEnCours] = useState<string>('');
@@ -120,6 +122,42 @@ export default function AdminConcours() {
     if (error) { setMessage('❌ ' + error.message); return; }
     setMessage('✅ Match ajouté au concours.');
     setNEquipe1(''); setNEquipe2(''); setNDateMatch(''); setNLabel('');
+    chargerMatchs(concoursId);
+  };
+
+  const ajouterMatchsEnLot = async (concoursId: string) => {
+    const lignes = texteLotMatchs.split('\n').map(l => l.trim());
+    let ordreActuel = (matchsByConcours[concoursId] || []).length;
+    let labelCourant: string | null = null;
+    const aCreer: { concours_id: string; equipe1: string; equipe2: string; date_match: string; ordre: number; label: string | null }[] = [];
+    const erreurs: string[] = [];
+    for (const ligne of lignes) {
+      if (!ligne) continue;
+      const parts = ligne.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+      const ressembleDate = parts.length > 0 && /\d{4}-\d{2}-\d{2}/.test(parts[parts.length - 1]);
+      if (!ressembleDate) {
+        // Ligne d'en-tête (nom du championnat) : devient l'étiquette des matchs suivants
+        labelCourant = ligne;
+        continue;
+      }
+      if (parts.length < 3) { erreurs.push(ligne); continue; }
+      const dateStr = parts[parts.length - 1];
+      const equipe2 = parts[parts.length - 2];
+      const equipe1 = parts.slice(0, parts.length - 2).join(' - ');
+      try {
+        ordreActuel++;
+        aCreer.push({ concours_id: concoursId, equipe1, equipe2, date_match: versUTC(dateStr.replace(' ', 'T')), ordre: ordreActuel, label: labelCourant });
+      } catch { erreurs.push(ligne); }
+    }
+    if (aCreer.length === 0) { setMessage('❌ Aucune ligne reconnue. Format : Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM'); return; }
+    setLotMatchsEnCours(true);
+    const { error } = await supabase.from('concours_matchs').insert(aCreer);
+    setLotMatchsEnCours(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    let msg = '✅ ' + aCreer.length + ' match(s) ajouté(s) au concours.';
+    if (erreurs.length > 0) msg += ' (' + erreurs.length + ' ligne(s) ignorée(s), format non reconnu)';
+    setMessage(msg);
+    setTexteLotMatchs('');
     chargerMatchs(concoursId);
   };
 
@@ -284,6 +322,11 @@ export default function AdminConcours() {
                         <div><label style={labelStyle}>Étiquette (optionnel)</label><input value={nLabel} onChange={e => setNLabel(e.target.value)} placeholder="Quart de finale" style={inputStyle}/></div>
                       </div>
                       <button onClick={() => ajouterMatch(c.id)} disabled={ajoutMatchEnCours} style={{width:'100%',padding:'10px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer',marginBottom:'20px'}}>{ajoutMatchEnCours ? '⏳...' : '+ Ajouter ce match'}</button>
+
+                      <h4 style={{color:'#fff',fontSize:'14px',fontWeight:700,margin:'0 0 8px'}}>Ou coller plusieurs matchs à la fois</h4>
+                      <p style={{color:'#6b7280',fontSize:'11px',margin:'0 0 8px'}}>Une ligne avec le nom du championnat, puis un match par ligne en dessous (Équipe1 - Équipe2 - AAAA-MM-JJ HH:MM, fuseau Haïti). Ligne vide entre deux championnats.</p>
+                      <textarea value={texteLotMatchs} onChange={e => setTexteLotMatchs(e.target.value)} rows={10} placeholder={"Italie\nJuventus - AC Milan - 2026-09-06 14:45\n\nEspagne\nValencia - FC Barcelone - 2026-09-06 10:15\n\nAngleterre\nArsenal - Chelsea - 2026-09-06 11:30"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'12px'}}/>
+                      <button onClick={() => ajouterMatchsEnLot(c.id)} disabled={lotMatchsEnCours} style={{width:'100%',padding:'10px',background:'#3b82f6',color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer',marginBottom:'20px'}}>{lotMatchsEnCours ? '⏳...' : '📚 Ajouter tous ces matchs'}</button>
 
                       {matchs.length === 0 && <p style={{color:'#6b7280',fontSize:'13px'}}>Aucun match. Ajoutez-en un ci-dessus.</p>}
 
