@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { getSport, Sport } from '../../lib/sport';
-import { placerCombine, soldeParis, initialiserSoldeParis, palierPourCoteMin, descriptionPaliers, coteDoubleChance, PARIS_CONSTANTES, Pronostic } from '../../lib/paris';
+import { soldeParis, initialiserSoldeParis, palierPourCoteMin, descriptionPaliers, coteDoubleChance, PARIS_CONSTANTES, Pronostic } from '../../lib/paris';
 
 const COULEUR = '#bf00ff';
 
@@ -119,9 +119,17 @@ export default function ParisPage() {
       return;
     }
     setEnvoiEnCours(true);
-    const resultat = await placerCombine(user.id, miseNum, selectionsActives.map(s => ({ matchId: s.matchId, pronostic: s.pronostic, cote: s.cote })));
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setEnvoiEnCours(false); setErreurPari('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/paris-placer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ mise: miseNum, selections: selectionsActives.map(s => ({ matchId: s.matchId, pronostic: s.pronostic })) })
+    });
+    const resultat = await res.json();
     setEnvoiEnCours(false);
-    if (!resultat.ok) { setErreurPari('❌ ' + resultat.erreur); return; }
+    if (!res.ok) { setErreurPari('❌ ' + (resultat.error || 'Erreur.')); return; }
     setMessage('✅ Combiné validé ! Cote totale ' + resultat.coteTotale?.toFixed(2) + ', gain potentiel ' + resultat.gainPotentiel + ' Gourdes.' + (!resultat.miseQualifiante ? ' ⚠️ Cette mise ne compte pas dans votre objectif de retrait (cote totale insuffisante pour le palier atteignable avec vos cotes).' : ''));
     setSelections({}); setMise(''); setErreurPari('');
     charger();

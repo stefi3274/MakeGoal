@@ -208,10 +208,6 @@ export async function demanderConversion(userId: string, pointsAConvertir: numbe
   if (pointsAConvertir < SEUIL_CONVERSION) {
     return { ok: false, erreur: 'Le minimum pour convertir est de ' + SEUIL_CONVERSION + ' points.' };
   }
-  const solde = await soldePoints(userId, client);
-  if (solde < pointsAConvertir) {
-    return { ok: false, erreur: 'Solde insuffisant (solde actuel : ' + solde + ' points).' };
-  }
   const montantGourdes = Math.round(pointsAConvertir * TAUX_CONVERSION);
 
   const { data: conversion, error } = await client.from('conversions').insert({
@@ -219,8 +215,23 @@ export async function demanderConversion(userId: string, pointsAConvertir: numbe
   }).select().single();
   if (error) return { ok: false, erreur: error.message };
 
-  const resultat = await enregistrerMouvement(userId, -pointsAConvertir, 'conversion_gourdes', 'conversion', conversion.id, client);
-  if (!resultat.ok) return { ok: false, erreur: resultat.erreur };
+  // Débit ATOMIQUE : vérifie et déduit en une seule opération indivisible.
+  // Empêche deux demandes de conversion simultanées de puiser deux fois
+  // dans le même solde de points.
+  const { data: nouveauSolde, error: erreurDebit } = await client
+    .rpc('deduire_points_conversion', { p_user_id: userId, p_points: pointsAConvertir });
+  if (erreurDebit) {
+    await client.from('conversions').delete().eq('id', conversion.id); // annule la demande orpheline
+    if (erreurDebit.message.includes('SOLDE_INSUFFISANT')) {
+      return { ok: false, erreur: 'Solde insuffisant pour cette conversion.' };
+    }
+    return { ok: false, erreur: erreurDebit.message };
+  }
+
+  await client.from('points_transactions').insert({
+    user_id: userId, montant: -pointsAConvertir, raison: 'conversion_gourdes', libelle: LIBELLES['conversion_gourdes'],
+    reference_type: 'conversion', reference_id: conversion.id, solde_apres: nouveauSolde
+  });
 
   return { ok: true, montantGourdes, conversionId: conversion.id };
 }
