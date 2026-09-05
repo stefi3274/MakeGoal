@@ -9,8 +9,8 @@ import { getSport, Sport } from '../../lib/sport';
 
 // Couleur propre au Concours — indépendante du sport (foot violet / basket orange),
 // comme chaque type de contenu a désormais sa couleur dédiée (Résultat=bleu, Classement=ambre...).
-const CONCOURS_COULEUR = '#059669';
-const CONCOURS_COULEUR_SOMBRE = '#047857';
+const CONCOURS_COULEUR = '#bf00ff';
+const CONCOURS_COULEUR_SOMBRE = '#7c1fd9';
 
 type ConcoursType = {
   id: string;
@@ -223,6 +223,13 @@ export default function ConcoursPage() {
           <button onClick={() => setVue('classement')} style={{flex:1,padding:'12px',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'14px',background:vue==='classement'?'#fff':'transparent',color:vue==='classement'?couleur:'#6b7280'}}>Classement</button>
         </div>
 
+        {user && (
+          <a href="/mes-points" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'20px',textDecoration:'none'}}>
+            <span style={{fontWeight:700,fontSize:'14px',color:'#111'}}>🎯 Voir mon solde de points et mon historique</span>
+            <span style={{color:couleur,fontWeight:900,fontSize:'18px'}}>→</span>
+          </a>
+        )}
+
         {message && <div style={{padding:'12px 16px',borderRadius:'12px',marginBottom:'16px',fontWeight:600,fontSize:'14px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981'}}>{message}</div>}
 
         {vue === 'participer' && (
@@ -244,7 +251,7 @@ export default function ConcoursPage() {
                       <button key={val} disabled={ferme} onClick={() => setChoix(m.id, val)} style={{
                         flex:1,padding:'14px 8px',borderRadius:'12px',cursor:ferme?'default':'pointer',
                         border:p.choix_1x2===val?'2px solid '+couleur:'2px solid #e5e7eb',
-                        background:p.choix_1x2===val?'#ecfdf5':'#fff',
+                        background:p.choix_1x2===val?'#faf5ff':'#fff',
                         fontWeight:700,fontSize:'13px',color:p.choix_1x2===val?couleur:'#374151'
                       }}>
                         <div style={{fontSize:'18px',fontWeight:900,marginBottom:'2px'}}>{val}</div>
@@ -284,7 +291,7 @@ export default function ConcoursPage() {
             })}
 
             {user && (
-              <div style={{background:'#ecfdf5',border:'2px solid '+couleur,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
+              <div style={{background:'#faf5ff',border:'2px solid '+couleur,borderRadius:'16px',padding:'24px',textAlign:'center',marginTop:'8px'}}>
                 <h3 style={{fontWeight:900,fontSize:'18px',marginBottom:'8px'}}>🔥 Gagnez 15 points par ami recruté !</h3>
                 <p style={{color:'#6b7280',fontSize:'14px',marginBottom:'16px'}}>Partagez votre lien. Chaque personne qui s'inscrit via votre lien vous rapporte 15 points immédiatement.</p>
                 {partageMsg && <p style={{color:'#10b981',fontWeight:700,marginBottom:'12px'}}>{partageMsg}</p>}

@@ -17,6 +17,9 @@ type Match = {
   score_away: number | null;
   actif: boolean;
   sport: string | null;
+  cote_1: number | null;
+  cote_x: number | null;
+  cote_2: number | null;
 };
 
 export default function AdminMatchs() {
@@ -37,6 +40,9 @@ export default function AdminMatchs() {
   const [equipe2, setEquipe2] = useState('');
   const [competition, setCompetition] = useState('');
   const [pays, setPays] = useState('');
+  const [cote1, setCote1] = useState('');
+  const [coteX, setCoteX] = useState('');
+  const [cote2, setCote2] = useState('');
   const [dateMatch, setDateMatch] = useState('');
 
   const [scores, setScores] = useState<Record<string, { sh: string; sa: string }>>({});
@@ -60,6 +66,7 @@ export default function AdminMatchs() {
 
   const nouveauMatch = () => {
     setEditId(null); setEquipe1(''); setEquipe2(''); setCompetition(''); setPays(''); setDateMatch('');
+    setCote1(''); setCoteX(''); setCote2('');
     setSportForm(sportFiltre);
     setVue('nouveau');
   };
@@ -67,6 +74,7 @@ export default function AdminMatchs() {
   const editerMatch = (m: Match) => {
     setEditId(m.id); setEquipe1(m.equipe1); setEquipe2(m.equipe2);
     setCompetition(m.competition || ''); setPays(m.pays || ''); setDateMatch(m.date_match ? versLocal(m.date_match) : '');
+    setCote1(m.cote_1?.toString() || ''); setCoteX(m.cote_x?.toString() || ''); setCote2(m.cote_2?.toString() || '');
     setSportForm((m.sport as Sport) || 'football');
     setVue('nouveau');
   };
@@ -152,7 +160,10 @@ export default function AdminMatchs() {
 
   const sauvegarder = async () => {
     if (!equipe1 || !equipe2 || !dateMatch) { setMessage('❌ Équipes et date obligatoires.'); return; }
-    const payload = { equipe1, equipe2, competition: competition || null, pays: pays || null, date_match: versUTC(dateMatch), sport: sportForm };
+    const payload = {
+      equipe1, equipe2, competition: competition || null, pays: pays || null, date_match: versUTC(dateMatch), sport: sportForm,
+      cote_1: cote1 ? parseFloat(cote1) : null, cote_x: coteX ? parseFloat(coteX) : null, cote_2: cote2 ? parseFloat(cote2) : null
+    };
     if (editId) {
       const { error } = await supabase.from('matchs').update(payload).eq('id', editId);
       if (error) { setMessage('❌ ' + error.message); return; }
@@ -162,7 +173,8 @@ export default function AdminMatchs() {
       if (error) { setMessage('❌ ' + error.message); return; }
       setMessage('✅ Match créé ! Les visiteurs peuvent voter.');
     }
-    setEquipe1(''); setEquipe2(''); setCompetition(''); setPays(''); setDateMatch(''); setEditId(null);
+    setEquipe1(''); setEquipe2(''); setCompetition(''); setPays(''); setDateMatch('');
+    setCote1(''); setCoteX(''); setCote2(''); setEditId(null);
     chargerMatchs();
     setTimeout(() => setVue('liste'), 1200);
   };
@@ -175,8 +187,27 @@ export default function AdminMatchs() {
   const enregistrerScore = async (m: Match) => {
     const s = scores[m.id];
     if (!s || s.sh === '' || s.sa === '') { setMessage('❌ Entrez le score.'); return; }
-    await supabase.from('matchs').update({ score_home: parseInt(s.sh), score_away: parseInt(s.sa), statut: 'termine' }).eq('id', m.id);
+    const sh = parseInt(s.sh), sa = parseInt(s.sa);
+    const resultat: '1' | 'X' | '2' = sh > sa ? '1' : sh < sa ? '2' : 'X';
+    await supabase.from('matchs').update({ score_home: sh, score_away: sa, statut: 'termine', resultat_reel: resultat }).eq('id', m.id);
     setMessage('✅ Score enregistré !');
+
+    // Déclenche la résolution des paris combinés qui contiennent ce match
+    if (m.cote_1 || m.cote_x || m.cote_2) {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (token) {
+        const res = await fetch('/api/paris-resoudre', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ matchId: m.id, resultat })
+        });
+        const data = await res.json();
+        if (res.ok && data.combinesTraites > 0) {
+          setMessage('✅ Score enregistré ! ' + data.combinesTraites + ' pari(s) combiné(s) résolu(s).');
+        }
+      }
+    }
     chargerMatchs();
   };
 
@@ -246,6 +277,12 @@ export default function AdminMatchs() {
               <div><label style={labelStyle}>Pays (pour le drapeau)</label><input value={pays} onChange={e => setPays(e.target.value)} placeholder="Espagne" style={inputStyle}/></div>
             </div>
             <div style={{marginBottom:'20px'}}><label style={labelStyle}>Date et heure</label><input type="datetime-local" value={dateMatch} onChange={e => setDateMatch(e.target.value)} style={inputStyle}/></div>
+            <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 8px',fontWeight:700}}>Cotes pour les paris combinés (optionnel)</p>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'20px'}}>
+              <div><label style={labelStyle}>Cote 1 ({equipe1 || 'Équipe 1'})</label><input type="number" step="0.01" min="1" value={cote1} onChange={e => setCote1(e.target.value)} placeholder="1.85" style={inputStyle}/></div>
+              <div><label style={labelStyle}>Cote X (Nul)</label><input type="number" step="0.01" min="1" value={coteX} onChange={e => setCoteX(e.target.value)} placeholder="3.40" style={inputStyle}/></div>
+              <div><label style={labelStyle}>Cote 2 ({equipe2 || 'Équipe 2'})</label><input type="number" step="0.01" min="1" value={cote2} onChange={e => setCote2(e.target.value)} placeholder="4.20" style={inputStyle}/></div>
+            </div>
             <button onClick={sauvegarder} style={{width:'100%',padding:'14px',background:VIOLET,color:'#fff',border:'none',borderRadius:'999px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{editId ? 'Enregistrer' : 'Créer le match'}</button>
           </div>
         )}
@@ -287,6 +324,9 @@ PSG - Monaco - 2026-09-04 15:00`}</pre>
                     {(m.pays || m.competition) && <p style={{color:'#6b7280',fontSize:'11px',margin:'0 0 4px',textTransform:'uppercase',letterSpacing:'1px'}}>{m.pays ? m.pays + ' · ' : ''}{m.competition}</p>}
                     <h3 style={{color:'#fff',fontWeight:900,fontSize:'17px',margin:'0 0 4px'}}>{m.equipe1} vs {m.equipe2}</h3>
                     <p style={{color:'#6b7280',fontSize:'12px',margin:0}}>{new Date(m.date_match).toLocaleString('fr-FR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',timeZone:'America/Port-au-Prince'})}</p>
+                    {(m.cote_1 || m.cote_x || m.cote_2) && (
+                      <p style={{color:'#a78bfa',fontSize:'11px',fontWeight:700,margin:'4px 0 0'}}>Cotes : 1 → {m.cote_1 || '—'} · X → {m.cote_x || '—'} · 2 → {m.cote_2 || '—'}</p>
+                    )}
                   </div>
                   <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                     <button onClick={() => toggleActif(m)} style={{padding:'6px 12px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:m.actif?'#10b981':'#374151',color:'#fff'}}>{m.actif ? '✓ Actif' : 'Masqué'}</button>
