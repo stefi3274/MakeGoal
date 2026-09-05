@@ -21,6 +21,7 @@ type Match = {
   id: string; equipe1: string; equipe2: string;
   competition: string | null; date_match: string; statut: string;
   score_home: number | null; score_away: number | null;
+  cote_1?: number | null; cote_x?: number | null; cote_2?: number | null;
 };
 type Concours = { id: string; titre: string; statut: string; lots: string | null; };
 type VoteStat = { '1': number; 'X': number; '2': number; total: number };
@@ -198,14 +199,48 @@ export default function Home() {
     </div>
   );};
 
+  const DefileMatchsVote = () => {
+    if (matchs.length === 0) return null;
+    const liste = [...matchs, ...matchs]; // doublé pour un défilement continu sans coupure
+    return (
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'18px 0',overflow:'hidden',position:'relative'}}>
+        <style>{`
+          @keyframes defileMatchs { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+          .defile-piste { display: flex; width: max-content; animation: defileMatchs 45s linear infinite; }
+          .defile-piste:hover { animation-play-state: paused; }
+        `}</style>
+        <div className="defile-piste">
+          {liste.map((m, i) => {
+            const aCotes = !!(m.cote_1 && m.cote_2);
+            return (
+              <a key={m.id + '-' + i} href={aCotes ? '/paris' : '/matchs'} style={{
+                display:'flex', alignItems:'center', gap:'10px', textDecoration:'none',
+                background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.25)',
+                borderRadius:'12px', padding:'10px 16px', margin:'0 8px', whiteSpace:'nowrap', flexShrink:0
+              }}>
+                <span style={{color:'#fff',fontWeight:800,fontSize:'13px'}}>{m.equipe1} <span style={{opacity:0.6,fontWeight:400}}>vs</span> {m.equipe2}</span>
+                {aCotes ? (
+                  <span style={{display:'flex',gap:'6px'}}>
+                    <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>1: {m.cote_1!.toFixed(2)}</span>
+                    {m.cote_x && <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>X: {m.cote_x.toFixed(2)}</span>}
+                    <span style={{background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'11px',padding:'2px 8px',borderRadius:'6px'}}>2: {m.cote_2!.toFixed(2)}</span>
+                  </span>
+                ) : (
+                  <span style={{background:'#06b6d4',color:'#fff',fontWeight:900,fontSize:'11px',padding:'3px 10px',borderRadius:'999px'}}>🗳️ Voter</span>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
       <Header />
 
-      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'40px 24px',textAlign:'center'}}>
-        <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(28px,5vw,44px)',margin:'0 0 8px'}}>📰 MakeGoal</h1>
-        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'17px',margin:0,fontWeight:600}}>N ap enfòme w.</p>
-      </div>
+      <DefileMatchsVote />
 
       <main style={{maxWidth:'1100px',margin:'0 auto',padding:'32px 16px'}}>
 

@@ -39,6 +39,7 @@ export default function Header() {
         <div style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'13px',fontWeight:600}}>
           <a href="/" style={{color:'#6b7280',textDecoration:'none'}}>Accueil</a>
           <a href="/matchs" style={{color:'#6b7280',textDecoration:'none'}}>Matchs</a>
+          <a href="/paris" style={{color:'#6b7280',textDecoration:'none'}}>🎲 Paris</a>
           <a href="/about" style={{color:'#6b7280',textDecoration:'none'}}>À propos</a>
           {!loading && (
             user ? (
