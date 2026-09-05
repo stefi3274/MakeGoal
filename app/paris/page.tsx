@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { getSport, Sport } from '../../lib/sport';
-import { placerCombine, soldeParis, initialiserSoldeParis, coteMinRequise, coteDoubleChance, PARIS_CONSTANTES, Pronostic } from '../../lib/paris';
+import { placerCombine, soldeParis, initialiserSoldeParis, palierPourCoteMin, descriptionPaliers, coteDoubleChance, PARIS_CONSTANTES, Pronostic } from '../../lib/paris';
 
 const COULEUR = '#bf00ff';
 
@@ -36,6 +36,7 @@ export default function ParisPage() {
   const [selections, setSelections] = useState<Record<string, Pronostic>>({});
   const [mise, setMise] = useState('');
   const [message, setMessage] = useState('');
+  const [erreurPari, setErreurPari] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [solde, setSolde] = useState<{ solde: number; mise_cumulee_valide: number; retire: boolean } | null>(null);
   const [combines, setCombines] = useState<Combine[]>([]);
@@ -102,25 +103,27 @@ export default function ParisPage() {
   const coteTotale = selectionsActives.reduce((acc, s) => acc * s.cote, 1);
   const miseNum = parseFloat(mise) || 0;
   const gainPotentiel = Math.round(miseNum * coteTotale * 100) / 100;
-  const seuilActuel = coteMinRequise(selectionsActives.length);
-  const toutesQualifiantes = selectionsActives.length > 0 && selectionsActives.every(s => s.cote >= seuilActuel);
+  const coteMinDuCombine = selectionsActives.length > 0 ? Math.min(...selectionsActives.map(s => s.cote)) : 0;
+  const palierActuel = palierPourCoteMin(coteMinDuCombine);
+  const toutesQualifiantes = selectionsActives.length > 0 && !!palierActuel && coteTotale >= palierActuel.coteTotaleExigee;
 
   const validerCombine = async () => {
     if (!user) { router.push('/compte'); return; }
+    setErreurPari('');
     if (selectionsActives.length < PARIS_CONSTANTES.SELECTIONS_MIN) {
-      setMessage('❌ Il faut au moins ' + PARIS_CONSTANTES.SELECTIONS_MIN + ' sélections (vous en avez ' + selectionsActives.length + ').');
+      setErreurPari('❌ Un combiné doit contenir au moins ' + PARIS_CONSTANTES.SELECTIONS_MIN + ' sélections.');
       return;
     }
     if (miseNum < PARIS_CONSTANTES.MISE_MIN) {
-      setMessage('❌ La mise minimum est de ' + PARIS_CONSTANTES.MISE_MIN + ' Gourdes.');
+      setErreurPari('❌ La mise minimum est de ' + PARIS_CONSTANTES.MISE_MIN + ' Gourdes.');
       return;
     }
-    setEnvoiEnCours(true); setMessage('');
+    setEnvoiEnCours(true);
     const resultat = await placerCombine(user.id, miseNum, selectionsActives.map(s => ({ matchId: s.matchId, pronostic: s.pronostic, cote: s.cote })));
     setEnvoiEnCours(false);
-    if (!resultat.ok) { setMessage('❌ ' + resultat.erreur); return; }
-    setMessage('✅ Combiné validé ! Cote totale ' + resultat.coteTotale?.toFixed(2) + ', gain potentiel ' + resultat.gainPotentiel + ' Gourdes.' + (!resultat.miseQualifiante ? ' ⚠️ Au moins une cote est sous le seuil requis (' + resultat.seuilApplique + ') : cette mise ne compte pas dans votre objectif de retrait.' : ''));
-    setSelections({}); setMise('');
+    if (!resultat.ok) { setErreurPari('❌ ' + resultat.erreur); return; }
+    setMessage('✅ Combiné validé ! Cote totale ' + resultat.coteTotale?.toFixed(2) + ', gain potentiel ' + resultat.gainPotentiel + ' Gourdes.' + (!resultat.miseQualifiante ? ' ⚠️ Cette mise ne compte pas dans votre objectif de retrait (cote totale insuffisante pour le palier atteignable avec vos cotes).' : ''));
+    setSelections({}); setMise(''); setErreurPari('');
     charger();
   };
 
@@ -178,8 +181,8 @@ export default function ParisPage() {
 
       <div style={{background:'linear-gradient(135deg,#1a0033,'+COULEUR+')',padding:'36px 24px',textAlign:'center'}}>
         <p style={{color:'rgba(255,255,255,0.75)',fontSize:'13px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 8px'}}>🎲 Paris MakeGoal</p>
-        <h1 style={{color:'#fff',fontWeight:900,fontSize:'26px',margin:'0 0 8px'}}>Combiné 10 sélections minimum</h1>
-        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>1 000 Gourdes offertes · Cote min. 2.00 (10-19 sél.) · 1.50 (20-39) · 1.20 (40+) · 1 seule perte = remboursé</p>
+        <h1 style={{color:'#fff',fontWeight:900,fontSize:'26px',margin:'0 0 8px'}}>Paris combinés</h1>
+        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>1 000 Gourdes offertes · Cotes ≥2.00 → total ≥20 · ≥1.50 → total ≥50 · ≥1.20 → total ≥70 · 1 seule perte = remboursé</p>
       </div>
 
       <main style={{maxWidth:'700px',margin:'0 auto',padding:'24px 16px'}}>
@@ -231,16 +234,17 @@ export default function ParisPage() {
             {selectionsActives.length > 0 && (
               <div style={{position:'sticky',bottom:'12px',background:'#fff',border:'2px solid '+COULEUR,borderRadius:'16px',padding:'16px',boxShadow:'0 -8px 24px rgba(0,0,0,0.08)',marginTop:'16px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}>
-                  <span style={{fontWeight:700,fontSize:'13px'}}>{selectionsActives.length} sélection(s) {selectionsActives.length < PARIS_CONSTANTES.SELECTIONS_MIN ? '(min. ' + PARIS_CONSTANTES.SELECTIONS_MIN + ')' : '✓'}</span>
+                  <span style={{fontWeight:700,fontSize:'13px'}}>{selectionsActives.length} sélection(s)</span>
                   <span style={{fontWeight:900,color:COULEUR}}>Cote totale : {coteTotale.toFixed(2)}</span>
                 </div>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px'}}>Seuil qualifiant actuel : cote ≥ {seuilActuel === Infinity ? '—' : seuilActuel.toFixed(2)} par sélection</p>
-                {!toutesQualifiantes && selectionsActives.length >= PARIS_CONSTANTES.SELECTIONS_MIN && <p style={{fontSize:'11px',color:'#f59e0b',margin:'0 0 8px'}}>⚠️ Au moins une cote est sous ce seuil — cette mise ne comptera pas dans l'objectif de retrait.</p>}
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px'}}>{descriptionPaliers()}</p>
+                {selectionsActives.length > 0 && !toutesQualifiantes && <p style={{fontSize:'11px',color:'#f59e0b',margin:'0 0 8px'}}>⚠️ {palierActuel ? ('Cote totale insuffisante pour ce palier (il faut ≥ ' + palierActuel.coteTotaleExigee + ')') : 'Une sélection a une cote sous 1.20'} — cette mise ne comptera pas dans l\'objectif de retrait.</p>}
                 <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
                   <input type="number" min={PARIS_CONSTANTES.MISE_MIN} value={mise} onChange={e => setMise(e.target.value)} placeholder={'Mise (min ' + PARIS_CONSTANTES.MISE_MIN + ' G)'} style={{flex:1,padding:'12px',borderRadius:'10px',border:'1px solid #e5e7eb',fontSize:'14px'}}/>
                   <div style={{padding:'12px 14px',background:'#faf5ff',borderRadius:'10px',fontWeight:900,color:COULEUR,fontSize:'14px',whiteSpace:'nowrap'}}>≈ {gainPotentiel || 0} G</div>
                 </div>
-                <button onClick={validerCombine} disabled={envoiEnCours} style={{width:'100%',padding:'14px',background:COULEUR,color:'#fff',border:'none',borderRadius:'12px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{envoiEnCours ? '...' : '🎲 Valider le combiné'}</button>
+                {erreurPari && <div style={{padding:'10px 12px',borderRadius:'10px',marginBottom:'10px',fontWeight:600,fontSize:'12px',background:'#fef2f2',color:'#ef4444'}}>{erreurPari}</div>}
+                <button onClick={validerCombine} disabled={envoiEnCours} style={{width:'100%',padding:'14px',background:COULEUR,color:'#fff',border:'none',borderRadius:'12px',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>{envoiEnCours ? '...' : '🎲 Parier'}</button>
               </div>
             )}
           </>

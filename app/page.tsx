@@ -211,20 +211,25 @@ export default function Home() {
     const m = matchs[indexDefile % matchs.length];
     const aCotes = !!(m.cote_1 && m.cote_2);
     return (
-      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'28px 0',overflow:'hidden',position:'relative'}}>
+      <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'32px 0',overflow:'hidden',position:'relative'}}>
         <a key={m.id} href={aCotes ? '/paris' : '/matchs'} style={{
-          display:'flex', alignItems:'center', justifyContent:'center', gap:'20px', textDecoration:'none',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:'16px', textDecoration:'none',
           flexWrap:'wrap', padding:'0 20px'
         }}>
-          <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(20px,3.5vw,30px)',textAlign:'center'}}>{m.equipe1} <span style={{opacity:0.6,fontWeight:400}}>vs</span> {m.equipe2}</span>
           {aCotes ? (
-            <span style={{display:'flex',gap:'10px',flexWrap:'wrap',justifyContent:'center'}}>
-              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>1: {m.cote_1!.toFixed(2)}</span>
-              {m.cote_x && <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>X: {m.cote_x.toFixed(2)}</span>}
-              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(15px,2vw,20px)',padding:'6px 16px',borderRadius:'8px'}}>2: {m.cote_2!.toFixed(2)}</span>
-            </span>
+            <>
+              <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(20px,3.5vw,32px)'}}>{m.equipe1}</span>
+              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(18px,2.5vw,26px)',padding:'8px 20px',borderRadius:'10px'}}>{m.cote_1!.toFixed(2)}</span>
+              <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(18px,3vw,26px)',opacity:0.85}}>Nul</span>
+              {m.cote_x && <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(18px,2.5vw,26px)',padding:'8px 20px',borderRadius:'10px'}}>{m.cote_x.toFixed(2)}</span>}
+              <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(20px,3.5vw,32px)'}}>{m.equipe2}</span>
+              <span style={{background:'#16a34a',color:'#fff',fontWeight:900,fontSize:'clamp(18px,2.5vw,26px)',padding:'8px 20px',borderRadius:'10px'}}>{m.cote_2!.toFixed(2)}</span>
+            </>
           ) : (
-            <span style={{background:'#06b6d4',color:'#fff',fontWeight:900,fontSize:'clamp(14px,2vw,18px)',padding:'6px 18px',borderRadius:'999px'}}>🗳️ Voter</span>
+            <>
+              <span style={{color:'#fff',fontWeight:900,fontSize:'clamp(20px,3.5vw,32px)',textAlign:'center'}}>{m.equipe1} <span style={{opacity:0.6,fontWeight:400}}>vs</span> {m.equipe2}</span>
+              <span style={{background:'#06b6d4',color:'#fff',fontWeight:900,fontSize:'clamp(14px,2vw,18px)',padding:'6px 18px',borderRadius:'999px'}}>🗳️ Voter</span>
+            </>
           )}
         </a>
         <div style={{display:'flex',justifyContent:'center',gap:'6px',marginTop:'16px'}}>
@@ -275,7 +280,7 @@ export default function Home() {
           <a href="/concours" style={{textDecoration:'none',display:'block',marginBottom:'28px'}}>
             <div style={{background:'linear-gradient(135deg,#3d2c00,#7a5c00,#3d2c00)',borderRadius:'16px',padding:'20px 24px',border:'2px solid #ffd700',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}}>
               <div>
-                <div style={{display:'inline-block',background:'#ffd700',color:'#3d2c00',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'8px',textTransform:'uppercase'}}>🏆 Kiyès k ap bat? Kiyès k ap fè Gòl?</div>
+                <div style={{display:'inline-block',background:'#ffd700',color:'#16a34a',fontSize:'11px',fontWeight:900,padding:'4px 14px',borderRadius:'999px',marginBottom:'8px',textTransform:'uppercase'}}>🏆 Kiyès k ap bat? Kiyès k ap fè Gòl?</div>
                 <h2 style={{color:'#ffd700',fontWeight:900,fontSize:'20px',margin:'0 0 4px'}}>{concours.titre}</h2>
                 {concours.lots && <p style={{color:'rgba(255,255,255,0.85)',fontSize:'13px',margin:0}}>🎁 {concours.lots}</p>}
               </div>

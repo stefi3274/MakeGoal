@@ -22,24 +22,34 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // ============================================================
 
 const SOLDE_INITIAL = 1000;
-const SELECTIONS_MIN = 10;
+const SELECTIONS_MIN = 2; // plancher structurel : un "combiné" suppose au moins 2 sélections
 const MISE_MIN = 100;
 const OBJECTIF_MISE_CUMULEE = 25000;
 const MONTANT_RETRAIT = 1000;
 
-// Paliers de cote minimum qualifiante, du plus exigeant au plus large.
-// Le premier palier dont le seuil de sélections est atteint s'applique.
-const PALIERS_COTE_MIN = [
-  { minSelections: 40, coteMin: 1.2 },
-  { minSelections: 20, coteMin: 1.5 },
-  { minSelections: 10, coteMin: 2.0 }
+// Qualification basée sur la cote la PLUS BASSE utilisée dans le combiné,
+// et sur la cote TOTALE atteinte. Plus les cotes utilisées sont hautes
+// (donc plus risquées), moins la cote totale exigée est grande.
+//   Toutes les sélections ≥ 2.00 → cote totale exigée ≥ 20
+//   Toutes les sélections ≥ 1.50 → cote totale exigée ≥ 50
+//   Toutes les sélections ≥ 1.20 → cote totale exigée ≥ 70
+//   Une seule sélection sous 1.20 → jamais qualifiant
+export type PalierCote = { coteMinParSelection: number; coteTotaleExigee: number };
+const PALIERS_COTE: PalierCote[] = [
+  { coteMinParSelection: 2.0, coteTotaleExigee: 20 },
+  { coteMinParSelection: 1.5, coteTotaleExigee: 50 },
+  { coteMinParSelection: 1.2, coteTotaleExigee: 70 }
 ];
 
-export function coteMinRequise(nbSelections: number): number {
-  for (const p of PALIERS_COTE_MIN) {
-    if (nbSelections >= p.minSelections) return p.coteMin;
-  }
-  return Infinity; // en dessous de 10 sélections : jamais qualifiant (de toute façon refusé avant)
+// Renvoie le palier applicable (le plus favorable que respectent TOUTES les
+// sélections), à partir de la cote la plus basse du combiné. null si une
+// sélection est sous 1.20 (aucun palier ne s'applique).
+export function palierPourCoteMin(coteMinParSelection: number): PalierCote | null {
+  return PALIERS_COTE.find(p => coteMinParSelection >= p.coteMinParSelection) || null;
+}
+
+export function descriptionPaliers(): string {
+  return PALIERS_COTE.map(p => 'cotes ≥ ' + p.coteMinParSelection.toFixed(2) + ' → cote totale ≥ ' + p.coteTotaleExigee).join(' · ');
 }
 
 export type Pronostic = '1' | 'X' | '2' | '1X' | 'X2' | '12' | 'plus2.5' | 'moins2.5';
@@ -101,8 +111,9 @@ export async function placerCombine(
 
   const coteTotale = selections.reduce((acc, s) => acc * s.cote, 1);
   const gainPotentiel = Math.round(mise * coteTotale * 100) / 100;
-  const seuil = coteMinRequise(selections.length);
-  const miseQualifiante = selections.every(s => s.cote >= seuil);
+  const coteMinDuCombine = Math.min(...selections.map(s => s.cote));
+  const palier = palierPourCoteMin(coteMinDuCombine);
+  const miseQualifiante = !!palier && coteTotale >= palier.coteTotaleExigee;
 
   const { data: combine, error } = await client.from('paris_combines').insert({
     user_id: userId, mise, cote_totale: coteTotale, gain_potentiel: gainPotentiel,
@@ -120,7 +131,7 @@ export async function placerCombine(
     .from('paris_soldes').update({ solde: solde.solde - mise }).eq('user_id', userId);
   if (erreurSolde) return { ok: false, erreur: erreurSolde.message };
 
-  return { ok: true, combineId: combine.id, coteTotale, gainPotentiel, miseQualifiante, seuilApplique: seuil };
+  return { ok: true, combineId: combine.id, coteTotale, gainPotentiel, miseQualifiante, palierApplique: palier };
 }
 
 // Détermine si une sélection est gagnante, à partir du résultat 1X2 réel
@@ -249,5 +260,5 @@ export async function octroyerBonusAdmin(userId: string, montant: number, client
 }
 
 export const PARIS_CONSTANTES = {
-  SOLDE_INITIAL, SELECTIONS_MIN, MISE_MIN, OBJECTIF_MISE_CUMULEE, MONTANT_RETRAIT, PALIERS_COTE_MIN
+  SOLDE_INITIAL, SELECTIONS_MIN, MISE_MIN, OBJECTIF_MISE_CUMULEE, MONTANT_RETRAIT, PALIERS_COTE
 };
