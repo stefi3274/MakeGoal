@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+import { initialiserSoldeParis } from '../../lib/paris';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 
@@ -74,6 +75,10 @@ function CompteContent() {
         // si vous activez la confirmation par email plus tard). Si la confirmation
         // par email est désactivée dans Supabase, la session existe déjà ici.
         await enregistrerParrainage();
+      }
+      if (data.user) {
+        // 5 000 Gourdes virtuelles de départ pour le système de paris
+        await initialiserSoldeParis(data.user.id);
       }
       setMessage('✅ Inscription réussie ! Vérifiez votre email pour confirmer votre compte.');
       setEmail(''); setPassword(''); setUsername('');
