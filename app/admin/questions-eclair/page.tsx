@@ -97,7 +97,7 @@ export default function AdminQuestionsEclair() {
     const data = await res.json();
     setTirageEnCours('');
     if (!res.ok) { setMessage('❌ ' + (data.error || 'Erreur.')); return; }
-    setMessage('✅ Tirage effectué : ' + data.nombreGagnants + ' gagnant(s) ont reçu 30 points.');
+    setMessage('✅ Tirage effectué : ' + data.nombreGagnants + ' gagnant(s) ont reçu 15 points.');
     chargerQuestions();
   };
 
@@ -192,7 +192,7 @@ export default function AdminQuestionsEclair() {
                     ))}
                   </div>
                   {q.statut !== 'tiree' && (
-                    <button onClick={() => declencherTirage(q.id)} disabled={tirageEnCours===q.id} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:'#eab308',color:'#111'}}>{tirageEnCours===q.id ? '⏳...' : '🎲 Clôturer et tirer au sort (10 gagnants, +30 pts)'}</button>
+                    <button onClick={() => declencherTirage(q.id)} disabled={tirageEnCours===q.id} style={{padding:'8px 16px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:'#eab308',color:'#111'}}>{tirageEnCours===q.id ? '⏳...' : '🎲 Clôturer et tirer au sort (10 gagnants, +15 pts)'}</button>
                   )}
                 </div>
               );

@@ -140,7 +140,7 @@ export default function QuestionEclairPage() {
 
       <div style={{background:'linear-gradient(135deg,#78350f,'+COULEUR+')',padding:'40px 24px',textAlign:'center'}}>
         <h1 style={{color:'#fff',fontWeight:900,fontSize:'clamp(26px,5vw,40px)',margin:'0 0 8px'}}>⚡ Question Éclair</h1>
-        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'16px',margin:0}}>Répondez juste avant la fin du chrono : 10 gagnants tirés au sort, +30 points chacun.</p>
+        <p style={{color:'rgba(255,255,255,0.9)',fontSize:'16px',margin:0}}>Répondez juste avant la fin du chrono : 10 gagnants tirés au sort, +15 points chacun.</p>
       </div>
 
       <main style={{maxWidth:'700px',margin:'0 auto',padding:'32px 16px'}}>
@@ -183,7 +183,7 @@ export default function QuestionEclairPage() {
                   <p style={{fontWeight:900,fontSize:'14px',color:'#065f46',margin:'0 0 8px'}}>✅ Bonne réponse : {resultat.bonneReponse}</p>
                   {resultat.gagnants.length > 0 ? (
                     <>
-                      <p style={{fontSize:'12px',color:'#065f46',fontWeight:700,margin:'0 0 6px'}}>🎉 Gagnants du tirage (+30 points) :</p>
+                      <p style={{fontSize:'12px',color:'#065f46',fontWeight:700,margin:'0 0 6px'}}>🎉 Gagnants du tirage (+15 points) :</p>
                       <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
                         {resultat.gagnants.map((nom, i) => (
                           <span key={i} style={{fontSize:'12px',fontWeight:700,background:'#065f46',color:'#fff',padding:'4px 10px',borderRadius:'999px'}}>🏆 {nom}</span>

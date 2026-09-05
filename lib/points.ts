@@ -228,7 +228,7 @@ export async function demanderConversion(userId: string, pointsAConvertir: numbe
 // ------------------------------------------------------------
 // Question Éclair — tirage automatique
 // Choisit jusqu'à 10 gagnants au hasard PARMI LES BONNES RÉPONSES
-// uniquement, +30 points chacun.
+// uniquement, +15 points chacun.
 // ------------------------------------------------------------
 // ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role) : crédite les
 // gagnants — ne JAMAIS appeler depuis le navigateur.
@@ -245,7 +245,7 @@ export async function tirerGagnantsQuestionEclair(questionId: string, client: Su
   const gagnants = melange.slice(0, 10);
 
   for (const g of gagnants) {
-    await enregistrerMouvement(g.user_id, 30, 'question_eclair_gagnant', 'question_eclair', questionId, client);
+    await enregistrerMouvement(g.user_id, 15, 'question_eclair_gagnant', 'question_eclair', questionId, client);
     await client.from('reponses_eclair').update({ gagnant: true }).eq('id', g.id);
   }
 
