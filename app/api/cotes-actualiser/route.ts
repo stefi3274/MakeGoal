@@ -16,17 +16,45 @@ const CLES_SPORT: Record<string, string> = {
 };
 
 // Retire accents, préfixes de club et espaces superflus pour comparer deux noms d'équipe
-const normaliser = (nom: string) => nom
-  .toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  .replace(/\b(fc|cf|cd|ac|as|rc|club|real|deportivo|calcio|united|city)\b/g, '')
-  .replace(/[^a-z0-9]/g, '')
-  .trim();
+// Traductions courantes anglais/portugais/allemand ↔ français des noms de villes,
+// pour que "Athens" (API) et "Athènes" (chez toi) soient reconnus comme identiques.
+const TRADUCTIONS: [RegExp, string][] = [
+  [/\bathens\b/g, 'athenes'],
+  [/\bbrugge\b/g, 'bruges'],
+  [/\bbarcelona\b/g, 'barcelone'],
+  [/\bpraha\b/g, 'prague'],
+  [/\bmunchen\b/g, 'munich'],
+  [/\bmunhen\b/g, 'munich'],
+  [/\blisboa\b/g, 'lisbonne'],
+  [/\bwarszawa\b/g, 'varsovie'],
+  [/\bmoscow\b|\bmoskva\b/g, 'moscou'],
+  [/\bmilano\b/g, 'milan'],
+  [/\broma\b/g, 'rome'],
+  [/\bnapoli\b/g, 'naples'],
+  [/\bathletic bilbao\b/g, 'athletic'],
+];
+
+// Paires de noms qui ne partagent aucune racine commune (surnoms de clubs
+// différents d'une langue à l'autre) : ajoutées ici au cas par cas.
+const ALIAS: [string, string][] = [
+  ['sportinglisbon', 'sportingcp'],
+  ['internazionale', 'internazionalemilan'],
+];
+
+const normaliser = (nom: string) => {
+  let n = nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [motif, remplacement] of TRADUCTIONS) n = n.replace(motif, remplacement);
+  return n
+    .replace(/\b(fc|cf|cd|ac|as|rc|club|real|deportivo|calcio|united|city)\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};
 
 const correspondent = (nomLocal: string, nomApi: string) => {
   const a = normaliser(nomLocal), b = normaliser(nomApi);
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  return ALIAS.some(([x, y]) => (a === x && b === y) || (a === y && b === x));
 };
 
 export async function POST(request: Request) {
