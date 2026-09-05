@@ -150,7 +150,7 @@ export default function ParisPage() {
   const LIBELLES_STATUT: Record<string, { texte: string; couleur: string }> = {
     en_attente: { texte: '⏳ En attente', couleur: '#f59e0b' },
     gagne: { texte: '✅ Gagné', couleur: '#16a34a' },
-    rembourse: { texte: '↩️ Remboursé', couleur: '#6366f1' },
+    rembourse: { texte: '↩️ Remboursé', couleur: '#eab308' },
     perdu: { texte: '❌ Perdu', couleur: '#dc2626' }
   };
 

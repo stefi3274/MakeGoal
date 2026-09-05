@@ -16,10 +16,7 @@ export default function BadgeFlottant({ href, emoji, texte, position, couleurDeb
   if (masquerSur && pathname === masquerSur) return null;
 
   return (
-    <div style={{
-      position: 'fixed', bottom: '20px', [position]: '20px', zIndex: 50,
-      animation: 'rebondBadge 2s ease-in-out infinite'
-    } as React.CSSProperties}>
+    <div className={'badge-flottant badge-' + position}>
       <a
         href={href}
         style={{
@@ -27,7 +24,7 @@ export default function BadgeFlottant({ href, emoji, texte, position, couleurDeb
           background: 'linear-gradient(135deg,' + couleurDebut + ',' + couleurFin + ')', color: '#fff',
           padding: '14px 20px', borderRadius: '999px', fontWeight: 900, fontSize: '14px',
           animation: 'lueurBadge 2s ease-in-out infinite',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)'
+          boxShadow: '0 4px 20px rgba(0,0,0,0.25)', whiteSpace: 'nowrap'
         }}
       >
         <span style={{ fontSize: '20px' }}>{emoji}</span>

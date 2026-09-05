@@ -6,6 +6,8 @@ import { useAuth } from '../../lib/auth';
 import { MATCHES } from '../../data/matches';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { soldePoints } from '../../lib/points';
+import { soldeParis, initialiserSoldeParis } from '../../lib/paris';
 
 const VIOLET = '#bf00ff';
 
@@ -22,6 +24,8 @@ export default function Profil() {
   const [favEquipes, setFavEquipes] = useState<FavEquipe[]>([]);
   const [favMatchs, setFavMatchs] = useState<FavMatch[]>([]);
   const [chargement, setChargement] = useState(true);
+  const [pointsSolde, setPointsSolde] = useState(0);
+  const [parisSolde, setParisSolde] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) { router.push('/compte'); return; }
@@ -36,6 +40,13 @@ export default function Profil() {
     if (equipes) setFavEquipes(equipes);
     const { data: matchs } = await supabase.from('favoris_matchs').select('*').eq('user_id', user.id);
     if (matchs) setFavMatchs(matchs);
+
+    const pts = await soldePoints(user.id);
+    setPointsSolde(pts);
+    let ps = await soldeParis(user.id);
+    if (!ps) { await initialiserSoldeParis(user.id); ps = await soldeParis(user.id); }
+    setParisSolde(ps?.solde ?? 0);
+
     setChargement(false);
   };
 
@@ -108,6 +119,17 @@ export default function Profil() {
             <p style={{color:'#6b7280',fontSize:'14px',margin:0}}>{user.email}</p>
           </div>
           <button onClick={deconnexion} style={{padding:'10px 20px',borderRadius:'999px',border:'2px solid #ef4444',background:'#fff',color:'#ef4444',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Déconnexion</button>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'40px'}}>
+          <a href="/mes-points" style={{textDecoration:'none',background:'linear-gradient(135deg,#7c1fd9,'+VIOLET+')',borderRadius:'18px',padding:'20px',display:'block'}}>
+            <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',fontWeight:700,textTransform:'uppercase',margin:'0 0 6px'}}>🎯 Points</p>
+            <p style={{color:'#fff',fontWeight:900,fontSize:'32px',margin:0}}>{pointsSolde.toLocaleString('fr-FR')}</p>
+          </a>
+          <a href="/paris" style={{textDecoration:'none',background:'linear-gradient(135deg,#0e7490,#06b6d4)',borderRadius:'18px',padding:'20px',display:'block'}}>
+            <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',fontWeight:700,textTransform:'uppercase',margin:'0 0 6px'}}>🎲 Paris (Gourdes)</p>
+            <p style={{color:'#fff',fontWeight:900,fontSize:'32px',margin:0}}>{parisSolde === null ? '…' : parisSolde.toLocaleString('fr-FR')}</p>
+          </a>
         </div>
 
         <section style={{marginBottom:'40px'}}>
