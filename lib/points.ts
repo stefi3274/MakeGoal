@@ -55,13 +55,12 @@ async function enregistrerMouvement(
 ): Promise<{ ok: boolean; nouveauSolde?: number; erreur?: string }> {
   if (!userId || montant === 0) return { ok: false, erreur: 'Paramètres invalides' };
 
-  const { data: soldeActuel } = await client
-    .from('points_soldes').select('solde, total_gagne, total_perdu').eq('user_id', userId).single();
-
-  const solde = soldeActuel?.solde || 0;
-  const totalGagne = soldeActuel?.total_gagne || 0;
-  const totalPerdu = soldeActuel?.total_perdu || 0;
-  const nouveauSolde = solde + montant;
+  // Ajustement ATOMIQUE du solde (indivisible côté base de données) : deux
+  // mouvements simultanés sur le même compte ne peuvent plus s'écraser l'un
+  // l'autre ni faire perdre un crédit.
+  const { data: nouveauSolde, error: erreurSolde } = await client
+    .rpc('ajuster_points', { p_user_id: userId, p_montant: montant });
+  if (erreurSolde) return { ok: false, erreur: erreurSolde.message };
 
   const { error: erreurTransaction } = await client.from('points_transactions').insert({
     user_id: userId, montant, raison, libelle: LIBELLES[raison],
@@ -69,15 +68,6 @@ async function enregistrerMouvement(
     solde_apres: nouveauSolde
   });
   if (erreurTransaction) return { ok: false, erreur: erreurTransaction.message };
-
-  const { error: erreurSolde } = await client.from('points_soldes').upsert({
-    user_id: userId,
-    solde: nouveauSolde,
-    total_gagne: montant > 0 ? totalGagne + montant : totalGagne,
-    total_perdu: montant < 0 ? totalPerdu + Math.abs(montant) : totalPerdu,
-    updated_at: new Date().toISOString()
-  });
-  if (erreurSolde) return { ok: false, erreur: erreurSolde.message };
 
   return { ok: true, nouveauSolde };
 }
@@ -151,12 +141,19 @@ async function propagerChaineParrainage(userId: string, raison: RaisonPoints, re
 
 // Appelé quand A envoie une invitation à B (avant que B ne s'inscrive)
 // SANS RISQUE côté client : ne crédite QUE le compte de l'appelant lui-même.
-export async function parrainageInviteEnvoyee(parrainId: string, filleulEmail: string) {
-  const { data: invitation, error } = await supabase.from('parrainages').insert({
+export async function parrainageInviteEnvoyee(parrainId: string, filleulEmail: string, client: SupabaseClient = supabase) {
+  // Anti-spam : une seule invitation créditée par email envoyé, par parrain
+  const { data: dejaEnvoyee } = await client
+    .from('parrainages').select('id').eq('parrain_id', parrainId).eq('filleul_email', filleulEmail).maybeSingle();
+  if (dejaEnvoyee) {
+    return { ok: false, erreur: 'Une invitation a déjà été envoyée à cet email.' };
+  }
+
+  const { data: invitation, error } = await client.from('parrainages').insert({
     parrain_id: parrainId, filleul_email: filleulEmail, statut: 'invite'
   }).select().single();
   if (error) return { ok: false, erreur: error.message };
-  await enregistrerMouvement(parrainId, 10, 'parrainage_invite', 'parrainage', invitation.id);
+  await enregistrerMouvement(parrainId, 10, 'parrainage_invite', 'parrainage', invitation.id, client);
   return { ok: true, invitationId: invitation.id };
 }
 

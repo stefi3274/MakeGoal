@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { demanderRetraitParis } from '../../../lib/paris';
-import { limiteRetrait, verifierLimite } from '../../../lib/rateLimit';
+import { parrainageInviteEnvoyee } from '../../../lib/points';
+import { limiteParrainage, verifierLimite } from '../../../lib/rateLimit';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -19,12 +19,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Session invalide' }, { status: 401 });
   }
 
-  // Toujours le compte authentifié lui-même, jamais un id fourni par le client
-  const limiteDepassee = await verifierLimite(limiteRetrait, userData.user.id);
+  const { email } = await request.json();
+  if (!email || typeof email !== 'string') {
+    return Response.json({ error: 'Email manquant' }, { status: 400 });
+  }
+
+  const limiteDepassee = await verifierLimite(limiteParrainage, userData.user.id);
   if (limiteDepassee) return limiteDepassee;
 
-  const resultat = await demanderRetraitParis(userData.user.id, supabaseAdmin);
+  const resultat = await parrainageInviteEnvoyee(userData.user.id, email.trim().toLowerCase(), supabaseAdmin);
   if (!resultat.ok) return Response.json({ error: resultat.erreur }, { status: 400 });
 
-  return Response.json({ success: true, montant: resultat.montant });
+  return Response.json({ success: true, invitationId: resultat.invitationId });
 }

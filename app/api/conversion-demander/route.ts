@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { demanderConversion } from '../../../lib/points';
+import { limiteConversion, verifierLimite } from '../../../lib/rateLimit';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -21,6 +22,9 @@ export async function POST(request: Request) {
   // On ne fait jamais confiance à un userId envoyé par le client : c'est
   // toujours le compte authentifié par son propre token qui est débité.
   const userId = userData.user.id;
+
+  const limiteDepassee = await verifierLimite(limiteConversion, userId);
+  if (limiteDepassee) return limiteDepassee;
 
   const { points } = await request.json();
   const pointsAConvertir = parseInt(points);

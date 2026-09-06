@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { limiteCotes, verifierLimite } from '../../../lib/rateLimit';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -74,6 +75,9 @@ export async function POST(request: Request) {
   if (!adminData) {
     return Response.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 });
   }
+
+  const limiteDepassee = await verifierLimite(limiteCotes, userData.user.id);
+  if (limiteDepassee) return limiteDepassee;
 
   if (!process.env.THE_ODDS_API_KEY) {
     return Response.json({ error: "La clé THE_ODDS_API_KEY n'est pas configurée sur le serveur." }, { status: 500 });

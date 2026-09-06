@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { soldePoints, historiquePoints, parrainageInviteEnvoyee } from '../../lib/points';
+import { soldePoints, historiquePoints } from '../../lib/points';
 
 const VIOLET = '#bf00ff';
 const SEUIL_CONVERSION = 10000;
@@ -52,9 +52,17 @@ export default function MesPoints() {
   const envoyerInvitation = async () => {
     if (!user || !emailFilleul.trim()) { setMessageInvite('❌ Entrez un email.'); return; }
     setEnvoiInvite(true); setMessageInvite('');
-    const resultat = await parrainageInviteEnvoyee(user.id, emailFilleul.trim().toLowerCase());
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setEnvoiInvite(false); setMessageInvite('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/parrainage-invite-envoyee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ email: emailFilleul.trim().toLowerCase() })
+    });
+    const resultat = await res.json();
     setEnvoiInvite(false);
-    if (!resultat.ok) { setMessageInvite('❌ ' + resultat.erreur); return; }
+    if (!res.ok) { setMessageInvite('❌ ' + (resultat.error || 'Erreur.')); return; }
     setMessageInvite('✅ Invitation enregistrée ! Vous avez reçu +10 points.');
     setEmailFilleul('');
     charger();

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { placerCombine, coteDoubleChance, Pronostic } from '../../../lib/paris';
+import { limiteParis, verifierLimite } from '../../../lib/rateLimit';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Session invalide' }, { status: 401 });
   }
   const userId = userData.user.id;
+
+  const limiteDepassee = await verifierLimite(limiteParis, userId);
+  if (limiteDepassee) return limiteDepassee;
 
   const { mise, selections } = await request.json();
   if (!mise || !Array.isArray(selections) || selections.length === 0) {
