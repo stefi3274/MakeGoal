@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { limiteCotes, verifierLimite } from '../../../lib/rateLimit';
+import { enregistrerAlerte } from '../../../lib/alertes';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
   const reponseOdds = await fetch(urlOdds);
   if (!reponseOdds.ok) {
     const texte = await reponseOdds.text();
+    await enregistrerAlerte(supabaseAdmin, 'cotes_actualiser', 'The Odds API a répondu ' + reponseOdds.status + ' pour ' + championnat + ' — ' + texte.slice(0, 200), 'erreur');
     return Response.json({ error: 'The Odds API a répondu : ' + reponseOdds.status + ' — ' + texte.slice(0, 200) }, { status: 502 });
   }
   const evenements: any[] = await reponseOdds.json();

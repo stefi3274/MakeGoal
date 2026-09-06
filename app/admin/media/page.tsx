@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
+import AdminAuth from '../../../components/AdminAuth';
+
 const VIOLET = '#bf00ff';
 
 
@@ -140,11 +142,7 @@ type Article = {
 };
 
 export default function AdminMedia() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [voirMdp, setVoirMdp] = useState(false);
   const [connecte, setConnecte] = useState(false);
-  const [erreurAuth, setErreurAuth] = useState('');
   const [articles, setArticles] = useState<Article[]>([]);
   const [message, setMessage] = useState('');
   const [vue, setVue] = useState<'liste' | 'editer'>('liste');
@@ -240,7 +238,7 @@ export default function AdminMedia() {
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
+  // (la vérification de session + 2FA est maintenant gérée par <AdminAuth />)
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
   useEffect(() => { if (connecte && (modePost === 'matchsjour' || modePost === 'match') && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
 
@@ -560,12 +558,6 @@ export default function AdminMedia() {
   const chargerArticles = async () => {
     const { data } = await supabase.from('articles').select('*').order('created_at', { ascending: false });
     if (data) setArticles(data);
-  };
-
-  const seConnecter = async () => {
-    setErreurAuth('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErreurAuth('Email ou mot de passe incorrect.'); else setConnecte(true);
   };
 
   const slugify = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
@@ -897,21 +889,7 @@ export default function AdminMedia() {
   const sectionStyle = {background:'#161616',border:'1px solid #2a2a2a',borderRadius:'14px',padding:'20px',marginBottom:'16px'};
 
   if (!connecte) {
-    return (
-      <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
-        <div style={{background:'#161616',padding:'40px',borderRadius:'20px',width:'100%',maxWidth:'380px',border:'1px solid #2a2a2a'}}>
-          <h1 style={{color:VIOLET,fontWeight:900,fontSize:'24px',marginBottom:'8px',textAlign:'center'}}>📰 Admin Média</h1>
-          <p style={{color:'#6b7280',fontSize:'13px',textAlign:'center',marginBottom:'24px'}}>Accès réservé</p>
-          {erreurAuth && <p style={{color:'#ef4444',fontSize:'13px',marginBottom:'12px',textAlign:'center'}}>{erreurAuth}</p>}
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{...inputStyle,marginBottom:'12px'}}/>
-          <div style={{position:'relative',marginBottom:'16px'}}>
-            <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,paddingRight:'44px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
-            <button type="button" onClick={() => setVoirMdp(v => !v)} style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px'}}>{voirMdp ? '🙈' : '👁️'}</button>
-          </div>
-          <button onClick={seConnecter} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'10px',border:'none',cursor:'pointer',fontSize:'15px'}}>Se connecter</button>
-        </div>
-      </div>
-    );
+    return <AdminAuth titre="📰 Admin Média" onAuthentifie={() => setConnecte(true)} />;
   }
 
   const btnChoix = (actif: boolean) => ({

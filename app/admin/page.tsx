@@ -1,27 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import AdminAuth from '../../components/AdminAuth';
 
 const VIOLET = '#bf00ff';
 const VIOLET_DEEP = '#7c1fd9';
 
 export default function AdminHub() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [voirMdp, setVoirMdp] = useState(false);
   const [connecte, setConnecte] = useState(false);
-  const [erreurAuth, setErreurAuth] = useState('');
   const [survole, setSurvole] = useState<number | null>(null);
   const [heure, setHeure] = useState(new Date());
 
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
   useEffect(() => { const t = setInterval(() => setHeure(new Date()), 60000); return () => clearInterval(t); }, []);
-
-  const seConnecter = async () => {
-    setErreurAuth('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErreurAuth('Email ou mot de passe incorrect.'); else setConnecte(true);
-  };
 
   const seDeconnecter = async () => { await supabase.auth.signOut(); setConnecte(false); };
 
@@ -35,22 +25,7 @@ export default function AdminHub() {
   const dateFormatee = heure.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   if (!connecte) {
-    return (
-      <div style={{minHeight:'100vh',background:'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(191,0,255,0.28), transparent), #08080b',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif',padding:'24px'}}>
-        <div style={{background:'rgba(20,20,24,0.9)',backdropFilter:'blur(20px)',padding:'44px 36px',borderRadius:'24px',width:'100%',maxWidth:'400px',border:'1px solid rgba(191,0,255,0.25)',boxShadow:'0 24px 70px rgba(191,0,255,0.15)'}}>
-          <div style={{width:'56px',height:'56px',borderRadius:'16px',background:'linear-gradient(135deg,'+VIOLET+','+VIOLET_DEEP+')',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px',margin:'0 auto 20px',boxShadow:'0 8px 24px rgba(191,0,255,0.4)'}}>🏆</div>
-          <h1 style={{color:'#fff',fontWeight:900,fontSize:'26px',marginBottom:'6px',textAlign:'center',letterSpacing:'-0.02em'}}>MakeGoal Admin</h1>
-          <p style={{color:'#8b8b93',fontSize:'13px',textAlign:'center',marginBottom:'30px'}}>Accès réservé à l'équipe</p>
-          {erreurAuth && <p style={{color:'#ff6b6b',fontSize:'13px',marginBottom:'14px',textAlign:'center',background:'rgba(239,68,68,0.1)',padding:'10px',borderRadius:'10px'}}>{erreurAuth}</p>}
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{width:'100%',padding:'14px 16px',borderRadius:'12px',border:'1px solid #2a2a30',background:'#1a1a1f',color:'#fff',fontSize:'14px',marginBottom:'12px',boxSizing:'border-box',outline:'none'}}/>
-          <div style={{position:'relative',marginBottom:'22px'}}>
-            <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{width:'100%',padding:'14px 44px 14px 16px',borderRadius:'12px',border:'1px solid #2a2a30',background:'#1a1a1f',color:'#fff',fontSize:'14px',boxSizing:'border-box',outline:'none'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
-            <button type="button" onClick={() => setVoirMdp(v => !v)} style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px',opacity:0.7}}>{voirMdp ? '🙈' : '👁️'}</button>
-          </div>
-          <button onClick={seConnecter} style={{width:'100%',padding:'15px',background:'linear-gradient(135deg,'+VIOLET+','+VIOLET_DEEP+')',color:'#fff',fontWeight:800,borderRadius:'12px',border:'none',cursor:'pointer',fontSize:'15px',boxShadow:'0 8px 24px rgba(191,0,255,0.35)'}}>Se connecter</button>
-        </div>
-      </div>
-    );
+    return <AdminAuth titre="MakeGoal Admin" onAuthentifie={() => setConnecte(true)} />;
   }
 
   const tuiles = [

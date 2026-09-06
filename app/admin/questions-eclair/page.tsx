@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
+import AdminAuth from '../../../components/AdminAuth';
+
 const VIOLET = '#bf00ff';
 
 type Question = {
@@ -17,11 +19,7 @@ type Question = {
 };
 
 export default function AdminQuestionsEclair() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [voirMdp, setVoirMdp] = useState(false);
   const [connecte, setConnecte] = useState(false);
-  const [erreurAuth, setErreurAuth] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [reponsesParQuestion, setReponsesParQuestion] = useState<Record<string, { total: number; correctes: number }>>({});
   const [message, setMessage] = useState('');
@@ -36,7 +34,7 @@ export default function AdminQuestionsEclair() {
   const [tirageEnCours, setTirageEnCours] = useState('');
 
   useEffect(() => { setSportForm(getSport()); }, []);
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => { if (data.session) setConnecte(true); }); }, []);
+  // (la vérification de session + 2FA est maintenant gérée par <AdminAuth />)
   useEffect(() => { if (connecte) chargerQuestions(); }, [connecte]);
 
   const chargerQuestions = async () => {
@@ -55,12 +53,6 @@ export default function AdminQuestionsEclair() {
         [questionId]: { total: data.length, correctes: data.filter(r => r.correcte).length }
       }));
     }
-  };
-
-  const seConnecter = async () => {
-    setErreurAuth('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErreurAuth('Email ou mot de passe incorrect.'); else setConnecte(true);
   };
 
   const modifierOption = (i: number, texte: string) => setOptions(prev => prev.map((o, idx) => idx === i ? { ...o, texte } : o));
@@ -105,21 +97,7 @@ export default function AdminQuestionsEclair() {
   const labelStyle = {fontSize:'12px',color:'#9ca3af',display:'block' as const,marginBottom:'6px'};
 
   if (!connecte) {
-    return (
-      <div style={{minHeight:'100vh',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
-        <div style={{background:'#1a1a1a',padding:'40px',borderRadius:'16px',width:'100%',maxWidth:'380px',border:'1px solid #333'}}>
-          <h1 style={{color:VIOLET,fontWeight:900,fontSize:'24px',marginBottom:'8px',textAlign:'center'}}>Admin Questions Éclair</h1>
-          <p style={{color:'#6b7280',fontSize:'13px',textAlign:'center',marginBottom:'24px'}}>Accès réservé</p>
-          {erreurAuth && <p style={{color:'#ef4444',fontSize:'13px',marginBottom:'12px',textAlign:'center'}}>{erreurAuth}</p>}
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{...inputStyle,marginBottom:'12px'}}/>
-          <div style={{position:'relative'}}>
-            <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,paddingRight:'44px',marginBottom:'16px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
-            <button type="button" onClick={() => setVoirMdp(v => !v)} style={{position:'absolute',right:'8px',top:'18px',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px'}}>{voirMdp ? '🙈' : '👁️'}</button>
-          </div>
-          <button onClick={seConnecter} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'8px',border:'none',cursor:'pointer',fontSize:'15px'}}>Se connecter</button>
-        </div>
-      </div>
-    );
+    return <AdminAuth titre="Admin Questions Éclair" onAuthentifie={() => setConnecte(true)} />;
   }
 
   return (

@@ -81,6 +81,13 @@ function CompteContent() {
       if (data.user) {
         // 5 000 Gourdes virtuelles de départ pour le système de paris
         await initialiserSoldeParis(data.user.id);
+
+        // Journal d'adresse IP à l'inscription (détection de comptes multiples)
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        if (token) {
+          fetch('/api/signup-log', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }).catch(() => {});
+        }
       }
       setMessage('✅ Inscription réussie ! Vérifiez votre email pour confirmer votre compte.');
       setEmail(''); setPassword(''); setUsername('');

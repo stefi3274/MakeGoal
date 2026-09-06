@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
+import SplashAccueil from '../components/SplashAccueil';
 import Footer from '../components/Footer';
 import { postVisible, matchVisible } from '../lib/postVisible';
 import { getSport, SPORT_COULEURS, Sport } from '../lib/sport';
@@ -253,6 +254,7 @@ export default function Home() {
 
   return (
     <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
+      <SplashAccueil />
       <Header />
 
       <DefileMatchsVote />
