@@ -14,6 +14,7 @@ type Props = {
 export default function BadgeFlottant({ href, emoji, texte, position, couleurDebut, couleurFin, masquerSur }: Props) {
   const pathname = usePathname();
   if (masquerSur && pathname === masquerSur) return null;
+  if (pathname?.startsWith('/admin')) return null; // jamais sur les pages admin
 
   return (
     <div className={'badge-flottant badge-' + position}>
