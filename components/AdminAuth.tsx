@@ -24,28 +24,49 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
 
   useEffect(() => { verifierSessionExistante(); }, []);
 
+  // Filet de sécurité ultime : si rien ne s'est passé après 6 secondes (requête
+  // qui ne répond jamais, ni succès ni erreur), on force l'écran de connexion
+  // au lieu de rester bloqué indéfiniment sur "Vérification…".
+  useEffect(() => {
+    const delai = setTimeout(() => {
+      setEtape(e => e === 'verification' ? 'motdepasse' : e);
+    }, 6000);
+    return () => clearTimeout(delai);
+  }, []);
+
   const verifierSessionExistante = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setEtape('motdepasse'); return; }
-    await verifierNiveauMfa();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setEtape('motdepasse'); return; }
+      await verifierNiveauMfa();
+    } catch {
+      // En cas de tout problème imprévu, on ne bloque jamais sur "Vérification…" :
+      // on retombe sur l'écran de connexion normal.
+      setEtape('motdepasse');
+    }
   };
 
   const verifierNiveauMfa = async () => {
-    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (error) { setEtape('motdepasse'); return; }
+    try {
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error) { setEtape('motdepasse'); return; }
 
-    if (data.currentLevel === 'aal2') {
-      onAuthentifie();
-      return;
+      if (data.currentLevel === 'aal2') {
+        onAuthentifie();
+        return;
+      }
+
+      if (data.nextLevel === 'aal2') {
+        const { data: facteurs, error: erreurFacteurs } = await supabase.auth.mfa.listFactors();
+        if (erreurFacteurs) { setEtape('motdepasse'); return; }
+        const facteur = facteurs?.totp?.[0];
+        if (facteur) { setFactorId(facteur.id); setEtape('code2fa'); return; }
+      }
+
+      await demarrerInscription2fa();
+    } catch {
+      setEtape('motdepasse');
     }
-
-    if (data.nextLevel === 'aal2') {
-      const { data: facteurs } = await supabase.auth.mfa.listFactors();
-      const facteur = facteurs?.totp?.[0];
-      if (facteur) { setFactorId(facteur.id); setEtape('code2fa'); return; }
-    }
-
-    await demarrerInscription2fa();
   };
 
   const seConnecter = async () => {
@@ -83,8 +104,9 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
 
   if (etape === 'verification') {
     return (
-      <div style={{minHeight:'100vh',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif'}}>
+      <div style={{minHeight:'100vh',background:'#111',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif',gap:'16px'}}>
         <p style={{color:'#6b7280'}}>Vérification…</p>
+        <button onClick={() => setEtape('motdepasse')} style={{background:'none',border:'none',color:'#6b7280',fontSize:'12px',textDecoration:'underline',cursor:'pointer'}}>Ça prend trop de temps ? Cliquez ici</button>
       </div>
     );
   }
