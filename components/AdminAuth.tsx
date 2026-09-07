@@ -19,6 +19,7 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
   const [code, setCode] = useState('');
   const [erreur, setErreur] = useState('');
   const [qrCode, setQrCode] = useState('');
+  const [secretManuel, setSecretManuel] = useState('');
   const [factorId, setFactorId] = useState('');
   const [enCours, setEnCours] = useState(false);
 
@@ -83,6 +84,7 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
     setEnCours(false);
     if (error) { setErreur(error.message); return; }
     setQrCode(data.totp.qr_code);
+    setSecretManuel(data.totp.secret);
     setFactorId(data.id);
     setEtape('inscription2fa');
   };
@@ -134,11 +136,17 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
       <div style={{minHeight:'100vh',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'sans-serif',padding:'20px'}}>
         <div style={{background:'#1a1a1a',padding:'32px',borderRadius:'16px',width:'100%',maxWidth:'400px',border:'1px solid #333',textAlign:'center'}}>
           <h1 style={{color:VIOLET,fontWeight:900,fontSize:'20px',marginBottom:'8px'}}>🔒 Activation obligatoire du 2FA</h1>
-          <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'20px'}}>Scannez ce code avec Google Authenticator, Authy, ou une app similaire.</p>
+          <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'20px'}}>Sur un autre appareil : scannez ce code. Sur le <strong>même téléphone</strong> : utilisez le code manuel juste en dessous.</p>
           {qrCode && (
-            <div style={{background:'#fff',padding:'12px',borderRadius:'12px',display:'inline-block',marginBottom:'20px'}}
+            <div style={{background:'#fff',padding:'12px',borderRadius:'12px',display:'inline-block',marginBottom:'16px'}}
               dangerouslySetInnerHTML={{ __html: qrCode }}
             />
+          )}
+          {secretManuel && (
+            <div style={{background:'#111',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'20px',textAlign:'left'}}>
+              <p style={{color:'#9ca3af',fontSize:'11px',fontWeight:700,margin:'0 0 8px'}}>📱 Sur ce même téléphone : ouvrez Google Authenticator → bouton "+" → "Saisir une clé de configuration" → collez ce code :</p>
+              <p style={{color:VIOLET,fontSize:'13px',fontFamily:'monospace',wordBreak:'break-all',margin:0,userSelect:'all'}}>{secretManuel}</p>
+            </div>
           )}
           {erreur && <p style={{color:'#ef4444',fontSize:'13px',marginBottom:'12px'}}>{erreur}</p>}
           <input value={code} onChange={e => setCode(e.target.value)} placeholder="Code à 6 chiffres" maxLength={6}
