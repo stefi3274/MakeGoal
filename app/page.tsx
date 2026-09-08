@@ -148,6 +148,7 @@ export default function Home() {
     const couleur = SPORT_COULEURS[sport].primaire;
     const optionsVote = sport === 'basketball' ? (['1','2'] as const) : (['1','X','2'] as const);
     return (
+    <>
     <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',padding:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
       <button onClick={() => setMatchsOuvert(v => !v)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: matchsOuvert ? '16px' : 0}}>
         <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
@@ -198,6 +199,27 @@ export default function Home() {
         </>
       )}
     </div>
+
+    <a href="/matchs" style={{display:'flex',alignItems:'center',gap:'12px',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#0891b2,#06b6d4)',borderRadius:'16px',padding:'18px 20px'}}>
+      <span style={{fontSize:'26px'}}>🗳️</span>
+      <div>
+        <p style={{color:'#fff',fontWeight:900,fontSize:'15px',margin:0}}>Votez sur les matchs du jour !</p>
+        <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',margin:'2px 0 0'}}>Donnez votre avis, gratuit et rapide</p>
+      </div>
+    </a>
+
+    <a href="/paris" style={{display:'block',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'16px',padding:'18px 20px',overflow:'hidden',position:'relative'}}>
+      <style>{`
+        @keyframes defileBadgeParis { 0%,85%,100% { transform:translateX(0); opacity:1; } 92% { transform:translateX(6px); opacity:0.7; } }
+        .badge-parye-lajan { animation: defileBadgeParis 15s ease-in-out infinite; }
+      `}</style>
+      <p style={{color:'#fff',fontWeight:900,fontSize:'16px',margin:'0 0 8px'}}>🎲 Parye San Lajan</p>
+      <div className="badge-parye-lajan" style={{display:'flex',alignItems:'center',gap:'10px'}}>
+        <span style={{fontSize:'20px'}}>💰</span>
+        <span style={{color:'#ffd700',fontWeight:800,fontSize:'13px'}}>Obtenez 1 000 Gourdes et Pariez !</span>
+      </div>
+    </a>
+    </>
   );};
 
   const [indexDefile, setIndexDefile] = useState(0);
