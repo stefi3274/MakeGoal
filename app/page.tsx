@@ -245,7 +245,7 @@ export default function Home() {
         </a>
         <div style={{display:'flex',justifyContent:'center',gap:'6px',marginTop:'20px'}}>
           {matchs.map((_, i) => (
-            <span key={i} style={{width:'6px',height:'6px',borderRadius:'999px',background: i===indexDefile%matchs.length ? '#fff' : 'rgba(255,255,255,0.35)'}}/>
+            <button key={i} onClick={() => setIndexDefile(i)} aria-label={'Match ' + (i+1)} style={{width: i===indexDefile%matchs.length ? '18px' : '6px',height:'6px',borderRadius:'999px',border:'none',cursor:'pointer',background: i===indexDefile%matchs.length ? '#fff' : 'rgba(255,255,255,0.35)',transition:'width 0.2s ease',padding:0}}/>
           ))}
         </div>
       </div>

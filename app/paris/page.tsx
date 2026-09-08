@@ -54,6 +54,7 @@ export default function ParisPage() {
       .eq('sport', sport)
       .is('resultat_reel', null)
       .not('cote_1', 'is', null)
+      .gt('date_match', new Date().toISOString()) // masque automatiquement les matchs déjà commencés
       .order('date_match', { ascending: true });
     if (m) setMatchs(m);
 

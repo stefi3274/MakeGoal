@@ -80,6 +80,7 @@ export default function ConcoursPage() {
         .from('concours_matchs')
         .select('*')
         .eq('concours_id', c.id)
+        .gt('date_match', new Date().toISOString()) // masque automatiquement les matchs déjà commencés
         .order('ordre', { ascending: true });
       if (m) {
         setMatchs(m);

@@ -93,14 +93,17 @@ export default function AdminMatchs() {
     return d.toISOString();
   };
 
-  // Convertit "AAAA-MM-JJ HH:MM" saisi dans le fuseau indiqué vers un ISO UTC. Gère automatiquement l'heure d'été/hiver.
-  const FUSEAUX = { Haiti: 'America/Port-au-Prince', Europe: 'Europe/Madrid' };
+  // Convertit "AAAA-MM-JJ HH:MM" saisi dans le fuseau indiqué vers un ISO UTC.
+  // Haïti est à UTC-4 toute l'année (pas d'heure d'été) : décalage fixe et fiable.
+  // Europe continentale bascule UTC+2 (été, fin mars à fin octobre) / UTC+1 (hiver).
   const texteVersUTC = (s: string, fuseau: 'Haiti' | 'Europe' = 'Haiti') => {
     const iso = s.trim().replace(' ', 'T');
-    const naive = new Date(iso + ':00Z');
-    const local = new Date(naive.toLocaleString('en-US', { timeZone: FUSEAUX[fuseau] }));
-    const diff = naive.getTime() - local.getTime();
-    return new Date(naive.getTime() + diff).toISOString();
+    if (fuseau === 'Haiti') {
+      return new Date(iso + ':00-04:00').toISOString();
+    }
+    const mois = parseInt(iso.slice(5, 7), 10);
+    const offsetEurope = (mois >= 4 && mois <= 10) ? '+02:00' : '+01:00';
+    return new Date(iso + ':00' + offsetEurope).toISOString();
   };
 
   const importerLot = async () => {
