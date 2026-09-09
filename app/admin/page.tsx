@@ -34,6 +34,7 @@ export default function AdminHub() {
     { titre: 'Concours', desc: 'Concours multi-matchs, lots et tirages', emoji: '🏆', href: '/admin/concours', couleur: '#f59e0b', couleur2: '#fbbf24' },
     { titre: 'Articles & Média', desc: 'Posts, résultats, stats joueurs', emoji: '📰', href: '/admin/media', couleur: '#3b82f6', couleur2: '#60a5fa' },
     { titre: 'À propos', desc: 'Votre photo et votre présentation', emoji: '👤', href: '/admin/apropos', couleur: '#ec4899', couleur2: '#f472b6' },
+    { titre: 'Affiche Parye San Lajan', desc: 'Affiche telechargeable pour les reseaux', emoji: '🎲', href: '/admin/affiche-paris', couleur: VIOLET, couleur2: VIOLET_DEEP },
   ];
 
   return (
