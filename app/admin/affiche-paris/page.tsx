@@ -12,6 +12,28 @@ export default function AdminAfficheParis() {
   const [matchs, setMatchs] = useState<MatchLigne[]>([
     { id: 1, equipe1: '', equipe2: '' }
   ]);
+  const [vueLot, setVueLot] = useState(false);
+  const [texteLot, setTexteLot] = useState('');
+  const [messageLot, setMessageLot] = useState('');
+
+  const importerLot = () => {
+    const lignes = texteLot.split('\n').map(l => l.trim()).filter(Boolean);
+    const nouveauxMatchs: MatchLigne[] = [];
+    for (const ligne of lignes) {
+      const parties = ligne.split(' - ').map(p => p.trim());
+      if (parties.length !== 2 || !parties[0] || !parties[1]) continue;
+      nouveauxMatchs.push({ id: Date.now() + nouveauxMatchs.length, equipe1: parties[0], equipe2: parties[1] });
+    }
+    if (nouveauxMatchs.length === 0) {
+      setMessageLot('❌ Aucun match reconnu. Format attendu : Équipe1 - Équipe2 (un par ligne).');
+      return;
+    }
+    setMatchs(nouveauxMatchs.slice(0, 8));
+    setMessageLot('✅ ' + Math.min(nouveauxMatchs.length, 8) + ' match(s) importé(s)' + (nouveauxMatchs.length > 8 ? ' (limité à 8).' : '.'));
+    setTexteLot('');
+    setVueLot(false);
+  };
+
   const [telechargement, setTelechargement] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +50,24 @@ export default function AdminAfficheParis() {
   // Ajuste la taille du texte des matchs selon leur nombre, pour que
   // l'affiche reste lisible et équilibrée peu importe combien il y en a.
   const tailleMatch = matchsRemplis.length <= 2 ? 34 : matchsRemplis.length <= 4 ? 27 : matchsRemplis.length <= 6 ? 22 : 18;
+
   const espaceMatch = matchsRemplis.length <= 4 ? 16 : 10;
+
+  type TempsType = 'aucun' | 'aujourdhui' | 'demain' | 'weekend' | 'personnalise';
+  const [tempsType, setTempsType] = useState<TempsType>('aucun');
+  const [dateCustom, setDateCustom] = useState('');
+
+  const formatDateFr = (d: Date) => d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const texteTemps = (() => {
+    const maintenant = new Date();
+    if (tempsType === 'aujourdhui') return "Aujourd'hui · " + formatDateFr(maintenant);
+    if (tempsType === 'demain') { const d = new Date(maintenant); d.setDate(d.getDate() + 1); return 'Demain · ' + formatDateFr(d); }
+    if (tempsType === 'weekend') return 'Ce week-end';
+    if (tempsType === 'personnalise' && dateCustom) return formatDateFr(new Date(dateCustom + 'T12:00:00'));
+    return '';
+  })();
+
 
   const telecharger = async () => {
     if (!cardRef.current || matchsRemplis.length === 0) return;
@@ -62,6 +101,39 @@ export default function AdminAfficheParis() {
           <p style={{color:'#9ca3af',fontSize:'13px',marginBottom:'16px'}}>
             Cette affiche est uniquement téléchargeable — elle n'apparaît jamais sur le site. Ajoute les matchs à mettre en avant (1 à 8), puis télécharge l'image en 1080×1080 pour la publier toi-même sur les réseaux.
           </p>
+
+          <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'14px 16px',marginBottom:'16px'}}>
+            <p style={{color:'#9ca3af',fontSize:'11px',fontWeight:700,textTransform:'uppercase',margin:'0 0 8px'}}>Temps</p>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {(['aucun','aujourdhui','demain','weekend','personnalise'] as TempsType[]).map(t => (
+                <button key={t} onClick={() => setTempsType(t)} style={{
+                  padding:'7px 14px', borderRadius:'999px', fontSize:'12px', fontWeight:700, cursor:'pointer',
+                  border: tempsType===t ? '1px solid '+VIOLET : '1px solid #333',
+                  background: tempsType===t ? 'rgba(191,0,255,0.15)' : 'transparent',
+                  color: tempsType===t ? VIOLET : '#9ca3af'
+                }}>
+                  {t==='aucun'?'Aucune':t==='aujourdhui'?"Aujourd'hui":t==='demain'?'Demain':t==='weekend'?'Ce week-end':'Date précise'}
+                </button>
+              ))}
+            </div>
+            {tempsType === 'personnalise' && (
+              <input type="date" value={dateCustom} onChange={e => setDateCustom(e.target.value)} style={{marginTop:'10px',padding:'8px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'13px'}}/>
+            )}
+            {texteTemps && <p style={{color:'#fff',fontSize:'13px',fontWeight:700,marginTop:'10px'}}>Aperçu : {texteTemps}</p>}
+          </div>
+
+          <button onClick={() => setVueLot(v => !v)} style={{background:'none',border:'1px solid #333',color:VIOLET,padding:'8px 16px',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer',marginBottom:'16px'}}>
+            {vueLot ? '✕ Fermer le collage en lot' : '📋 Coller plusieurs matchs à la fois'}
+          </button>
+
+          {vueLot && (
+            <div style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:'12px',padding:'16px',marginBottom:'20px'}}>
+              <p style={{color:'#9ca3af',fontSize:'12px',marginBottom:'8px'}}>Format : une ligne par match, <code>Équipe1 - Équipe2</code></p>
+              <textarea value={texteLot} onChange={e => setTexteLot(e.target.value)} rows={6} placeholder={'Real Madrid - Barcelone\nPSG - Monaco\nBayern - Dortmund'} style={{width:'100%',padding:'10px',borderRadius:'8px',border:'1px solid #333',background:'#111',color:'#fff',fontSize:'13px',fontFamily:'monospace',boxSizing:'border-box',resize:'vertical'}}/>
+              {messageLot && <p style={{color:messageLot.includes('❌')?'#ef4444':'#10b981',fontSize:'12px',margin:'8px 0'}}>{messageLot}</p>}
+              <button onClick={importerLot} style={{marginTop:'8px',background:VIOLET,color:'#fff',border:'none',padding:'10px 20px',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer'}}>Importer ces matchs</button>
+            </div>
+          )}
 
           {matchs.map((m, i) => (
             <div key={m.id} style={{display:'flex',gap:'8px',marginBottom:'10px',alignItems:'center'}}>
@@ -99,9 +171,14 @@ export default function AdminAfficheParis() {
             <div style={{position:'absolute',top:'90px',left:0,right:0,textAlign:'center',padding:'0 40px'}}>
               <p style={{color:'#ffe58a',fontWeight:800,fontSize:'19px',margin:'0 0 4px'}}>OBTENEZ 1 000 GOURDES</p>
               <p style={{color:'#fff',fontWeight:900,fontSize:'22px',margin:0}}>et pariez sur :</p>
+              {texteTemps && (
+                <div style={{display:'inline-block',marginTop:'8px',background:'#ffd700',color:'#4b0e8f',fontWeight:800,fontSize:'13px',padding:'4px 16px',borderRadius:'999px',textTransform:'capitalize'}}>
+                  {texteTemps}
+                </div>
+              )}
             </div>
 
-            <div style={{position:'absolute',top:'175px',left:0,right:0,bottom:'150px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:espaceMatch+'px',padding:'0 36px'}}>
+            <div style={{position:'absolute',top: texteTemps ? '205px' : '175px',left:0,right:0,bottom:'150px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:espaceMatch+'px',padding:'0 36px'}}>
               {matchsRemplis.map((m, i) => (
                 <div key={m.id} style={{
                   background:'rgba(255,255,255,0.13)', border:'1.5px solid rgba(255,255,255,0.3)',
