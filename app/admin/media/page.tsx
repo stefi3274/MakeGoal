@@ -215,6 +215,23 @@ export default function AdminMedia() {
   const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', numero: '', valeurs: {} }]);
   const cartesJoueurRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [telechargementCarte, setTelechargementCarte] = useState<number | null>(null);
+  const carteComparaisonRef = useRef<HTMLDivElement | null>(null);
+  const [telechargementComparaison, setTelechargementComparaison] = useState(false);
+
+  const telechargerCarteComparaison = async () => {
+    if (!carteComparaisonRef.current) return;
+    setTelechargementComparaison(true);
+    try {
+      const canvas = await html2canvas(carteComparaisonRef.current, { scale: 2.5, backgroundColor: '#1a0033', useCORS: true });
+      const link = document.createElement('a');
+      link.download = 'makegoal-comparaison.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch {
+      alert('Erreur lors du téléchargement. Réessayez.');
+    }
+    setTelechargementComparaison(false);
+  };
 
   const telechargerCarteJoueur = async (i: number) => {
     const noeud = cartesJoueurRefs.current[i];
@@ -1355,7 +1372,7 @@ export default function AdminMedia() {
                       ))}
                     </div>
 
-                    {j.nom && (() => {
+                    {statsMode !== 'comparaison' && j.nom && (() => {
                       const couleurs = couleursClub(j.equipe);
                       const champsActifs = (sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET)
                         .filter(c => j.valeurs[c.cle]).slice(0, 4);
@@ -1394,6 +1411,68 @@ export default function AdminMedia() {
                     })()}
                   </div>
                 ))}
+
+                {statsMode === 'comparaison' && statsJoueurs.filter(j => j.nom).length >= 2 && (
+                  <div style={{marginTop:'8px',marginBottom:'16px'}}>
+                    <div ref={carteComparaisonRef} style={{
+                      width:'432px', height:'432px', display:'flex', overflow:'hidden', margin:'0 auto',
+                      fontFamily:'sans-serif', borderRadius:'12px', position:'relative'
+                    }}>
+                      {statsJoueurs.filter(j => j.nom).slice(0, 3).map((j, idx) => {
+                        const couleurs = couleursClub(j.equipe);
+                        const tousChamps = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
+                        const priorite = ['matchsJoues', 'buts', 'passesDec', 'points', 'rebonds'];
+                        const champsRemplis = tousChamps.filter(c => j.valeurs[c.cle]);
+                        const champsActifs = [
+                          ...priorite.map(cle => champsRemplis.find(c => c.cle === cle)).filter(Boolean),
+                          ...champsRemplis.filter(c => !priorite.includes(c.cle))
+                        ].slice(0, 3) as { cle: string; label: string }[];
+                        const couleurStat = (cle: string) => {
+                          if (cle === 'buts' || cle === 'points') return '#e0aaff';
+                          if (cle === 'matchsJoues') return '#ffffff';
+                          if (cle === 'passesDec') return '#5eead4';
+                          return '#ffd700';
+                        };
+                        return (
+                          <div key={idx} style={{
+                            flex: 1, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column',
+                            background:'linear-gradient(165deg, '+couleurs.primaire+' 0%, '+couleurs.secondaire+' 100%)',
+                            borderLeft: idx > 0 ? '2px solid rgba(255,255,255,0.25)' : 'none'
+                          }}>
+                            <div style={{padding:'42px 10px 10px',textAlign:'center'}}>
+                              {j.numero && (
+                                <div style={{width:'32px',height:'32px',borderRadius:'999px',background:'rgba(255,255,255,0.22)',border:'1.5px solid rgba(255,255,255,0.5)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}>
+                                  <span style={{color:'#fff',fontWeight:900,fontSize:'13px'}}>{j.numero}</span>
+                                </div>
+                              )}
+                              <p style={{color:'#fff',fontWeight:900,fontSize:'17px',margin:'0 0 1px',lineHeight:1.2}}>{j.nom}</p>
+                              <p style={{color:'rgba(255,255,255,0.75)',fontWeight:700,fontSize:'10px',margin:0,letterSpacing:'0.02em'}}>{j.equipe}</p>
+                            </div>
+                            <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:'12px',padding:'0 12px 18px'}}>
+                              {champsActifs.map(c => (
+                                <div key={c.cle} style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:'14px',padding:'10px 20px',minWidth:'100px'}}>
+                                  <p style={{color:couleurStat(c.cle),fontWeight:900,fontSize:'32px',margin:0,lineHeight:1}}>{j.valeurs[c.cle]}</p>
+                                  <p style={{color:'rgba(255,255,255,0.85)',fontSize:'9px',margin:'4px 0 0',textTransform:'uppercase',fontWeight:700,letterSpacing:'0.03em'}}>{c.label}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{position:'absolute',top:'12px',left:'12px',display:'flex',alignItems:'center',gap:'6px',zIndex:2}}>
+                        <div style={{width:'19px',height:'19px',borderRadius:'6px',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px'}}>⚽</div>
+                        <span style={{color:'#fff',fontWeight:900,fontSize:'10px',textShadow:'0 1px 3px rgba(0,0,0,0.5)'}}>MakeGoal</span>
+                      </div>
+                    </div>
+                    <button type="button" onClick={telechargerCarteComparaison} disabled={telechargementComparaison} style={{display:'block',margin:'10px auto 0',padding:'8px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:VIOLET,color:'#fff'}}>
+                      {telechargementComparaison ? '⏳ Génération...' : '🖼️ Télécharger la comparaison (1080×1080)'}
+                    </button>
+                    {statsJoueurs.filter(j => j.nom).length > 3 && (
+                      <p style={{fontSize:'10px',color:'#f59e0b',textAlign:'center',marginTop:'6px'}}>⚠️ Seuls les 3 premiers joueurs apparaissent sur l'image (au-delà, c'est illisible).</p>
+                    )}
+                  </div>
+                )}
+
                 {statsMode === 'comparaison' && statsJoueurs.length < 6 && (
                   <button type="button" onClick={ajouterJoueurStats} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un joueur ({statsJoueurs.length}/6)</button>
                 )}
