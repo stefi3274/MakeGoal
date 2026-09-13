@@ -1435,7 +1435,7 @@ export default function AdminMedia() {
                         };
                         return (
                           <div key={idx} style={{
-                            flex: 1, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column',
+                            flex: 1, minWidth: 0, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column',
                             background:'linear-gradient(165deg, '+couleurs.primaire+' 0%, '+couleurs.secondaire+' 100%)',
                             borderLeft: idx > 0 ? '2px solid rgba(255,255,255,0.25)' : 'none'
                           }}>
