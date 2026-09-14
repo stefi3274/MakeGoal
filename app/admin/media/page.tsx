@@ -568,6 +568,21 @@ export default function AdminMedia() {
 
   const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
+  // Formulations courantes que les admins tapent naturellement, même si elles
+  // ne correspondent pas mot pour mot au libellé exact du champ.
+  const ALIAS_CHAMPS: Record<string, string> = {
+    'matchs': 'matchsJoues', 'match': 'matchsJoues', 'mj': 'matchsJoues', 'matchsjoue': 'matchsJoues',
+    'passe': 'passesDec', 'passes': 'passesDec', 'passesdecisives': 'passesDec', 'passedec': 'passesDec', 'pd': 'passesDec',
+    'but': 'buts', 'goal': 'buts', 'goals': 'buts',
+    'point': 'points', 'pts': 'points',
+    'rebond': 'rebonds',
+    'interception': 'interceptions',
+    'minute': 'minutes', 'min': 'minutes',
+    'carton': 'cartons',
+    'tir': 'tirs',
+  };
+
+
   const analyserStats = () => {
     const champs = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
     const lookup: Record<string, string> = {};
@@ -585,7 +600,8 @@ export default function AdminMedia() {
         if (mNumero) { numero = mNumero[1].trim(); return; }
         const m = l.match(/^(.+?)\s*[:\-]\s*(.+)$/);
         if (m) {
-          const cle = lookup[normaliserLabel(m[1])];
+          const norm = normaliserLabel(m[1]);
+          const cle = lookup[norm] || ALIAS_CHAMPS[norm] || champs.find(c => normaliserLabel(c.label).includes(norm) || norm.includes(normaliserLabel(c.label)))?.cle;
           if (cle) valeurs[cle] = m[2].trim();
         }
       });
