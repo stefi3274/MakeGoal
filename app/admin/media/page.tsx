@@ -1,9 +1,7 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
-import { couleursClub } from '../../../lib/clubCouleurs';
-import html2canvas from 'html2canvas';
 
 import AdminAuth from '../../../components/AdminAuth';
 
@@ -83,14 +81,15 @@ type MatchJour = {
 type But = { equipe: string; joueur: string; minute: string; passeur: string };
 type CarteEvenement = { joueur: string; minute: string };
 
-type StatJoueur = { nom: string; equipe: string; numero: string; valeurs: Record<string, string> };
+type StatJoueur = { nom: string; equipe: string; valeurs: Record<string, string> };
 type StatsPoste = 'champ' | 'gardien';
 const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
   champ: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
-    { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
-    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
-    { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
+    { cle: 'ballonsTouches', label: 'Ballons touchés' }, { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
+    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' },
+    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
+    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
   ],
   gardien: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
@@ -212,43 +211,7 @@ export default function AdminMedia() {
   const [statsMode, setStatsMode] = useState<'performance' | 'comparaison' | 'bilan'>('performance');
   const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
-  const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', numero: '', valeurs: {} }]);
-  const cartesJoueurRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [telechargementCarte, setTelechargementCarte] = useState<number | null>(null);
-  const carteComparaisonRef = useRef<HTMLDivElement | null>(null);
-  const [telechargementComparaison, setTelechargementComparaison] = useState(false);
-
-  const telechargerCarteComparaison = async () => {
-    if (!carteComparaisonRef.current) return;
-    setTelechargementComparaison(true);
-    try {
-      const canvas = await html2canvas(carteComparaisonRef.current, { scale: 2.5, backgroundColor: '#1a0033', useCORS: true });
-      const link = document.createElement('a');
-      link.download = 'makegoal-comparaison.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch {
-      alert('Erreur lors du téléchargement. Réessayez.');
-    }
-    setTelechargementComparaison(false);
-  };
-
-  const telechargerCarteJoueur = async (i: number) => {
-    const noeud = cartesJoueurRefs.current[i];
-    if (!noeud) return;
-    setTelechargementCarte(i);
-    try {
-      const canvas = await html2canvas(noeud, { scale: 4, backgroundColor: '#1a0033', useCORS: true });
-      const link = document.createElement('a');
-      const j = statsJoueurs[i];
-      link.download = 'makegoal-carte-' + (j.nom || 'joueur').toLowerCase().replace(/\s+/g, '-') + '.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch {
-      alert('Erreur lors du téléchargement. Réessayez.');
-    }
-    setTelechargementCarte(null);
-  };
+  const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
   const [statsTexteColle, setStatsTexteColle] = useState('');
 
   const [pEquipe, setPEquipe] = useState('');
@@ -461,9 +424,9 @@ export default function AdminMedia() {
     setter(prev => [...prev, { joueur: '', minute: '' }]);
   };
 
-  const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', numero: '', valeurs: {} }]); };
+  const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', valeurs: {} }]); };
   const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
-  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'numero', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
+  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
   const modifierAdversaire = (i: number, champ: keyof AdversaireParcours, val: string) => setPAdversaires(prev => prev.map((a, idx) => idx === i ? { ...a, [champ]: val } : a));
@@ -568,21 +531,6 @@ export default function AdminMedia() {
 
   const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
-  // Formulations courantes que les admins tapent naturellement, même si elles
-  // ne correspondent pas mot pour mot au libellé exact du champ.
-  const ALIAS_CHAMPS: Record<string, string> = {
-    'matchs': 'matchsJoues', 'match': 'matchsJoues', 'mj': 'matchsJoues', 'matchsjoue': 'matchsJoues',
-    'passe': 'passesDec', 'passes': 'passesDec', 'passesdecisives': 'passesDec', 'passedec': 'passesDec', 'pd': 'passesDec',
-    'but': 'buts', 'goal': 'buts', 'goals': 'buts',
-    'point': 'points', 'pts': 'points',
-    'rebond': 'rebonds',
-    'interception': 'interceptions',
-    'minute': 'minutes', 'min': 'minutes',
-    'carton': 'cartons',
-    'tir': 'tirs',
-  };
-
-
   const analyserStats = () => {
     const champs = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
     const lookup: Record<string, string> = {};
@@ -594,18 +542,14 @@ export default function AdminMedia() {
       const [nomLigne, ...reste] = lignes;
       const parts = (nomLigne || '').split('-').map(p => p.trim());
       const valeurs: Record<string, string> = {};
-      let numero = '';
       reste.forEach(l => {
-        const mNumero = l.match(/^num[ée]ro\s*[:\-]\s*(.+)$/i);
-        if (mNumero) { numero = mNumero[1].trim(); return; }
         const m = l.match(/^(.+?)\s*[:\-]\s*(.+)$/);
         if (m) {
-          const norm = normaliserLabel(m[1]);
-          const cle = lookup[norm] || ALIAS_CHAMPS[norm] || champs.find(c => normaliserLabel(c.label).includes(norm) || norm.includes(normaliserLabel(c.label)))?.cle;
+          const cle = lookup[normaliserLabel(m[1])];
           if (cle) valeurs[cle] = m[2].trim();
         }
       });
-      return { nom: parts[0] || '', equipe: parts[1] || '', numero, valeurs };
+      return { nom: parts[0] || '', equipe: parts[1] || '', valeurs };
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
@@ -674,7 +618,7 @@ export default function AdminMedia() {
     setSportForm(getSport());
     setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
-    setStatsJoueurs([{ nom: '', equipe: '', numero: '', valeurs: {} }]);
+    setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
     setStatsTexteColle('');
     setPEquipe(''); setPCompetition(''); setPPoule('');
     setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
@@ -744,7 +688,7 @@ export default function AdminMedia() {
       setStatsJoueurs(a.stats_joueur.joueurs);
     } else {
       setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
-      setStatsJoueurs([{ nom: '', equipe: '', numero: '', valeurs: {} }]);
+      setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
     }
     setVue('editer');
   };
@@ -1345,7 +1289,7 @@ export default function AdminMedia() {
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
                   <button type="button" onClick={() => setStatsMode('performance')} style={btnChoix(statsMode==='performance')}>👤 Performance</button>
-                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',numero:'',valeurs:{}},{nom:'',equipe:'',numero:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
+                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',valeurs:{}},{nom:'',equipe:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
                   <button type="button" onClick={() => setStatsMode('bilan')} style={btnChoix(statsMode==='bilan')}>📊 Bilan cumulé</button>
                 </div>
 
@@ -1374,7 +1318,6 @@ export default function AdminMedia() {
                     <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
                       <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.5}}/>
                       <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:1}}/>
-                      <input value={j.numero} onChange={e => modifierJoueurStats(i,'numero',e.target.value)} placeholder="N°" style={{...inputStyle,flex:0.5,textAlign:'center'}}/>
                       {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
@@ -1387,108 +1330,8 @@ export default function AdminMedia() {
                         </div>
                       ))}
                     </div>
-
-                    {statsMode !== 'comparaison' && j.nom && (() => {
-                      const couleurs = couleursClub(j.equipe);
-                      const champsActifs = (sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET)
-                        .filter(c => j.valeurs[c.cle]).slice(0, 4);
-                      return (
-                        <div style={{marginTop:'14px'}}>
-                          <div ref={el => { cartesJoueurRefs.current[i] = el; }} style={{
-                            width:'270px', height:'270px', position:'relative', overflow:'hidden', margin:'0 auto',
-                            fontFamily:'sans-serif', borderRadius:'12px',
-                            background:'linear-gradient(155deg, '+couleurs.primaire+' 0%, '+couleurs.secondaire+' 130%)'
-                          }}>
-                            {j.numero && (
-                              <div style={{position:'absolute',right:'-10px',top:'-30px',fontSize:'160px',fontWeight:900,color:'rgba(255,255,255,0.12)',lineHeight:1}}>{j.numero}</div>
-                            )}
-                            <div style={{position:'absolute',top:'14px',left:'14px',display:'flex',alignItems:'center',gap:'6px'}}>
-                              <div style={{width:'20px',height:'20px',borderRadius:'6px',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px'}}>⚽</div>
-                              <span style={{color:'#fff',fontWeight:900,fontSize:'11px'}}>MakeGoal</span>
-                            </div>
-                            <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'14px',background:'rgba(0,0,0,0.35)'}}>
-                              <p style={{color:'#fff',fontWeight:900,fontSize:'18px',margin:'0 0 1px'}}>{j.nom}</p>
-                              <p style={{color:'rgba(255,255,255,0.8)',fontWeight:700,fontSize:'11px',margin:'0 0 8px'}}>{j.equipe}</p>
-                              <div style={{display:'flex',gap:'10px',flexWrap:'wrap'}}>
-                                {champsActifs.map(c => (
-                                  <div key={c.cle}>
-                                    <p style={{color:'#ffd700',fontWeight:900,fontSize:'17px',margin:0,lineHeight:1}}>{j.valeurs[c.cle]}</p>
-                                    <p style={{color:'rgba(255,255,255,0.75)',fontSize:'9px',margin:0,textTransform:'uppercase'}}>{c.label}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          <button type="button" onClick={() => telechargerCarteJoueur(i)} disabled={telechargementCarte===i} style={{display:'block',margin:'10px auto 0',padding:'8px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:VIOLET,color:'#fff'}}>
-                            {telechargementCarte===i ? '⏳ Génération...' : '🖼️ Télécharger la carte (1080×1080)'}
-                          </button>
-                        </div>
-                      );
-                    })()}
                   </div>
                 ))}
-
-                {statsMode === 'comparaison' && statsJoueurs.filter(j => j.nom).length >= 2 && (
-                  <div style={{marginTop:'8px',marginBottom:'16px'}}>
-                    <div ref={carteComparaisonRef} style={{
-                      width:'432px', height:'432px', display:'flex', overflow:'hidden', margin:'0 auto',
-                      fontFamily:'sans-serif', borderRadius:'12px', position:'relative'
-                    }}>
-                      {statsJoueurs.filter(j => j.nom).slice(0, 3).map((j, idx) => {
-                        const couleurs = couleursClub(j.equipe);
-                        const tousChamps = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
-                        const priorite = ['matchsJoues', 'buts', 'passesDec', 'points', 'rebonds'];
-                        const champsRemplis = tousChamps.filter(c => j.valeurs[c.cle]);
-                        const champsActifs = [
-                          ...priorite.map(cle => champsRemplis.find(c => c.cle === cle)).filter(Boolean),
-                          ...champsRemplis.filter(c => !priorite.includes(c.cle))
-                        ].slice(0, 3) as { cle: string; label: string }[];
-                        const couleurStat = (cle: string) => {
-                          if (cle === 'buts' || cle === 'points') return '#e0aaff';
-                          if (cle === 'matchsJoues') return '#ffffff';
-                          if (cle === 'passesDec') return '#5eead4';
-                          return '#ffd700';
-                        };
-                        return (
-                          <div key={idx} style={{
-                            flex: 1, minWidth: 0, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column',
-                            background:'linear-gradient(165deg, '+couleurs.primaire+' 0%, '+couleurs.secondaire+' 100%)',
-                            borderLeft: idx > 0 ? '2px solid rgba(255,255,255,0.25)' : 'none'
-                          }}>
-                            <div style={{padding:'42px 10px 10px',textAlign:'center'}}>
-                              {j.numero && (
-                                <div style={{width:'32px',height:'32px',borderRadius:'999px',background:'rgba(255,255,255,0.22)',border:'1.5px solid rgba(255,255,255,0.5)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}>
-                                  <span style={{color:'#fff',fontWeight:900,fontSize:'13px'}}>{j.numero}</span>
-                                </div>
-                              )}
-                              <p style={{color:'#fff',fontWeight:900,fontSize:'17px',margin:'0 0 1px',lineHeight:1.2}}>{j.nom}</p>
-                              <p style={{color:'rgba(255,255,255,0.75)',fontWeight:700,fontSize:'10px',margin:0,letterSpacing:'0.02em'}}>{j.equipe}</p>
-                            </div>
-                            <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:'12px',padding:'0 12px 18px'}}>
-                              {champsActifs.map(c => (
-                                <div key={c.cle} style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:'14px',padding:'10px 20px',minWidth:'100px'}}>
-                                  <p style={{color:couleurStat(c.cle),fontWeight:900,fontSize:'32px',margin:0,lineHeight:1}}>{j.valeurs[c.cle]}</p>
-                                  <p style={{color:'rgba(255,255,255,0.85)',fontSize:'9px',margin:'4px 0 0',textTransform:'uppercase',fontWeight:700,letterSpacing:'0.03em'}}>{c.label}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div style={{position:'absolute',top:'12px',left:'12px',display:'flex',alignItems:'center',gap:'6px',zIndex:2}}>
-                        <div style={{width:'19px',height:'19px',borderRadius:'6px',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px'}}>⚽</div>
-                        <span style={{color:'#fff',fontWeight:900,fontSize:'10px',textShadow:'0 1px 3px rgba(0,0,0,0.5)'}}>MakeGoal</span>
-                      </div>
-                    </div>
-                    <button type="button" onClick={telechargerCarteComparaison} disabled={telechargementComparaison} style={{display:'block',margin:'10px auto 0',padding:'8px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'12px',background:VIOLET,color:'#fff'}}>
-                      {telechargementComparaison ? '⏳ Génération...' : '🖼️ Télécharger la comparaison (1080×1080)'}
-                    </button>
-                    {statsJoueurs.filter(j => j.nom).length > 3 && (
-                      <p style={{fontSize:'10px',color:'#f59e0b',textAlign:'center',marginTop:'6px'}}>⚠️ Seuls les 3 premiers joueurs apparaissent sur l'image (au-delà, c'est illisible).</p>
-                    )}
-                  </div>
-                )}
-
                 {statsMode === 'comparaison' && statsJoueurs.length < 6 && (
                   <button type="button" onClick={ajouterJoueurStats} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un joueur ({statsJoueurs.length}/6)</button>
                 )}

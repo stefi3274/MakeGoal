@@ -7,7 +7,6 @@ import { useAuth } from '../../../lib/auth';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
-import { couleursClub } from '../../../lib/clubCouleurs';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -60,9 +59,10 @@ const IconCrampon = () => (
 const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
   champ: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
-    { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
-    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' },
-    { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
+    { cle: 'ballonsTouches', label: 'Ballons touchés' }, { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
+    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' },
+    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
+    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
   ],
   gardien: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
@@ -532,54 +532,25 @@ export default function PostPage() {
             )}
 
             {post.stats_joueur && post.stats_joueur.joueurs && post.stats_joueur.joueurs.length > 0 && (
-              <div style={{margin:'8px 0 24px'}}>
+              <div style={{margin:'8px 0 24px',padding:'18px',background:couleurSport==='#ff7a00'?SPORT_COULEURS.basketball.clair:'#faf5ff',borderRadius:'16px'}}>
                 {post.stats_joueur.mode === 'bilan' && post.stats_joueur.nbMatchs && (
                   <div style={{textAlign:'center',marginBottom:'14px'}}>
                     <span style={{display:'inline-block',background:couleurSport,color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>📊 Bilan sur {post.stats_joueur.nbMatchs} matchs</span>
                   </div>
                 )}
-                <div style={{display:'flex',gap:'0',overflowX:'auto',borderRadius:'18px',overflow:'hidden'}}>
-                  {post.stats_joueur.joueurs.map((j: any, i: number) => {
-                    const couleurs = couleursClub(j.equipe || '');
-                    const tousChamps = post.sport === 'basketball' ? CHAMPS_STATS_BASKET : CHAMPS_STATS[post.stats_joueur!.poste || 'champ'];
-                    const priorite = ['matchsJoues', 'buts', 'passesDec', 'points', 'rebonds'];
-                    const champsRemplis = tousChamps.filter(c => j.valeurs?.[c.cle]);
-                    const champsActifs = [
-                      ...priorite.map(cle => champsRemplis.find(c => c.cle === cle)).filter(Boolean),
-                      ...champsRemplis.filter(c => !priorite.includes(c.cle))
-                    ].slice(0, 3) as { cle: string; label: string }[];
-                    const couleurStat = (cle: string) => {
-                      if (cle === 'buts' || cle === 'points') return '#e0aaff';
-                      if (cle === 'matchsJoues') return '#ffffff';
-                      if (cle === 'passesDec') return '#5eead4';
-                      return '#ffd700';
-                    };
-                    return (
-                      <div key={i} style={{
-                        flex: 1, minWidth: '150px', position:'relative', overflow:'hidden', display:'flex', flexDirection:'column',
-                        background:'linear-gradient(165deg, '+couleurs.primaire+' 0%, '+couleurs.secondaire+' 100%)',
-                        borderLeft: i > 0 ? '2px solid rgba(255,255,255,0.25)' : 'none'
-                      }}>
-                        <div style={{padding:'20px 10px 10px',textAlign:'center'}}>
-                          {j.numero && (
-                            <div style={{width:'30px',height:'30px',borderRadius:'999px',background:'rgba(255,255,255,0.22)',border:'1.5px solid rgba(255,255,255,0.5)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 10px'}}>
-                              <span style={{color:'#fff',fontWeight:900,fontSize:'12px'}}>{j.numero}</span>
-                            </div>
-                          )}
-                          <p style={{color:'#fff',fontWeight:900,fontSize:'16px',margin:'0 0 1px',lineHeight:1.2}}>{j.nom}</p>
-                          {j.equipe && <p style={{color:'rgba(255,255,255,0.75)',fontWeight:700,fontSize:'10px',margin:0}}>{j.equipe}</p>}
+                <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
+                  {post.stats_joueur.joueurs.map((j, i) => (
+                    <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
+                      <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
+                      {j.equipe && <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>{j.equipe}</div>}
+                      {(post.sport === 'basketball' ? CHAMPS_STATS_BASKET : CHAMPS_STATS[post.stats_joueur!.poste || 'champ']).filter(c => j.valeurs?.[c.cle]).map(c => (
+                        <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
+                          <span style={{color:'#6b7280'}}>{c.label}</span>
+                          <span style={{fontWeight:900,color:'#111'}}>{j.valeurs[c.cle]}</span>
                         </div>
-                        <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:'10px',padding:'6px 10px 20px'}}>
-                          {champsActifs.map(c => (
-                            <div key={c.cle} style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:'12px',padding:'8px 16px',minWidth:'90px'}}>
-                              <p style={{color:couleurStat(c.cle),fontWeight:900,fontSize:'26px',margin:0,lineHeight:1}}>{j.valeurs[c.cle]}</p>
-                              <p style={{color:'rgba(255,255,255,0.85)',fontSize:'8px',margin:'3px 0 0',textTransform:'uppercase',fontWeight:700}}>{c.label}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
