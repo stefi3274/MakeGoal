@@ -129,6 +129,7 @@ type Post = {
   parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
   declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
+  gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
   stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
@@ -284,6 +285,7 @@ export default function PostPage() {
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
     if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
     if (post.declaration?.citation) return { label: 'DÉCLARATION', couleur: '#0ea5e9' };
+    if (post.gagnants?.gagnants?.length) return { label: 'GAGNANTS', couleur: '#eab308' };
     return null;
   })();
 
@@ -447,6 +449,23 @@ export default function PostPage() {
                   <p style={{fontSize:'16px',fontStyle:'italic',fontWeight:700,color:'#0c4a6e',margin:0,lineHeight:1.5,position:'relative'}}>{post.declaration.citation}</p>
                 </div>
                 {post.declaration.contexte && <p style={{fontSize:'11px',color:'#9ca3af',fontWeight:600,marginTop:'10px'}}>{post.declaration.contexte}</p>}
+              </div>
+            )}
+
+            {post.gagnants && post.gagnants.gagnants && post.gagnants.gagnants.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{background:'linear-gradient(135deg,#78350f,#eab308)',borderRadius:'20px',padding:'26px 22px',textAlign:'center',marginBottom:'16px'}}>
+                  <div style={{fontSize:'40px',marginBottom:'8px'}}>🎉</div>
+                  <h2 style={{color:'#fff',fontWeight:900,fontSize:'22px',lineHeight:'1.2',margin:0}}>{post.gagnants.titreTirage || 'Les gagnants'}</h2>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {post.gagnants.gagnants.map((g, i) => (
+                    <div key={i} style={{border:'2px solid #fde68a',borderRadius:'14px',padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',background:'#fffbeb'}}>
+                      <span style={{fontWeight:900,fontSize:'15px',color:'#78350f'}}>🏆 {g.nom}</span>
+                      {g.prix && <span style={{fontWeight:700,fontSize:'13px',color:'#92400e',background:'#fef3c7',padding:'4px 12px',borderRadius:'999px'}}>{g.prix}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

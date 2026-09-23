@@ -17,6 +17,7 @@ export type RaisonPoints =
   | 'passeur_joue' | 'passeur_gagne' | 'passeur_perdu'
   | 'parrainage_invite' | 'parrainage_inscription' | 'parrainage_bienvenue'
   | 'question_eclair_gagnant'
+  | 'quizz_foot_gagnant'
   | 'conversion_gourdes';
 
 const LIBELLES: Record<RaisonPoints, string> = {
@@ -36,8 +37,15 @@ const LIBELLES: Record<RaisonPoints, string> = {
   parrainage_inscription: 'Un de vos filleuls a rejoint MakeGoal',
   parrainage_bienvenue: 'Bienvenue — inscrit via parrainage',
   question_eclair_gagnant: 'Gagnant du tirage Question Éclair',
+  quizz_foot_gagnant: 'Gagnant du tirage FootQuizz',
   conversion_gourdes: 'Conversion en Gourdes'
 };
+
+// Nombre de gagnants tirés au sort par FootQuizz et points attribués à
+// chacun. Modifiable ici seulement (une seule source de vérité).
+export const QUIZZ_FOOT_NB_GAGNANTS = 5;
+export const QUIZZ_FOOT_POINTS_GAGNANT = 30;
+export const QUIZZ_FOOT_SEUIL_POURCENTAGE = 80;
 
 const SEUIL_CONVERSION = 10000;
 const TAUX_CONVERSION = 0.20; // 20% : 10 000 pts -> 2 000 Gourdes
@@ -258,5 +266,37 @@ export async function tirerGagnantsQuestionEclair(questionId: string, client: Su
   }
 
   await client.from('questions_eclair').update({ statut: 'tiree', fermee_at: new Date().toISOString() }).eq('id', questionId);
+  return { ok: true, gagnants: gagnants.map(g => g.user_id) };
+}
+
+// ------------------------------------------------------------
+// FootQuizz — tirage automatique
+// Choisit jusqu'à QUIZZ_FOOT_NB_GAGNANTS gagnants au hasard PARMI LES
+// PARTICIPANTS AYANT TERMINÉ AVEC ≥ QUIZZ_FOOT_SEUIL_POURCENTAGE %,
+// QUIZZ_FOOT_POINTS_GAGNANT points chacun. Le tirage n'est jamais
+// affiché publiquement sur le site (résultats consultables en admin
+// uniquement, à publier ensuite manuellement via un post "Gagnants").
+// ------------------------------------------------------------
+// ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role) : crédite les
+// gagnants — ne JAMAIS appeler depuis le navigateur.
+export async function tirerGagnantsQuizzFoot(quizzId: string, client: SupabaseClient = supabase) {
+  const { data: eligibles, error } = await client
+    .from('quizz_foot_participations').select('id, user_id')
+    .eq('quizz_id', quizzId).eq('termine', true).gte('pourcentage', QUIZZ_FOOT_SEUIL_POURCENTAGE);
+  if (error) return { ok: false, erreur: error.message };
+  if (!eligibles || eligibles.length === 0) {
+    await client.from('quizz_foot').update({ statut: 'tire', fermee_at: new Date().toISOString() }).eq('id', quizzId);
+    return { ok: true, gagnants: [] };
+  }
+
+  const melange = [...eligibles].sort(() => Math.random() - 0.5);
+  const gagnants = melange.slice(0, QUIZZ_FOOT_NB_GAGNANTS);
+
+  for (const g of gagnants) {
+    await enregistrerMouvement(g.user_id, QUIZZ_FOOT_POINTS_GAGNANT, 'quizz_foot_gagnant', 'quizz_foot', quizzId, client);
+    await client.from('quizz_foot_participations').update({ gagnant: true }).eq('id', g.id);
+  }
+
+  await client.from('quizz_foot').update({ statut: 'tire', fermee_at: new Date().toISOString() }).eq('id', quizzId);
   return { ok: true, gagnants: gagnants.map(g => g.user_id) };
 }

@@ -116,6 +116,8 @@ type Parcours = { equipe: string; competition: string; poule: string; adversaire
 type Declaration = { nom: string; fonction: string; citation: string; contexte: string };
 type MatchInvitation = { equipe1: string; equipe2: string };
 type InvitationConcours = { titreConcours: string; lots: string; slogan: string; matchs: MatchInvitation[] };
+type Gagnant = { nom: string; prix: string };
+type Gagnants = { titreTirage: string; gagnants: Gagnant[] };
 
 type Article = {
   id: string; titre: string; categorie: string; type: string; langue: string;
@@ -136,6 +138,7 @@ type Article = {
   parcours: Parcours | null;
   declaration: Declaration | null;
   invitation_concours: InvitationConcours | null;
+  gagnants: Gagnants | null;
   stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
@@ -228,6 +231,9 @@ export default function AdminMedia() {
   const [dCitation, setDCitation] = useState('');
   const [dContexte, setDContexte] = useState('');
   const [dTexteColle, setDTexteColle] = useState('');
+
+  const [gTitreTirage, setGTitreTirage] = useState('');
+  const [gGagnants, setGGagnants] = useState<Gagnant[]>([{ nom: '', prix: '' }]);
 
   const [icTitreConcours, setIcTitreConcours] = useState('');
   const [icLots, setIcLots] = useState('');
@@ -433,6 +439,10 @@ export default function AdminMedia() {
   const ajouterAdversaire = () => setPAdversaires(prev => [...prev, { nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
   const retirerAdversaire = (i: number) => setPAdversaires(prev => prev.filter((_, idx) => idx !== i));
 
+  const modifierGagnant = (i: number, champ: keyof Gagnant, val: string) => setGGagnants(prev => prev.map((g, idx) => idx === i ? { ...g, [champ]: val } : g));
+  const ajouterGagnant = () => setGGagnants(prev => [...prev, { nom: '', prix: '' }]);
+  const retirerGagnant = (i: number) => setGGagnants(prev => prev.filter((_, idx) => idx !== i));
+
   const parserLigneAdversaire = (l: string): AdversaireParcours => {
     const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
     const score = parts[3] || '';
@@ -615,6 +625,7 @@ export default function AdminMedia() {
     setClassementTexteColle('');
     setMatchsJourSelection([]);
     setResTexteColle(''); setResButs([]); setResRouges([]); setResJaunes([]); setResQuarts([]);
+    setGTitreTirage(''); setGGagnants([{ nom: '', prix: '' }]);
     setSportForm(getSport());
     setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
@@ -646,7 +657,7 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation)) setModePost('sponsorise');
+    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
@@ -655,6 +666,7 @@ export default function AdminMedia() {
     else if ((a.resultat_details && (a.resultat_details.buts?.length || a.resultat_details.rouges?.length || a.resultat_details.jaunes?.length)) || (a.quarts_temps && a.quarts_temps.length)) setModePost('resultat');
     else if (a.parcours && a.parcours.adversaires?.length) setModePost('parcours');
     else if (a.declaration && a.declaration.citation) setModePost('declaration');
+    else if (a.gagnants && a.gagnants.gagnants?.length) setModePost('gagnants');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
     setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || ''); setClassementPays(a.classement_pays || ''); setClassementPositionDepart('1');
@@ -678,6 +690,12 @@ export default function AdminMedia() {
       setDCitation(a.declaration.citation || ''); setDContexte(a.declaration.contexte || '');
     } else {
       setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
+    }
+    if (a.gagnants && a.gagnants.gagnants?.length) {
+      setGTitreTirage(a.gagnants.titreTirage || '');
+      setGGagnants(a.gagnants.gagnants);
+    } else {
+      setGTitreTirage(''); setGGagnants([{ nom: '', prix: '' }]);
     }
     setSportForm((a.sport as Sport) || 'football');
     setResTexteColle('');
@@ -797,6 +815,7 @@ export default function AdminMedia() {
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
+      else if (modePost === 'gagnants' && gTitreTirage) titreFinal = gTitreTirage;
       else if (modePost === 'invitation' && icTitreConcours) titreFinal = 'Invitation — ' + icTitreConcours;
       else titreFinal = 'Post MakeGoal — ' + new Date().toLocaleDateString('fr-FR');
     }
@@ -835,6 +854,7 @@ export default function AdminMedia() {
       quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
       parcours: modePost === 'parcours' ? { equipe: pEquipe, competition: pCompetition, poule: pPoule, adversaires: pAdversaires.filter(a=>a.nom) } : null,
       declaration: modePost === 'declaration' ? { nom: dNom, fonction: dFonction, citation: dCitation, contexte: dContexte } : null,
+      gagnants: modePost === 'gagnants' ? { titreTirage: gTitreTirage, gagnants: gGagnants.filter(g => g.nom) } : null,
       invitation_concours: modePost === 'invitation' ? {
         titreConcours: icTitreConcours, lots: icLots, slogan: icSlogan,
         matchs: icTexteMatchs.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
@@ -957,6 +977,7 @@ export default function AdminMedia() {
                       <option value="distinction">🏆 Distinction</option>
                       <option value="declaration">🎤 Déclaration</option>
                       <option value="invitation">🏆 Invitation Concours</option>
+                      <option value="gagnants">🎉 Gagnants &amp; primes</option>
                     </optgroup>
                     <optgroup label="Composition">
                       <option value="onze">👥 Onze type</option>
@@ -1179,6 +1200,23 @@ export default function AdminMedia() {
                 </div>
                 <textarea value={dCitation} onChange={e => setDCitation(e.target.value)} rows={5} placeholder="Le texte de la déclaration, entre guillemets ou non..." style={{...inputStyle,marginBottom:'14px',lineHeight:'1.5'}}/>
                 <input value={dContexte} onChange={e => setDContexte(e.target.value)} placeholder="Contexte (optionnel, ex: Conférence d'avant-match)" style={inputStyle}/>
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'gagnants' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🎉 Gagnants &amp; primes</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Pour annoncer les gagnants d'un tirage au sort (Question Éclair, FootQuizz, Concours...) avec leurs lots. Le tirage lui-même reste toujours privé : ce post n'est publié que si vous choisissez de le faire.</p>
+                <input value={gTitreTirage} onChange={e => setGTitreTirage(e.target.value)} placeholder="Titre (ex: Gagnants du FootQuizz de la semaine)" style={{...inputStyle,marginBottom:'14px'}}/>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Gagnants ({gGagnants.length})</p>
+                {gGagnants.map((g, i) => (
+                  <div key={i} style={{display:'flex',gap:'8px',marginBottom:'8px',alignItems:'center'}}>
+                    <input value={g.nom} onChange={e => modifierGagnant(i,'nom',e.target.value)} placeholder="Nom du gagnant" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                    <input value={g.prix} onChange={e => modifierGagnant(i,'prix',e.target.value)} placeholder="Prime / lot (ex: 500 Gourdes)" style={{...inputStyle,flex:1.5,padding:'8px'}}/>
+                    <button onClick={() => retirerGagnant(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'15px'}}>🗑️</button>
+                  </div>
+                ))}
+                <button type="button" onClick={ajouterGagnant} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un gagnant</button>
               </div>
             )}
 

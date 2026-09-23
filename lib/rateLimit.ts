@@ -27,6 +27,10 @@ export const limiteQuestionEclair = new Ratelimit({
   redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'limite:question-eclair'
 });
 
+export const limiteQuizzFoot = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'limite:quizz-foot'
+});
+
 export const limiteParrainage = new Ratelimit({
   redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'limite:parrainage'
 });
