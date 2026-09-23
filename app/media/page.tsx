@@ -116,7 +116,7 @@ export default function Media() {
                   <div style={{display:'flex',gap:'6px',marginBottom:'10px',flexWrap:'wrap'}}>
                     <span style={{fontSize:'11px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px'}}>{a.categorie}</span>
                     {a.type === 'post' && <span style={{fontSize:'11px',fontWeight:700,color:'#fff',background:VIOLET,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
-                    <span style={{fontSize:'11px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
+                    <span style={{fontSize:'11px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? 'Kreyòl' : 'FR'}</span>
                   </div>
                   <h2 style={{fontWeight:900,fontSize:'18px',margin:'0 0 8px',lineHeight:'1.3'}}>{a.titre}</h2>
                   {a.extrait && <p style={{color:'#6b7280',fontSize:'14px',margin:'0 0 12px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}

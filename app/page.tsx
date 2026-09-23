@@ -121,7 +121,11 @@ export default function Home() {
   const formatMatch = (d: string) => new Date(d).toLocaleString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/Port-au-Prince' });
   const articlesFiltres = filtre === 'Tous' ? articles : articles.filter(a => a.categorie === filtre);
   const vedette = articlesFiltres.length > 0 ? articlesFiltres[0] : null;
-  const autresArticles = vedette ? articlesFiltres.slice(1) : articlesFiltres;
+  const resteApresVedette = vedette ? articlesFiltres.slice(1) : articlesFiltres;
+  // Les posts (⚡, type='post') ne s'affichent qu'à la une (le plus récent) — les
+  // suivants vont dans la vignette "Les Post" au lieu d'encombrer le fil.
+  const autresArticles = resteApresVedette.filter(a => a.type !== 'post');
+  const autresPosts = resteApresVedette.filter(a => a.type === 'post');
   const couleurCat = (cat: string) => cat === 'Actualités' ? '#3b82f6' : '#f59e0b';
 
   // Calcul du Pouls de la communauté
@@ -143,6 +147,36 @@ export default function Home() {
   }
 
   const labelChoix = (m: Match, ch: string) => ch === '1' ? m.equipe1 : ch === '2' ? m.equipe2 : 'le nul';
+
+  const [postsOuvert, setPostsOuvert] = useState(false);
+
+  const CarteArticle = ({ a }: { a: Article }) => (
+    <a href={(a.type === 'post' ? '/post/' : '/media/') + a.id} style={{textDecoration:'none',color:'inherit'}}>
+      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',height:'100%',display:'flex',flexDirection:'column',cursor:'pointer'}}>
+        {a.image_couverture ? (
+          <img src={a.image_couverture} alt={a.titre} style={{width:'100%',height:'160px',objectFit:'cover'}}/>
+        ) : (
+          <div style={{width:'100%',height:'160px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'36px'}}>{a.type === 'post' ? '⚡' : '⚽'}</span></div>
+        )}
+        <div style={{padding:'16px',flex:1,display:'flex',flexDirection:'column'}}>
+          <div style={{display:'flex',gap:'6px',marginBottom:'8px',flexWrap:'wrap'}}>
+            <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px'}}>{a.categorie}</span>
+            {a.type === 'post' && <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:SPORT_COULEURS[sport].primaire,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
+            <span style={{fontSize:'10px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? 'Kreyòl' : 'FR'}</span>
+          </div>
+          <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>
+          {a.extrait && <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 10px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
+          <p style={{color:'#9ca3af',fontSize:'11px',margin:'0 0 8px'}}>{a.auteur} · {formatDate(a.created_at)}</p>
+          <div style={{display:'flex',gap:'14px',color:'#9ca3af',fontSize:'12px',fontWeight:700,marginTop:'auto'}}>
+            <span>❤️ {compteurs[a.id]?.likes ?? 0}</span>
+            <span>💬 {compteurs[a.id]?.comms ?? 0}</span>
+          </div>
+        </div>
+      </div>
+    </a>
+  );
+
+  const matchsAvecCotes = matchs.filter(m => m.cote_1 && m.cote_2);
 
   const WidgetMatchs = () => {
     const couleur = SPORT_COULEURS[sport].primaire;
@@ -200,25 +234,29 @@ export default function Home() {
       )}
     </div>
 
-    <a href="/matchs" style={{display:'flex',alignItems:'center',gap:'12px',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#0891b2,#06b6d4)',borderRadius:'16px',padding:'18px 20px'}}>
-      <span style={{fontSize:'26px'}}>🗳️</span>
-      <div>
-        <p style={{color:'#fff',fontWeight:900,fontSize:'15px',margin:0}}>Votez sur les matchs du jour !</p>
-        <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',margin:'2px 0 0'}}>Donnez votre avis, gratuit et rapide</p>
-      </div>
-    </a>
+    {matchs.length > 0 && (
+      <a href="/matchs" style={{display:'flex',alignItems:'center',gap:'12px',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#0891b2,#06b6d4)',borderRadius:'16px',padding:'18px 20px'}}>
+        <span style={{fontSize:'26px'}}>🗳️</span>
+        <div>
+          <p style={{color:'#fff',fontWeight:900,fontSize:'15px',margin:0}}>Votez sur les matchs du jour !</p>
+          <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',margin:'2px 0 0'}}>Donnez votre avis, gratuit et rapide</p>
+        </div>
+      </a>
+    )}
 
-    <a href="/paris" style={{display:'block',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'16px',padding:'18px 20px',overflow:'hidden',position:'relative'}}>
-      <style>{`
-        @keyframes defileBadgeParis { 0%,85%,100% { transform:translateX(0); opacity:1; } 92% { transform:translateX(6px); opacity:0.7; } }
-        .badge-parye-lajan { animation: defileBadgeParis 15s ease-in-out infinite; }
-      `}</style>
-      <p style={{color:'#fff',fontWeight:900,fontSize:'16px',margin:'0 0 8px'}}>🎲 Parye San Lajan</p>
-      <div className="badge-parye-lajan" style={{display:'flex',alignItems:'center',gap:'10px'}}>
-        <span style={{fontSize:'20px'}}>💰</span>
-        <span style={{color:'#ffd700',fontWeight:800,fontSize:'13px'}}>Obtenez 1 000 Gourdes et Pariez !</span>
-      </div>
-    </a>
+    {matchsAvecCotes.length > 0 && (
+      <a href="/paris" style={{display:'block',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'16px',padding:'18px 20px',overflow:'hidden',position:'relative'}}>
+        <style>{`
+          @keyframes defileBadgeParis { 0%,85%,100% { transform:translateX(0); opacity:1; } 92% { transform:translateX(6px); opacity:0.7; } }
+          .badge-parye-lajan { animation: defileBadgeParis 15s ease-in-out infinite; }
+        `}</style>
+        <p style={{color:'#fff',fontWeight:900,fontSize:'16px',margin:'0 0 8px'}}>🎲 Parye San Lajan</p>
+        <div className="badge-parye-lajan" style={{display:'flex',alignItems:'center',gap:'10px'}}>
+          <span style={{fontSize:'20px'}}>💰</span>
+          <span style={{color:'#ffd700',fontWeight:800,fontSize:'13px'}}>Obtenez 1 000 Gourdes et Pariez !</span>
+        </div>
+      </a>
+    )}
     </>
   );};
 
@@ -359,7 +397,7 @@ export default function Home() {
                     <div style={{display:'flex',gap:'6px',marginBottom:'10px',flexWrap:'wrap'}}>
                       <span style={{fontSize:'11px',fontWeight:900,color:'#fff',background:'#111',padding:'4px 12px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>★ À la une</span>
                       <span style={{fontSize:'11px',fontWeight:700,color:'#fff',background:couleurCat(vedette.categorie),padding:'4px 12px',borderRadius:'999px'}}>{vedette.categorie}</span>
-                      <span style={{fontSize:'11px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'4px 12px',borderRadius:'999px'}}>{vedette.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
+                      <span style={{fontSize:'11px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'4px 12px',borderRadius:'999px'}}>{vedette.langue === 'kreyol' ? 'Kreyòl' : 'FR'}</span>
                     </div>
                     <h2 style={{fontWeight:900,fontSize:'clamp(20px,3vw,28px)',margin:'0 0 10px',lineHeight:'1.25'}}>{vedette.titre}</h2>
                     {vedette.extrait && <p style={{color:'#6b7280',fontSize:'15px',margin:'0 0 12px',lineHeight:'1.6'}}>{vedette.extrait}</p>}
@@ -370,32 +408,25 @@ export default function Home() {
             )}
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'20px'}}>
-              {!loading && autresArticles.map(a => (
-                <a key={a.id} href={(a.type === 'post' ? '/post/' : '/media/') + a.id} style={{textDecoration:'none',color:'inherit'}}>
-                  <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',height:'100%',display:'flex',flexDirection:'column',cursor:'pointer'}}>
-                    {a.image_couverture ? (
-                      <img src={a.image_couverture} alt={a.titre} style={{width:'100%',height:'160px',objectFit:'cover'}}/>
-                    ) : (
-                      <div style={{width:'100%',height:'160px',background:'linear-gradient(135deg,#1a0033,#bf00ff)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'36px'}}>{a.type === 'post' ? '⚡' : '⚽'}</span></div>
-                    )}
-                    <div style={{padding:'16px',flex:1,display:'flex',flexDirection:'column'}}>
-                      <div style={{display:'flex',gap:'6px',marginBottom:'8px',flexWrap:'wrap'}}>
-                        <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:couleurCat(a.categorie),padding:'3px 10px',borderRadius:'999px'}}>{a.categorie}</span>
-                        {a.type === 'post' && <span style={{fontSize:'10px',fontWeight:700,color:'#fff',background:SPORT_COULEURS[sport].primaire,padding:'3px 10px',borderRadius:'999px'}}>⚡ Post</span>}
-                        <span style={{fontSize:'10px',fontWeight:700,color:'#374151',background:'#f3f4f6',padding:'3px 10px',borderRadius:'999px'}}>{a.langue === 'kreyol' ? '🇭🇹 Kreyòl' : '🇫🇷 FR'}</span>
-                      </div>
-                      <h2 style={{fontWeight:900,fontSize:'16px',margin:'0 0 6px',lineHeight:'1.3'}}>{a.titre}</h2>
-                      {a.extrait && <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 10px',lineHeight:'1.5',flex:1}}>{a.extrait}</p>}
-                      <p style={{color:'#9ca3af',fontSize:'11px',margin:'0 0 8px'}}>{a.auteur} · {formatDate(a.created_at)}</p>
-                      <div style={{display:'flex',gap:'14px',color:'#9ca3af',fontSize:'12px',fontWeight:700,marginTop:'auto'}}>
-                        <span>❤️ {compteurs[a.id]?.likes ?? 0}</span>
-                        <span>💬 {compteurs[a.id]?.comms ?? 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              ))}
+              {!loading && autresArticles.map(a => <CarteArticle key={a.id} a={a} />)}
             </div>
+
+            {!loading && autresPosts.length > 0 && (
+              <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',padding:'20px',marginTop:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+                <button onClick={() => setPostsOuvert(v => !v)} style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: postsOuvert ? '16px' : 0}}>
+                  <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{fontWeight:900,fontSize:'16px'}}>⚡ Les Post</span>
+                    <span style={{background:SPORT_COULEURS[sport].primaire,color:'#fff',fontSize:'11px',fontWeight:900,padding:'2px 9px',borderRadius:'999px'}}>{autresPosts.length}</span>
+                  </span>
+                  <span style={{color:SPORT_COULEURS[sport].primaire,fontSize:'13px',fontWeight:700}}>{postsOuvert ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
+                </button>
+                {postsOuvert && (
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'20px'}}>
+                    {autresPosts.map(a => <CarteArticle key={a.id} a={a} />)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <aside className="mg-widget-desktop">
