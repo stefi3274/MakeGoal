@@ -169,7 +169,7 @@ export default function AdminQuizzFoot() {
         {vue === 'nouveau' && (
           <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '24px' }}>
             <h2 style={{ color: '#fff', fontWeight: 900, fontSize: '20px', marginBottom: '8px' }}>Nouveau FootQuizz</h2>
-            <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>{NB_QUESTIONS} questions, 1 minute par question, actif {DUREE_HEURES}h, une seule tentative par utilisateur. Gagnants tirés au sort parmi les ≥80% une fois le quizz fermé.</p>
+            <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>{NB_QUESTIONS} questions, 10 secondes par question, actif {DUREE_HEURES}h, une seule tentative par utilisateur. Le tirage au sort parmi les ≥80% se fait manuellement, ici même.</p>
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {(['football', 'basketball'] as Sport[]).map(s => (

@@ -6,8 +6,8 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY as string
 );
 
-// 10 questions x 1 minute + petite marge de sécurité réseau.
-const DELAI_MAX_MS = 10 * 60 * 1000 + 2 * 60 * 1000;
+// 10 questions x 10 secondes + marge de sécurité réseau.
+const DELAI_MAX_MS = 10 * 10 * 1000 + 60 * 1000;
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get('authorization');

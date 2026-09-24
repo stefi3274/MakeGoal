@@ -8,7 +8,7 @@ import Footer from '../../components/Footer';
 import { getSport, Sport } from '../../lib/sport';
 
 const COULEUR = '#bf00ff';
-const DUREE_QUESTION_MS = 60 * 1000;
+const DUREE_QUESTION_MS = 10 * 1000;
 
 type Quizz = { id: string; titre: string; sport: string | null; statut: string; date_fermeture: string; created_at: string };
 type Participation = { termine: boolean; score: number | null; pourcentage: number | null };
@@ -139,7 +139,7 @@ export default function FootQuizzPage() {
 
       <div style={{ background: 'linear-gradient(135deg,#3b0764,' + COULEUR + ')', padding: '40px 24px', textAlign: 'center' }}>
         <h1 style={{ color: '#fff', fontWeight: 900, fontSize: 'clamp(26px,5vw,40px)', margin: '0 0 8px' }}>🧠 FootQuizz</h1>
-        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '16px', margin: 0 }}>10 questions, 1 minute chacune, une seule tentative. ≥80% de bonnes réponses = éligible au tirage au sort.</p>
+        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '16px', margin: 0 }}>10 questions, 10 secondes chacune, une seule tentative. ≥80% de bonnes réponses = éligible au tirage au sort.</p>
       </div>
 
       <main style={{ maxWidth: '700px', margin: '0 auto', padding: '32px 16px' }}>

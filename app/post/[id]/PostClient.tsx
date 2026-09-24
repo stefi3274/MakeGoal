@@ -626,9 +626,9 @@ export default function PostPage() {
                 <div style={{display:'flex',padding:'10px 4px 10px 8px',fontSize:CLASSEMENT_TAILLES.entete+'px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',borderBottom:'2px solid '+couleurSport+'33'}}>
                   <span style={{width:CLASSEMENT_TAILLES.pos+'px'}}>#</span>
                   <span style={{flex:3}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
-                  <span style={{flex:1.3}}>{post.classement_type === 'equipes' ? 'Match' : 'Équipe'}</span>
+                  <span style={{flex:1.3}}>{post.classement_type === 'equipes' ? 'Match' : (post.classement_titre||'').toLowerCase().includes('quizz') ? 'Temps' : 'Équipe'}</span>
                   {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right'}}>Diff</span>}
-                  <span style={{flex:0.9,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : (post.classement_titre||'').toLowerCase().includes('passeur') ? 'Passes' : 'Buts'}</span>
+                  <span style={{flex:0.9,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : (post.classement_titre||'').toLowerCase().includes('passeur') ? 'Passes' : (post.classement_titre||'').toLowerCase().includes('quizz') ? 'Score' : 'Buts'}</span>
                 </div>
                 {classementAffiche.map((l, i) => {
                     const medaille = i===0?'#D4AF37':i===1?'#C0C0C0':couleurSport;

@@ -757,6 +757,37 @@ export default function AdminMedia() {
     setMessage('\u2705 Classement g\u00e9n\u00e9r\u00e9 \u00e0 partir des soldes r\u00e9els (' + parsees.length + ' joueurs). V\u00e9rifiez avant de publier.');
   };
 
+  const [quizzFootListe, setQuizzFootListe] = useState<{ id: string; titre: string; statut: string }[]>([]);
+  const [quizzFootChoisi, setQuizzFootChoisi] = useState('');
+  const [genererClassementQuizzEnCours, setGenererClassementQuizzEnCours] = useState(false);
+
+  const chargerQuizzFootListe = async () => {
+    const { data } = await supabase.from('quizz_foot').select('id, titre, statut').order('created_at', { ascending: false }).limit(30);
+    if (data) setQuizzFootListe(data);
+  };
+
+  const genererClassementQuizz = async () => {
+    if (!quizzFootChoisi) { setMessage('\u274c Choisissez un FootQuizz dans la liste.'); return; }
+    setGenererClassementQuizzEnCours(true);
+    setMessage('');
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setGenererClassementQuizzEnCours(false); setMessage('\u274c Session expir\u00e9e, reconnectez-vous.'); return; }
+    const res = await fetch('/api/quizz-foot-classement?quizzId=' + quizzFootChoisi, { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    setGenererClassementQuizzEnCours(false);
+    if (!res.ok) { setMessage('\u274c ' + (data.error || 'Erreur lors de la g\u00e9n\u00e9ration.')); return; }
+    if (!data.resultats || data.resultats.length === 0) { setMessage('\u274c Aucun participant ayant termin\u00e9 ce FootQuizz.'); return; }
+    const formatTemps = (s: number | null) => s === null ? '\u2014' : s < 60 ? s + 's' : Math.floor(s / 60) + 'min ' + (s % 60) + 's';
+    const parsees = data.resultats.map((r: { nom: string; score: number; tempsSecondes: number | null }, i: number) => ({
+      pos: String(i + 1), nom: r.nom, extra: formatTemps(r.tempsSecondes), diff: '', pays: '', val: r.score + '/10', couleur: ''
+    }));
+    setClassementType('joueurs');
+    setClassementTitre('Classement FootQuizz \u2014 ' + data.titre);
+    setClassement(parsees);
+    setMessage('\u2705 Classement g\u00e9n\u00e9r\u00e9 (' + parsees.length + ' participant(s), tri\u00e9s par note puis par temps). V\u00e9rifiez avant de publier.');
+  };
+
   const creerClassementsEnLot = async () => {
     const blocs = texteLotClassements.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     const depart = parseInt(classementPositionDepart) || 1;
@@ -1422,6 +1453,17 @@ export default function AdminMedia() {
                     <button type="button" onClick={() => setLotClassementOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotClassementOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotClassementOuvert ? '✕ Fermer' : '📚 Coller plusieurs championnats à la fois'}</button>
                     {' '}
                     <button type="button" onClick={genererClassementPoints} disabled={genererClassementPointsEnCours} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:'#10b981',color:'#fff',marginBottom:'16px'}}>{genererClassementPointsEnCours ? '⏳ Génération...' : '🏆 Générer le classement des points (top 10)'}</button>
+
+                    <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'16px'}}>
+                      <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px',fontWeight:700}}>🧠 Générer depuis un FootQuizz (note puis temps)</p>
+                      <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                        <select value={quizzFootChoisi} onChange={e => setQuizzFootChoisi(e.target.value)} onFocus={chargerQuizzFootListe} style={{...inputStyle,flex:1,minWidth:'220px'}}>
+                          <option value="">— Choisir un FootQuizz —</option>
+                          {quizzFootListe.map(q => <option key={q.id} value={q.id}>{q.titre} ({q.statut === 'ouvert' ? 'ouvert' : q.statut === 'ferme' ? 'fermé' : 'tiré'})</option>)}
+                        </select>
+                        <button type="button" onClick={genererClassementQuizz} disabled={genererClassementQuizzEnCours} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{genererClassementQuizzEnCours ? '⏳...' : '🧠 Générer le classement'}</button>
+                      </div>
+                    </div>
 
                     {lotClassementOuvert && (
                       <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
