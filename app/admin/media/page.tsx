@@ -609,7 +609,7 @@ export default function AdminMedia() {
     setSportForm(getSport());
     setHeureMatch(''); setStade('');
     setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
-    setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
+    setStatsJoueurs([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
     setStatsTexteColle('');
     setPEquipe(''); setPCompetition(''); setPPoule('');
     setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
