@@ -87,9 +87,11 @@ const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
   champ: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
     { cle: 'ballonsTouches', label: 'Ballons touchés' }, { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
-    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' },
-    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
-    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'cartons', label: 'Cartons' }
+    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' }, { cle: 'dribbles', label: 'Dribbles réussis' },
+    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'mauvaisesPasses', label: 'Mauvaises passes' },
+    { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
+    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'horsJeu', label: 'Hors-jeu' },
+    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' }
   ],
   gardien: [
     { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
