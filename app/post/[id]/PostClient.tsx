@@ -7,6 +7,7 @@ import { useAuth } from '../../../lib/auth';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
+import { champsAffichage } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -55,30 +56,6 @@ const IconCrampon = () => (
     </svg>
   </span>
 );
-
-const CHAMPS_STATS: Record<'champ' | 'gardien', { cle: string; label: string }[]> = {
-  champ: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
-    { cle: 'ballonsTouches', label: 'Ballons touchés' }, { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
-    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' }, { cle: 'dribbles', label: 'Dribbles réussis' },
-    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'mauvaisesPasses', label: 'Mauvaises passes' },
-    { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
-    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'horsJeu', label: 'Hors-jeu' },
-    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' }
-  ],
-  gardien: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
-    { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
-    { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
-  ]
-};
-
-const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
-  { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
-  { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
-  { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
-];
-
 
 const FORMATIONS: Record<string, { x: number; y: number }[]> = {
   '4-4-2': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},{x:38,y:20},{x:62,y:20}],
@@ -132,7 +109,7 @@ type Post = {
   declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
-  stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; adversaire?: string; valeurs: Record<string, string> }[] } | null;
+  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; joueurs: { nom: string; equipe: string; adversaire?: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
@@ -563,12 +540,14 @@ export default function PostPage() {
                   {post.stats_joueur.joueurs.map((j, i) => (
                     <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
                       <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
-                      {(j.equipe || j.adversaire) && (
-                        <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>
-                          {j.equipe}{j.equipe && j.adversaire ? ' vs ' : ''}{j.adversaire}
+                      {j.equipe && <div style={{fontSize:'12px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'2px'}}>{j.equipe}</div>}
+                      {j.adversaire && (
+                        <div style={{textAlign:'center',marginTop:'6px'}}>
+                          <span style={{display:'inline-block',fontSize:'11px',fontWeight:800,color:couleurSport,background:couleurSport+'14',padding:'3px 10px',borderRadius:'999px'}}>face à {j.adversaire}</span>
                         </div>
                       )}
-                      {(post.sport === 'basketball' ? CHAMPS_STATS_BASKET : CHAMPS_STATS[post.stats_joueur!.poste || 'champ']).filter(c => j.valeurs?.[c.cle]).map(c => (
+                      <div style={{height:'10px'}}/>
+                      {champsAffichage(post.sport, post.stats_joueur!.poste).filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim()).map(c => (
                         <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
                           <span style={{color:'#6b7280'}}>{c.label}</span>
                           <span style={{fontWeight:900,color:'#111'}}>{j.valeurs[c.cle]}</span>

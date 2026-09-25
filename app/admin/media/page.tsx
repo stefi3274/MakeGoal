@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
+import { CHAMPS_STATS, CHAMPS_STATS_BASKET, POSTES_LABELS, StatsPoste, champsFootball, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
 
@@ -82,30 +83,6 @@ type But = { equipe: string; joueur: string; minute: string; passeur: string };
 type CarteEvenement = { joueur: string; minute: string };
 
 type StatJoueur = { nom: string; equipe: string; adversaire: string; valeurs: Record<string, string> };
-type StatsPoste = 'champ' | 'gardien';
-const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
-  champ: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes déc.' }, { cle: 'note', label: 'Note' },
-    { cle: 'ballonsTouches', label: 'Ballons touchés' }, { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' }, { cle: 'minutes', label: 'Minutes' },
-    { cle: 'centresReussis', label: 'Centre réussi' }, { cle: 'occasionsCreees', label: 'Occasion créée' }, { cle: 'dribbles', label: 'Dribbles réussis' },
-    { cle: 'passesReussies', label: 'Passes réussies %' }, { cle: 'mauvaisesPasses', label: 'Mauvaises passes' },
-    { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
-    { cle: 'pertesBalle', label: 'Pertes de balle' }, { cle: 'interceptions', label: 'Interceptions' }, { cle: 'horsJeu', label: 'Hors-jeu' },
-    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' }
-  ],
-  gardien: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'arrets', label: 'Arrêts' }, { cle: 'cleanSheet', label: 'Clean sheet' }, { cle: 'butsEncaisses', label: 'Buts encaissés' },
-    { cle: 'note', label: 'Note' }, { cle: 'minutes', label: 'Minutes' }, { cle: 'passesReussies', label: 'Passes %' },
-    { cle: 'sorties', label: 'Sorties' }, { cle: 'penaltysArretes', label: 'Penalties arrêtés' }
-  ]
-};
-
-const CHAMPS_STATS_BASKET: { cle: string; label: string }[] = [
-  { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'points', label: 'Points' }, { cle: 'rebonds', label: 'Rebonds' }, { cle: 'passesDec', label: 'Passes décisives' },
-  { cle: 'interceptions', label: 'Interceptions' }, { cle: 'contres', label: 'Contres' }, { cle: 'ballesPerdues', label: 'Balles perdues' },
-  { cle: 'tirsReussis', label: '% Tirs réussis' }, { cle: 'minutes', label: 'Minutes' }
-];
-
 type QuartTemps = { quart: string; score1: string; score2: string };
 
 type Match = {
@@ -541,65 +518,32 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
-  const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-
-  // Alias pour les libellés abrégés ou au singulier/pluriel qui ne
-  // correspondent pas exactement au label affiché dans le formulaire.
-  const ALIAS_CHAMPS: Record<string, string> = {
-    passesdecisives: 'passesDec', passedecisive: 'passesDec', passedecisives: 'passesDec',
-    tirscadre: 'tirsCadres', tircadre: 'tirsCadres', tircadres: 'tirsCadres',
-    centrereussi: 'centresReussis', centresreussi: 'centresReussis', centrereussis: 'centresReussis',
-    occasioncreee: 'occasionsCreees', occasionscreee: 'occasionsCreees',
-    passereussie: 'passesReussies', passesreussie: 'passesReussies', passereussies: 'passesReussies',
-    duelgagne: 'duelsGagnes', duelsgagne: 'duelsGagnes',
-    duelperdu: 'duelsPerdus', duelsperdu: 'duelsPerdus',
-    pertedeballe: 'pertesBalle', perteballe: 'pertesBalle', pertesballes: 'pertesBalle', pertedeballes: 'pertesBalle',
-    ballontouche: 'ballonsTouches', ballonstouche: 'ballonsTouches',
-    mauvaisepasse: 'mauvaisesPasses', mauvaisespasse: 'mauvaisesPasses', passeratee: 'mauvaisesPasses', passesratees: 'mauvaisesPasses', passerate: 'mauvaisesPasses',
-    dribble: 'dribbles', dribblereussi: 'dribbles', driblesreussis: 'dribbles',
-    horsjeux: 'horsJeu',
-    cartonsjaunes: 'cartonJaune', cartonjaunes: 'cartonJaune',
-    cartonsrouges: 'cartonRouge', cartonrouges: 'cartonRouge',
-    matchjoue: 'matchsJoues', matchsjoue: 'matchsJoues',
-    minutesjouees: 'minutes', minutejouee: 'minutes', minutesjoue: 'minutes',
-  };
-
   const analyserStats = () => {
-    const champs = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
-    const lookup: Record<string, string> = {};
-    champs.forEach(c => { lookup[normaliserLabel(c.label)] = c.cle; });
-    const clesValides = new Set(champs.map(c => c.cle));
-    const trouverCle = (texte: string): string | undefined => {
-      const n = normaliserLabel(texte);
-      if (lookup[n]) return lookup[n];
-      const aliasCle = ALIAS_CHAMPS[n];
-      if (aliasCle && clesValides.has(aliasCle)) return aliasCle;
-      // Correspondance par préfixe (abréviation ou pluriel/singulier),
-      // à partir de 5 caractères communs pour éviter les faux positifs.
-      for (const [labelNorm, cle] of Object.entries(lookup)) {
-        if (labelNorm.length >= 5 && n.length >= 5 && (labelNorm.startsWith(n) || n.startsWith(labelNorm))) return cle;
-      }
-      return undefined;
-    };
+    // Football : on cherche dans TOUTES les catégories (poste choisi en
+    // premier) pour ne jamais perdre une stat collée.
+    const champs = sportForm === 'football' ? champsFootball(statsPoste) : CHAMPS_STATS_BASKET;
     const blocs = statsTexteColle.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     if (blocs.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
+    const nonReconnues: string[] = [];
     const joueurs: StatJoueur[] = blocs.slice(0, 6).map(bloc => {
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       const [nomLigne, ...reste] = lignes;
-      const parts = (nomLigne || '').split('-').map(p => p.trim());
+      const { nom, equipe, adversaire } = parserLigneJoueur(nomLigne || '');
       const valeurs: Record<string, string> = {};
       reste.forEach(l => {
-        const m = l.match(/^(.+?)\s*[:\-]\s*(.+)$/);
-        if (m) {
-          const cle = trouverCle(m[1]);
-          if (cle) valeurs[cle] = m[2].trim();
-        }
+        const m = l.match(/^(.+?)\s*[:=]\s*(.+)$/) || l.match(/^(.+?)\s+[-–—]\s+(.+)$/) || l.match(/^(.+?)\s+(\d+(?:[.,]\d+)?\s*%?)$/);
+        const cle = m ? trouverCleStat(m[1], champs) : undefined;
+        if (m && cle) valeurs[cle] = m[2].trim();
+        else nonReconnues.push(l);
       });
-      return { nom: parts[0] || '', equipe: parts[1] || '', adversaire: parts[2] || '', valeurs };
+      return { nom, equipe, adversaire, valeurs };
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
-    setMessage('✅ ' + joueurs.length + ' joueur(s) analysé(s). Vérifiez et corrigez si besoin.');
+    const sansAdversaire = joueurs.filter(j => !j.adversaire).length;
+    setMessage('✅ ' + joueurs.length + ' joueur(s) analysé(s).'
+      + (sansAdversaire ? ' ⚠️ Adversaire manquant pour ' + sansAdversaire + ' joueur(s).' : '')
+      + (nonReconnues.length ? ' ⚠️ Lignes non reconnues : ' + nonReconnues.join(' | ') : ''));
   };
 
   const chargerArticles = async () => {
@@ -737,7 +681,7 @@ export default function AdminMedia() {
     setResTexteColle('');
     if (a.stats_joueur && a.stats_joueur.joueurs?.length) {
       setStatsMode((a.stats_joueur.mode as any) || 'performance');
-      setStatsPoste(a.stats_joueur.poste || 'champ');
+      setStatsPoste((['champ','defenseur','gardien'].includes(a.stats_joueur.poste as string) ? a.stats_joueur.poste : 'champ') as StatsPoste);
       setStatsNbMatchs(a.stats_joueur.nbMatchs || '');
       setStatsJoueurs(a.stats_joueur.joueurs.map(j => ({ ...j, adversaire: j.adversaire || '' })));
     } else {
@@ -877,7 +821,7 @@ export default function AdminMedia() {
     if (!titreFinal) {
       if (modePost === 'classement' && classementTitre) titreFinal = classementTitre;
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
-      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].adversaire ? ' vs ' + statsJoueurs[0].adversaire : '') + ' — Stats';
+      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') + ' — Stats';
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
@@ -1398,11 +1342,12 @@ export default function AdminMedia() {
                   <button type="button" onClick={() => setStatsMode('bilan')} style={btnChoix(statsMode==='bilan')}>📊 Bilan cumulé</button>
                 </div>
 
-                <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+                <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
                   {sportForm === 'football' ? (
                     <>
-                      <button type="button" onClick={() => setStatsPoste('champ')} style={btnChoix(statsPoste==='champ')}>🏃 Joueur de champ</button>
-                      <button type="button" onClick={() => setStatsPoste('gardien')} style={btnChoix(statsPoste==='gardien')}>🧤 Gardien</button>
+                      {(Object.keys(POSTES_LABELS) as StatsPoste[]).map(p => (
+                        <button key={p} type="button" onClick={() => setStatsPoste(p)} style={btnChoix(statsPoste===p)}>{POSTES_LABELS[p]}</button>
+                      ))}
                     </>
                   ) : (
                     <span style={{fontSize:'12px',color:'#6b7280',fontWeight:700}}>🏀 Champs basketball (Points, Rebonds, Passes...)</span>
@@ -1410,8 +1355,8 @@ export default function AdminMedia() {
                 </div>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>📋 Coller un texte (optionnel)</p>
-                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Nom - Équipe - Adversaire" (l'adversaire est optionnel). Puis une ligne par stat : "Label: valeur".</p>
-                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Messi - Argentine - Espagne\nButs: 2\nPasses déc: 1\nNote: 8.5\n\nMbappé - France - Espagne\nButs: 1\nPasses déc: 2\nNote: 8.0" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Joueur - Son équipe - Adversaire". Puis une ligne par stat : "Label: valeur". Les stats non remplies n'apparaissent pas dans le post.</p>
+                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Wilson Isidor - Haïti - Trinidad-et-Tobago\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nTirs cadrés: 1\n\nAlex Christian - Haïti - Trinidad-et-Tobago\nTacles réussis: 4\nInterceptions: 3\nDégagements: 6" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                 {statsMode === 'bilan' && (
@@ -1422,14 +1367,14 @@ export default function AdminMedia() {
                   <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'12px'}}>
                     <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
                       <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.3}}/>
-                      <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:1}}/>
-                      <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Adversaire" style={{...inputStyle,flex:1}}/>
+                      <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Son équipe" style={{...inputStyle,flex:1}}/>
+                      <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Face à (adversaire)" style={{...inputStyle,flex:1}}/>
                       {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
-                      {(sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET).map(c => (
+                      {(sportForm === 'football' ? [...CHAMPS_STATS[statsPoste], ...champsFootball(statsPoste).filter(c => !CHAMPS_STATS[statsPoste].some(x => x.cle === c.cle) && statsJoueurs.some(sj => sj.valeurs[c.cle]))] : CHAMPS_STATS_BASKET).map(c => (
                         <div key={c.cle}>
                           <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 4px'}}>{c.label}</p>
                           <input value={j.valeurs[c.cle] || ''} onChange={e => modifierValeurStats(i,c.cle,e.target.value)} style={{...inputStyle,padding:'8px'}}/>
