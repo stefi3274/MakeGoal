@@ -132,7 +132,7 @@ type Post = {
   declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
-  stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; valeurs: Record<string, string> }[] } | null;
+  stats_joueur: { mode: string; poste: 'champ' | 'gardien'; nbMatchs: string | null; joueurs: { nom: string; equipe: string; adversaire?: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
@@ -563,7 +563,11 @@ export default function PostPage() {
                   {post.stats_joueur.joueurs.map((j, i) => (
                     <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
                       <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
-                      {j.equipe && <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>{j.equipe}</div>}
+                      {(j.equipe || j.adversaire) && (
+                        <div style={{fontSize:'11px',color:'#6b7280',textAlign:'center',marginBottom:'10px'}}>
+                          {j.equipe}{j.equipe && j.adversaire ? ' vs ' : ''}{j.adversaire}
+                        </div>
+                      )}
                       {(post.sport === 'basketball' ? CHAMPS_STATS_BASKET : CHAMPS_STATS[post.stats_joueur!.poste || 'champ']).filter(c => j.valeurs?.[c.cle]).map(c => (
                         <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
                           <span style={{color:'#6b7280'}}>{c.label}</span>

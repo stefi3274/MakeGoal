@@ -81,7 +81,7 @@ type MatchJour = {
 type But = { equipe: string; joueur: string; minute: string; passeur: string };
 type CarteEvenement = { joueur: string; minute: string };
 
-type StatJoueur = { nom: string; equipe: string; valeurs: Record<string, string> };
+type StatJoueur = { nom: string; equipe: string; adversaire: string; valeurs: Record<string, string> };
 type StatsPoste = 'champ' | 'gardien';
 const CHAMPS_STATS: Record<StatsPoste, { cle: string; label: string }[]> = {
   champ: [
@@ -216,7 +216,7 @@ export default function AdminMedia() {
   const [statsMode, setStatsMode] = useState<'performance' | 'comparaison' | 'bilan'>('performance');
   const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
-  const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', valeurs: {} }]);
+  const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
   const [statsTexteColle, setStatsTexteColle] = useState('');
 
   const [pEquipe, setPEquipe] = useState('');
@@ -432,9 +432,9 @@ export default function AdminMedia() {
     setter(prev => [...prev, { joueur: '', minute: '' }]);
   };
 
-  const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', valeurs: {} }]); };
+  const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', adversaire: '', valeurs: {} }]); };
   const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
-  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
+  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'adversaire', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
   const modifierAdversaire = (i: number, champ: keyof AdversaireParcours, val: string) => setPAdversaires(prev => prev.map((a, idx) => idx === i ? { ...a, [champ]: val } : a));
@@ -543,10 +543,44 @@ export default function AdminMedia() {
 
   const normaliserLabel = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
+  // Alias pour les libellés abrégés ou au singulier/pluriel qui ne
+  // correspondent pas exactement au label affiché dans le formulaire.
+  const ALIAS_CHAMPS: Record<string, string> = {
+    passesdecisives: 'passesDec', passedecisive: 'passesDec', passedecisives: 'passesDec',
+    tirscadre: 'tirsCadres', tircadre: 'tirsCadres', tircadres: 'tirsCadres',
+    centrereussi: 'centresReussis', centresreussi: 'centresReussis', centrereussis: 'centresReussis',
+    occasioncreee: 'occasionsCreees', occasionscreee: 'occasionsCreees',
+    passereussie: 'passesReussies', passesreussie: 'passesReussies', passereussies: 'passesReussies',
+    duelgagne: 'duelsGagnes', duelsgagne: 'duelsGagnes',
+    duelperdu: 'duelsPerdus', duelsperdu: 'duelsPerdus',
+    pertedeballe: 'pertesBalle', perteballe: 'pertesBalle', pertesballes: 'pertesBalle', pertedeballes: 'pertesBalle',
+    ballontouche: 'ballonsTouches', ballonstouche: 'ballonsTouches',
+    mauvaisepasse: 'mauvaisesPasses', mauvaisespasse: 'mauvaisesPasses', passeratee: 'mauvaisesPasses', passesratees: 'mauvaisesPasses', passerate: 'mauvaisesPasses',
+    dribble: 'dribbles', dribblereussi: 'dribbles', driblesreussis: 'dribbles',
+    horsjeux: 'horsJeu',
+    cartonsjaunes: 'cartonJaune', cartonjaunes: 'cartonJaune',
+    cartonsrouges: 'cartonRouge', cartonrouges: 'cartonRouge',
+    matchjoue: 'matchsJoues', matchsjoue: 'matchsJoues',
+    minutesjouees: 'minutes', minutejouee: 'minutes', minutesjoue: 'minutes',
+  };
+
   const analyserStats = () => {
     const champs = sportForm === 'football' ? CHAMPS_STATS[statsPoste] : CHAMPS_STATS_BASKET;
     const lookup: Record<string, string> = {};
     champs.forEach(c => { lookup[normaliserLabel(c.label)] = c.cle; });
+    const clesValides = new Set(champs.map(c => c.cle));
+    const trouverCle = (texte: string): string | undefined => {
+      const n = normaliserLabel(texte);
+      if (lookup[n]) return lookup[n];
+      const aliasCle = ALIAS_CHAMPS[n];
+      if (aliasCle && clesValides.has(aliasCle)) return aliasCle;
+      // Correspondance par préfixe (abréviation ou pluriel/singulier),
+      // à partir de 5 caractères communs pour éviter les faux positifs.
+      for (const [labelNorm, cle] of Object.entries(lookup)) {
+        if (labelNorm.length >= 5 && n.length >= 5 && (labelNorm.startsWith(n) || n.startsWith(labelNorm))) return cle;
+      }
+      return undefined;
+    };
     const blocs = statsTexteColle.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     if (blocs.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
     const joueurs: StatJoueur[] = blocs.slice(0, 6).map(bloc => {
@@ -557,11 +591,11 @@ export default function AdminMedia() {
       reste.forEach(l => {
         const m = l.match(/^(.+?)\s*[:\-]\s*(.+)$/);
         if (m) {
-          const cle = lookup[normaliserLabel(m[1])];
+          const cle = trouverCle(m[1]);
           if (cle) valeurs[cle] = m[2].trim();
         }
       });
-      return { nom: parts[0] || '', equipe: parts[1] || '', valeurs };
+      return { nom: parts[0] || '', equipe: parts[1] || '', adversaire: parts[2] || '', valeurs };
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
@@ -705,10 +739,10 @@ export default function AdminMedia() {
       setStatsMode((a.stats_joueur.mode as any) || 'performance');
       setStatsPoste(a.stats_joueur.poste || 'champ');
       setStatsNbMatchs(a.stats_joueur.nbMatchs || '');
-      setStatsJoueurs(a.stats_joueur.joueurs);
+      setStatsJoueurs(a.stats_joueur.joueurs.map(j => ({ ...j, adversaire: j.adversaire || '' })));
     } else {
       setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
-      setStatsJoueurs([{ nom: '', equipe: '', valeurs: {} }]);
+      setStatsJoueurs([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
     }
     setVue('editer');
   };
@@ -843,7 +877,7 @@ export default function AdminMedia() {
     if (!titreFinal) {
       if (modePost === 'classement' && classementTitre) titreFinal = classementTitre;
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
-      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + ' — Stats';
+      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].adversaire ? ' vs ' + statsJoueurs[0].adversaire : '') + ' — Stats';
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
@@ -1360,7 +1394,7 @@ export default function AdminMedia() {
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
                   <button type="button" onClick={() => setStatsMode('performance')} style={btnChoix(statsMode==='performance')}>👤 Performance</button>
-                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',valeurs:{}},{nom:'',equipe:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
+                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',adversaire:'',valeurs:{}},{nom:'',equipe:'',adversaire:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
                   <button type="button" onClick={() => setStatsMode('bilan')} style={btnChoix(statsMode==='bilan')}>📊 Bilan cumulé</button>
                 </div>
 
@@ -1376,8 +1410,8 @@ export default function AdminMedia() {
                 </div>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>📋 Coller un texte (optionnel)</p>
-                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Nom - Équipe". Puis une ligne par stat : "Label: valeur".</p>
-                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Mbappé - Real Madrid\nButs: 2\nPasses déc: 1\nNote: 8.5\n\nMessi - Inter Miami\nButs: 1\nPasses déc: 2\nNote: 8.0" : "LeBron James - Lakers\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Nom - Équipe - Adversaire" (l'adversaire est optionnel). Puis une ligne par stat : "Label: valeur".</p>
+                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Messi - Argentine - Espagne\nButs: 2\nPasses déc: 1\nNote: 8.5\n\nMbappé - France - Espagne\nButs: 1\nPasses déc: 2\nNote: 8.0" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                 {statsMode === 'bilan' && (
@@ -1387,8 +1421,9 @@ export default function AdminMedia() {
                 {statsJoueurs.map((j, i) => (
                   <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'12px'}}>
                     <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
-                      <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.5}}/>
+                      <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.3}}/>
                       <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:1}}/>
+                      <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Adversaire" style={{...inputStyle,flex:1}}/>
                       {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
