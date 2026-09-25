@@ -537,24 +537,30 @@ export default function PostPage() {
                   </div>
                 )}
                 <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
-                  {post.stats_joueur.joueurs.map((j, i) => (
-                    <div key={i} style={{flex:1,minWidth:'140px',background:'#fff',borderRadius:'12px',padding:'14px',border:'1px solid #f3f4f6'}}>
-                      <div style={{fontWeight:900,fontSize:'17px',color:'#111',textAlign:'center'}}>{j.nom}</div>
-                      {j.equipe && <div style={{fontSize:'12px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'2px'}}>{j.equipe}</div>}
+                  {post.stats_joueur.joueurs.map((j, i) => {
+                    // Seul : grands caractères. À plusieurs (côte à côte) : un peu plus petits pour tenir.
+                    const seul = post.stats_joueur!.joueurs.length === 1;
+                    const tLabel = seul ? 17 : 13;
+                    const tValeur = seul ? 22 : 17;
+                    return (
+                    <div key={i} style={{flex:1,minWidth:0,background:'#fff',borderRadius:'12px',padding:seul ? '18px 20px' : '12px 10px',border:'1px solid #f3f4f6'}}>
+                      <div style={{fontWeight:900,fontSize:seul ? '24px' : '17px',color:'#111',textAlign:'center',lineHeight:1.2,minHeight:seul ? undefined : '2.4em',display:'flex',alignItems:'center',justifyContent:'center'}}>{j.nom}</div>
+                      {j.equipe && <div style={{fontSize:seul ? '15px' : '13px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'3px'}}>{j.equipe}</div>}
                       {j.adversaire && (
                         <div style={{textAlign:'center',marginTop:'6px'}}>
-                          <span style={{display:'inline-block',fontSize:'11px',fontWeight:800,color:couleurSport,background:couleurSport+'14',padding:'3px 10px',borderRadius:'999px'}}>face à {j.adversaire}</span>
+                          <span style={{display:'inline-block',fontSize:seul ? '14px' : '12px',fontWeight:800,color:couleurSport,background:couleurSport+'14',padding:'3px 10px',borderRadius:'999px'}}>face à {j.adversaire}</span>
                         </div>
                       )}
                       <div style={{height:'10px'}}/>
                       {champsAffichage(post.sport, post.stats_joueur!.poste).filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim()).map(c => (
-                        <div key={c.cle} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:'1px solid #f3f4f6'}}>
-                          <span style={{color:'#6b7280'}}>{c.label}</span>
-                          <span style={{fontWeight:900,color:'#111'}}>{j.valeurs[c.cle]}</span>
+                        <div key={c.cle} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',padding:seul ? '9px 0' : '7px 0',borderBottom:'1px solid #f3f4f6'}}>
+                          <span style={{color:couleurSport,fontWeight:800,fontSize:tLabel+'px',lineHeight:1.25,minWidth:0}}>{c.label}</span>
+                          <span style={{color:'#000',fontWeight:900,fontSize:tValeur+'px',lineHeight:1}}>{j.valeurs[c.cle]}</span>
                         </div>
                       ))}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
