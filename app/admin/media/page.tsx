@@ -4,7 +4,8 @@ import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
-import { CHAMPS_STATS, CHAMPS_STATS_BASKET, POSTES_LABELS, StatsPoste, champsFootball, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
+import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
+import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
 
@@ -57,16 +58,6 @@ const FORMATIONS: Record<string, { x: number; y: number }[]> = {
 };
 const FORMATIONS_LISTE = Object.keys(FORMATIONS);
 
-const DISTINCTIONS = [
-  'Ballon d\'or',
-  'Joueur du mois', 'Joueur de la semaine', 'Homme du match',
-  'Meilleur buteur', 'Meilleur passeur', 'Meilleur gardien',
-  'Meilleur jeune / Révélation', 'Meilleur entraîneur', 'MVP du tournoi',
-  'Équipe de la semaine', 'Équipe du mois', 'Équipe du tournoi',
-  'Meilleure attaque', 'Meilleure défense', 'Équipe fair-play',
-  'Autre'
-];
-
 const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
   { titre: 'Compétition', tags: ['Club', 'Sélection', 'Championnat', 'Coupe', 'Ligue des Champions', 'Coupe du Monde', 'Euro', 'Éliminatoires', 'Copa America', 'CAN'] },
   { titre: 'Genre & catégorie', tags: ['Masculin', 'Féminin', 'U-17', 'U-20', 'Olympique'] },
@@ -82,7 +73,7 @@ type MatchJour = {
 type But = { equipe: string; joueur: string; minute: string; passeur: string };
 type CarteEvenement = { joueur: string; minute: string };
 
-type StatJoueur = { nom: string; equipe: string; adversaire: string; valeurs: Record<string, string> };
+type StatJoueur = { nom: string; equipe: string; adversaire: string; photo?: string; valeurs: Record<string, string> };
 type QuartTemps = { quart: string; score1: string; score2: string };
 
 type Match = {
@@ -106,7 +97,7 @@ type Article = {
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
-  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null;
+  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
   formation: string | null; onze: { nom: string; equipe: string }[] | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
@@ -118,7 +109,7 @@ type Article = {
   declaration: Declaration | null;
   invitation_concours: InvitationConcours | null;
   gagnants: Gagnants | null;
-  stats_joueur: { mode: string; poste: StatsPoste; nbMatchs: string | null; joueurs: StatJoueur[] } | null;
+  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   publie: boolean; created_at: string; sport: string | null;
@@ -153,11 +144,20 @@ export default function AdminMedia() {
   const [score2, setScore2] = useState('');
   const [statutMatch, setStatutMatch] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingJoueur, setUploadingJoueur] = useState<number | null>(null);
   const [distinctionType, setDistinctionType] = useState('');
   const [distinctionAutre, setDistinctionAutre] = useState('');
   const [laureat, setLaureat] = useState('');
   const [distinctionNote, setDistinctionNote] = useState('');
   const [distinctionStats, setDistinctionStats] = useState('');
+  const [distEquipe, setDistEquipe] = useState('');
+  const [distChampionnat, setDistChampionnat] = useState('');
+  const [distPeriode, setDistPeriode] = useState('');
+  const [distPhoto, setDistPhoto] = useState('');
+  const [uploadingDist, setUploadingDist] = useState(false);
+  const [texteLotDistinctions, setTexteLotDistinctions] = useState('');
+  const [lotDistinctionsOuvert, setLotDistinctionsOuvert] = useState(false);
+  const [importLotDistinctions, setImportLotDistinctions] = useState(false);
   const [modePost, setModePost] = useState('simple');
   const [pubActif, setPubActif] = useState(false);
   const [pubNom, setPubNom] = useState('');
@@ -191,7 +191,9 @@ export default function AdminMedia() {
   const [resQuarts, setResQuarts] = useState<QuartTemps[]>([]);
 
   const [statsMode, setStatsMode] = useState<'performance' | 'comparaison' | 'bilan'>('performance');
-  const [statsPoste, setStatsPoste] = useState<StatsPoste>('champ');
+  const [statsPoste, setStatsPoste] = useState<StatsPoste>('attaquant');
+  const [statsPeriodeType, setStatsPeriodeType] = useState<PeriodeType>('match');
+  const [statsPeriodeLibelle, setStatsPeriodeLibelle] = useState('');
   const [statsNbMatchs, setStatsNbMatchs] = useState('');
   const [statsJoueurs, setStatsJoueurs] = useState<StatJoueur[]>([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
   const [statsTexteColle, setStatsTexteColle] = useState('');
@@ -411,7 +413,7 @@ export default function AdminMedia() {
 
   const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', adversaire: '', valeurs: {} }]); };
   const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
-  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'adversaire', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
+  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'adversaire' | 'photo', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
   const modifierAdversaire = (i: number, champ: keyof AdversaireParcours, val: string) => setPAdversaires(prev => prev.map((a, idx) => idx === i ? { ...a, [champ]: val } : a));
@@ -518,6 +520,52 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
+  const erreurColonneDistinction = (msg: string) => msg.includes('distinction_details')
+    ? "❌ La colonne 'distinction_details' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
+    : '❌ ' + msg;
+
+  const uploadPhotoDistinction = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingDist(true); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file);
+      const nom = 'distinction-' + Date.now() + '.jpg';
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/jpeg' });
+      if (error) { setMessage('❌ Photo : ' + error.message); setUploadingDist(false); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      setDistPhoto(data.publicUrl);
+      setMessage('✅ Photo ajoutée.');
+    } catch (err) {
+      setMessage('❌ Photo : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingDist(false);
+  };
+
+  const creerDistinctionsEnLot = async () => {
+    const { distinctions, ignores } = parserLotDistinctions(texteLotDistinctions);
+    if (distinctions.length === 0) { setMessage('❌ Format non reconnu. 1ère ligne de chaque bloc : "Catégorie - Lauréat - Équipe - Championnat - Période". Blocs séparés par une ligne vide.'); return; }
+    setImportLotDistinctions(true);
+    const rows = distinctions.map(d => ({
+      type: 'post', langue, categorie: 'Ponctuel', sport: sportForm,
+      titre: d.categorie + ' — ' + d.laureat + (d.periode ? ' (' + d.periode + ')' : ''),
+      distinction_type: d.categorie, laureat: d.laureat,
+      distinction_stats: d.stats || null, distinction_note: d.note || null,
+      distinction_details: { equipe: d.equipe, championnat: d.championnat, periode: d.periode, photo: '' },
+      publie: true
+    }));
+    const { error } = await supabase.from('articles').insert(rows);
+    setImportLotDistinctions(false);
+    if (error) { setMessage(erreurColonneDistinction(error.message)); return; }
+    const libres = distinctions.filter(d => !d.officielle).length;
+    setMessage('✅ ' + rows.length + ' distinction(s) créée(s) et publiée(s) (' + distinctions.map(d => d.laureat).join(', ') + ').'
+      + (libres ? ' ' + libres + ' avec une catégorie libre (hors liste).' : '')
+      + (ignores ? ' ⚠️ ' + ignores + ' bloc(s) ignoré(s) (incomplets).' : ''));
+    setTexteLotDistinctions('');
+    chargerArticles();
+  };
+
   const analyserStats = () => {
     // Football : on cherche dans TOUTES les catégories (poste choisi en
     // premier) pour ne jamais perdre une stat collée.
@@ -536,7 +584,8 @@ export default function AdminMedia() {
         if (m && cle) valeurs[cle] = m[2].trim();
         else nonReconnues.push(l);
       });
-      return { nom, equipe, adversaire, valeurs };
+      const ancienne = statsJoueurs.find(e => e.photo && e.nom.trim().toLowerCase() === nom.trim().toLowerCase());
+      return { nom, equipe, adversaire, valeurs, photo: ancienne?.photo };
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
@@ -552,6 +601,45 @@ export default function AdminMedia() {
   };
 
   const slugify = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+
+  // Réduit la photo (max 800 px) avant l'envoi : téléversement rapide sur téléphone,
+  // et largement assez net pour l'affichage et les vidéos.
+  const redimensionnerImage = (file: File, max = 800): Promise<Blob> => new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const ratio = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * ratio);
+      c.height = Math.round(img.height * ratio);
+      const ctx = c.getContext('2d');
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('canvas indisponible')); return; }
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), 'image/jpeg', 0.9);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image illisible')); };
+    img.src = url;
+  });
+
+  const uploadPhotoJoueur = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingJoueur(i); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file);
+      const nom = 'joueur-' + Date.now() + '-' + i + '.jpg';
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/jpeg' });
+      if (error) { setMessage('❌ Photo joueur : ' + error.message); setUploadingJoueur(null); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      modifierJoueurStats(i, 'photo', data.publicUrl);
+      setMessage('✅ Photo du joueur ajoutée.');
+    } catch (err) {
+      setMessage('❌ Photo joueur : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingJoueur(null);
+  };
 
   const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -598,6 +686,7 @@ export default function AdminMedia() {
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
+    setDistEquipe(''); setDistChampionnat(''); setDistPeriode(''); setDistPhoto('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
@@ -608,7 +697,8 @@ export default function AdminMedia() {
     setGTitreTirage(''); setGGagnants([{ nom: '', prix: '' }]);
     setSportForm(getSport());
     setHeureMatch(''); setStade('');
-    setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
+    setStatsMode('performance'); setStatsPoste('attaquant'); setStatsNbMatchs('');
+    setStatsPeriodeType('match'); setStatsPeriodeLibelle('');
     setStatsJoueurs([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
     setStatsTexteColle('');
     setPEquipe(''); setPCompetition(''); setPPoule('');
@@ -636,6 +726,8 @@ export default function AdminMedia() {
     if (dt && !DISTINCTIONS.includes(dt)) { setDistinctionType('Autre'); setDistinctionAutre(dt); }
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
+    const dd = { ...DETAILS_VIDES, ...(a.distinction_details || {}) };
+    setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
     if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
     else if (a.formation) setModePost('onze');
@@ -680,12 +772,16 @@ export default function AdminMedia() {
     setSportForm((a.sport as Sport) || 'football');
     setResTexteColle('');
     if (a.stats_joueur && a.stats_joueur.joueurs?.length) {
-      setStatsMode((a.stats_joueur.mode as any) || 'performance');
-      setStatsPoste((['champ','defenseur','gardien'].includes(a.stats_joueur.poste as string) ? a.stats_joueur.poste : 'champ') as StatsPoste);
+      // Anciens posts : le mode "bilan" est devenu une période (saison par défaut).
+      setStatsMode(a.stats_joueur.mode === 'comparaison' ? 'comparaison' : 'performance');
+      setStatsPoste(normaliserPoste(a.stats_joueur.poste));
       setStatsNbMatchs(a.stats_joueur.nbMatchs || '');
+      setStatsPeriodeType(a.stats_joueur.periode?.type || (a.stats_joueur.mode === 'bilan' ? 'saison' : 'match'));
+      setStatsPeriodeLibelle(a.stats_joueur.periode?.libelle || '');
       setStatsJoueurs(a.stats_joueur.joueurs.map(j => ({ ...j, adversaire: j.adversaire || '' })));
     } else {
-      setStatsMode('performance'); setStatsPoste('champ'); setStatsNbMatchs('');
+      setStatsMode('performance'); setStatsPoste('attaquant'); setStatsNbMatchs('');
+      setStatsPeriodeType('match'); setStatsPeriodeLibelle('');
       setStatsJoueurs([{ nom: '', equipe: '', adversaire: '', valeurs: {} }]);
     }
     setVue('editer');
@@ -821,8 +917,8 @@ export default function AdminMedia() {
     if (!titreFinal) {
       if (modePost === 'classement' && classementTitre) titreFinal = classementTitre;
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
-      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') + ' — Stats';
-      else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType || 'Distinction') + ' — ' + laureat;
+      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsPeriodeType === 'match' ? (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') : '') + ' — Stats' + (statsPeriodeType !== 'match' ? ' ' + libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }) : '');
+      else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
       else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
@@ -873,7 +969,7 @@ export default function AdminMedia() {
           return { equipe1: parts[0] || '', equipe2: parts[1] || '' };
         }).filter(m => m.equipe1 && m.equipe2)
       } : null,
-      stats_joueur: modePost === 'stats' ? { mode: statsMode, poste: statsPoste, nbMatchs: statsMode === 'bilan' ? (statsNbMatchs || null) : null, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
+      stats_joueur: modePost === 'stats' ? { mode: statsMode === 'comparaison' ? 'comparaison' : 'performance', poste: statsPoste, nbMatchs: statsPeriodeType !== 'match' ? (statsNbMatchs || null) : null, periode: { type: statsPeriodeType, libelle: statsPeriodeLibelle.trim() }, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
       sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
       pub_nom: pubNom || null,
@@ -882,17 +978,19 @@ export default function AdminMedia() {
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
-      publie: publier, updated_at: new Date().toISOString()
+      publie: publier, updated_at: new Date().toISOString(),
+      // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'distinction' ? { distinction_details: { equipe: distEquipe.trim(), championnat: distChampionnat.trim(), periode: distPeriode.trim(), photo: distPhoto } } : {})
     };
     if (editId) {
       const { error } = await supabase.from('articles').update(payload).eq('id', editId);
       setSaving(false);
-      if (error) { setMessage('❌ ' + error.message); return; }
+      if (error) { setMessage(erreurColonneDistinction(error.message)); return; }
       setMessage('✅ Mis à jour !');
     } else {
       const { error } = await supabase.from('articles').insert(payload);
       setSaving(false);
-      if (error) { setMessage('❌ ' + error.message); return; }
+      if (error) { setMessage(erreurColonneDistinction(error.message)); return; }
       setMessage('✅ Créé !');
     }
     chargerArticles();
@@ -1334,12 +1432,11 @@ export default function AdminMedia() {
             {type === 'post' && modePost === 'stats' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>📈 Stats joueur</label>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Performance d'un joueur, comparaison entre 2-3 joueurs, ou bilan cumulé sur plusieurs matchs.</p>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Un joueur ou une comparaison, sur un match, une journée, un mois, un trimestre ou une saison.</p>
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
                   <button type="button" onClick={() => setStatsMode('performance')} style={btnChoix(statsMode==='performance')}>👤 Performance</button>
                   <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',adversaire:'',valeurs:{}},{nom:'',equipe:'',adversaire:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
-                  <button type="button" onClick={() => setStatsMode('bilan')} style={btnChoix(statsMode==='bilan')}>📊 Bilan cumulé</button>
                 </div>
 
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
@@ -1355,16 +1452,42 @@ export default function AdminMedia() {
                 </div>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>📋 Coller un texte (optionnel)</p>
-                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Joueur - Son équipe - Adversaire". Puis une ligne par stat : "Label: valeur". Les stats non remplies n'apparaissent pas dans le post.</p>
-                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Wilson Isidor - Haïti - Trinidad-et-Tobago\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nTirs cadrés: 1\n\nAlex Christian - Haïti - Trinidad-et-Tobago\nTacles réussis: 4\nInterceptions: 3\nDégagements: 6" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Joueur - Son équipe - Adversaire" (pour un mois, une saison, etc. l'adversaire est inutile : "Joueur - Son équipe"). Puis une ligne par stat : "Label: valeur". Les stats non remplies n'apparaissent pas dans le post.</p>
+                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Wilson Isidor - Haïti - Trinidad-et-Tobago\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nRécupérations: 4\n\nAlex Christian - Haïti - Trinidad-et-Tobago\nTacles réussis: 4\nInterceptions: 3\nPasses clés: 2\nTirs cadrés: 1" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
-                {statsMode === 'bilan' && (
-                  <input value={statsNbMatchs} onChange={e => setStatsNbMatchs(e.target.value)} placeholder="Nombre de matchs (ex: 10)" style={{...inputStyle,marginBottom:'16px'}}/>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>🗓️ Période couverte par ces stats</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'10px',flexWrap:'wrap'}}>
+                  {PERIODES.map(pe => (
+                    <button key={pe.type} type="button" onClick={() => setStatsPeriodeType(pe.type)} style={btnChoix(statsPeriodeType===pe.type)}>{pe.label}</button>
+                  ))}
+                </div>
+                <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
+                  <input value={statsPeriodeLibelle} onChange={e => setStatsPeriodeLibelle(e.target.value)} placeholder={PERIODES.find(pe => pe.type === statsPeriodeType)?.placeholder} style={{...inputStyle,flex:2,minWidth:'180px'}}/>
+                  {statsPeriodeType !== 'match' && (
+                    <input value={statsNbMatchs} onChange={e => setStatsNbMatchs(e.target.value)} placeholder="Nb de matchs (optionnel)" style={{...inputStyle,flex:1,minWidth:'140px'}}/>
+                  )}
+                </div>
+                {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, statsNbMatchs) && (
+                  <p style={{fontSize:'11px',color:SPORT_COULEURS[sportForm].primaire,margin:'-8px 0 16px',fontWeight:700}}>Sur le post : {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, statsNbMatchs)}</p>
                 )}
 
                 {statsJoueurs.map((j, i) => (
                   <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'12px'}}>
+                    <div style={{display:'flex',gap:'12px',marginBottom:'12px',alignItems:'center'}}>
+                      {j.photo ? (
+                        <img src={j.photo} alt="" style={{width:'56px',height:'56px',borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'2px solid '+SPORT_COULEURS[sportForm].primaire}}/>
+                      ) : (
+                        <div style={{width:'56px',height:'56px',borderRadius:'50%',background:'#2a2a2a',border:'2px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'22px'}}>👤</div>
+                      )}
+                      <label style={{padding:'8px 14px',borderRadius:'999px',border:'1px dashed #555',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>
+                        {uploadingJoueur === i ? '⏳ Envoi...' : (j.photo ? '📷 Changer la photo' : '📷 Ajouter la photo du joueur')}
+                        <input type="file" accept="image/*" onChange={e => uploadPhotoJoueur(i, e)} style={{display:'none'}}/>
+                      </label>
+                      {j.photo && (
+                        <button type="button" onClick={() => modifierJoueurStats(i,'photo','')} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'12px',fontWeight:700}}>Retirer</button>
+                      )}
+                    </div>
                     <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
                       <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.3}}/>
                       <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Son équipe" style={{...inputStyle,flex:1}}/>
@@ -1373,14 +1496,21 @@ export default function AdminMedia() {
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
-                      {(sportForm === 'football' ? [...CHAMPS_STATS[statsPoste], ...champsFootball(statsPoste).filter(c => !CHAMPS_STATS[statsPoste].some(x => x.cle === c.cle) && statsJoueurs.some(sj => sj.valeurs[c.cle]))] : CHAMPS_STATS_BASKET).map(c => (
-                        <div key={c.cle}>
-                          <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 4px'}}>{c.label}</p>
-                          <input value={j.valeurs[c.cle] || ''} onChange={e => modifierValeurStats(i,c.cle,e.target.value)} style={{...inputStyle,padding:'8px'}}/>
+                    {(sportForm === 'football' ? groupesFootball(statsPoste) : [{ titre: '', champs: CHAMPS_STATS_BASKET }])
+                      .filter(gr => gr.titre !== 'Autres statistiques' || gr.champs.some(c => statsJoueurs.some(sj => sj.valeurs[c.cle])))
+                      .map((gr, gi) => (
+                      <details key={gr.titre + gi} open={gi < 2 || gr.champs.some(c => j.valeurs[c.cle])} style={{marginBottom:'10px'}}>
+                        {gr.titre && <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:SPORT_COULEURS[sportForm].primaire,margin:'0 0 8px',listStyle:'revert'}}>{gr.titre} ({gr.champs.filter(c => j.valeurs[c.cle]).length}/{gr.champs.length})</summary>}
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginTop:'8px'}}>
+                          {gr.champs.map(c => (
+                            <div key={c.cle}>
+                              <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 4px'}}>{c.label}</p>
+                              <input value={j.valeurs[c.cle] || ''} onChange={e => modifierValeurStats(i,c.cle,e.target.value)} style={{...inputStyle,padding:'8px'}}/>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </details>
+                    ))}
                   </div>
                 ))}
                 {statsMode === 'comparaison' && statsJoueurs.length < 6 && (
@@ -1394,10 +1524,26 @@ export default function AdminMedia() {
                 <label style={labelStyle}>🏆 Distinction</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Pour un post récompense : joueur du mois, équipe de la semaine...</p>
 
+                <button type="button" onClick={() => setLotDistinctionsOuvert(v => !v)} style={{padding:'10px 18px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:lotDistinctionsOuvert?'#333':VIOLET,color:'#fff',marginBottom:'16px'}}>{lotDistinctionsOuvert ? '✕ Fermer' : '📚 Coller plusieurs distinctions à la fois'}</button>
+
+                {lotDistinctionsOuvert && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px'}}>Crée et publie un post par distinction. Un bloc par distinction, séparés par une ligne vide.</p>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 10px'}}>1ère ligne : "Catégorie - Lauréat - Équipe - Championnat - Période". Ligne 2 (optionnelle) : les chiffres. Ligne 3 (optionnelle) : la note. Pour une distinction d'équipe, le lauréat est l'équipe : "Équipe du mois - Arsenal - Premier League - Septembre 2026". Les photos s'ajoutent ensuite en modifiant le post.</p>
+                    <textarea value={texteLotDistinctions} onChange={e => setTexteLotDistinctions(e.target.value)} rows={12} placeholder={"Joueur du mois - Wilson Isidor - Haïti - Ligue 2 - Septembre 2026\n4 buts, 2 passes décisives\nAuteur de 4 buts en 5 matchs.\n\nEntraîneur du mois - Mikel Arteta - Arsenal - Premier League - Septembre 2026\n\nÉquipe du mois - Arsenal - Premier League - Septembre 2026"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={creerDistinctionsEnLot} disabled={importLotDistinctions} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotDistinctions ? '⏳ Création...' : '🚀 Créer toutes les distinctions'}</button>
+                  </div>
+                )}
+
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Type de distinction</p>
                 <select value={distinctionType} onChange={e => setDistinctionType(e.target.value)} style={{...inputStyle,marginBottom:'12px'}}>
                   <option value="">— Aucune —</option>
-                  {DISTINCTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {GROUPES_DISTINCTIONS.map(g => (
+                    <optgroup key={g.titre} label={g.titre}>
+                      {g.items.map(d => <option key={d} value={d}>{d}</option>)}
+                    </optgroup>
+                  ))}
+                  <option value="Autre">✏️ Autre (à écrire)</option>
                 </select>
 
                 {distinctionType === 'Autre' && (
@@ -1406,8 +1552,38 @@ export default function AdminMedia() {
 
                 {distinctionType && (
                   <>
-                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Lauréat (joueur ou équipe)</p>
-                    <input value={laureat} onChange={e => setLaureat(e.target.value)} placeholder="Nom du joueur ou de l'équipe" style={{...inputStyle,marginBottom:'12px'}}/>
+                    <div style={{display:'flex',gap:'12px',marginBottom:'12px',alignItems:'center'}}>
+                      {distPhoto ? (
+                        <img src={distPhoto} alt="" style={{width:'64px',height:'64px',borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'2px solid #ffd700'}}/>
+                      ) : (
+                        <div style={{width:'64px',height:'64px',borderRadius:'50%',background:'#2a2a2a',border:'2px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px'}}>🏆</div>
+                      )}
+                      <label style={{padding:'8px 14px',borderRadius:'999px',border:'1px dashed #555',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>
+                        {uploadingDist ? '⏳ Envoi...' : (distPhoto ? '📷 Changer la photo' : '📷 Ajouter la photo du lauréat')}
+                        <input type="file" accept="image/*" onChange={uploadPhotoDistinction} style={{display:'none'}}/>
+                      </label>
+                      {distPhoto && <button type="button" onClick={() => setDistPhoto('')} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'12px',fontWeight:700}}>Retirer</button>}
+                    </div>
+
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>{estDistinctionEquipe(distinctionType === 'Autre' ? distinctionAutre : distinctionType) ? 'Lauréat (l\'équipe)' : 'Lauréat (joueur ou entraîneur)'}</p>
+                    <input value={laureat} onChange={e => setLaureat(e.target.value)} placeholder={estDistinctionEquipe(distinctionType === 'Autre' ? distinctionAutre : distinctionType) ? "Nom de l'équipe" : 'Nom du joueur ou de l\'entraîneur'} style={{...inputStyle,marginBottom:'12px'}}/>
+
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px'}}>
+                      {!estDistinctionEquipe(distinctionType === 'Autre' ? distinctionAutre : distinctionType) && (
+                        <div>
+                          <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Son équipe</p>
+                          <input value={distEquipe} onChange={e => setDistEquipe(e.target.value)} placeholder="Ex: Haïti, Arsenal" style={inputStyle}/>
+                        </div>
+                      )}
+                      <div>
+                        <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Championnat / compétition</p>
+                        <input value={distChampionnat} onChange={e => setDistChampionnat(e.target.value)} placeholder="Ex: Ligue 2, Premier League" style={inputStyle}/>
+                      </div>
+                      <div>
+                        <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Période</p>
+                        <input value={distPeriode} onChange={e => setDistPeriode(e.target.value)} placeholder="Ex: Septembre 2026, 2025-26" style={inputStyle}/>
+                      </div>
+                    </div>
 
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Stats / chiffres (optionnel)</p>
                     <input value={distinctionStats} onChange={e => setDistinctionStats(e.target.value)} placeholder="Ex: 12 buts, 5 passes décisives" style={{...inputStyle,marginBottom:'12px'}}/>

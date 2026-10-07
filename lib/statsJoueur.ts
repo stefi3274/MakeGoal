@@ -3,53 +3,76 @@
 // (app/post/[id]/PostClient.tsx) : ne jamais recopier ces listes ailleurs.
 
 export type ChampStat = { cle: string; label: string };
-export type StatsPoste = 'champ' | 'defenseur' | 'gardien';
+export type GroupeStat = { titre: string; champs: ChampStat[] };
+export type StatsPoste = 'attaquant' | 'milieu' | 'defenseur' | 'gardien';
 
 export const POSTES_LABELS: Record<StatsPoste, string> = {
-  champ: '🏃 Attaquant / Milieu',
+  attaquant: '⚽ Attaquant',
+  milieu: '🎯 Milieu',
   defenseur: '🛡️ Défenseur',
   gardien: '🧤 Gardien',
 };
 
-export const CHAMPS_STATS: Record<StatsPoste, ChampStat[]> = {
-  champ: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'minutes', label: 'Minutes jouées' }, { cle: 'note', label: 'Note' },
-    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes décisives' },
-    { cle: 'tirs', label: 'Tirs' }, { cle: 'tirsCadres', label: 'Tirs cadrés' },
-    { cle: 'occasionsCreees', label: 'Occasions créées' }, { cle: 'centresReussis', label: 'Centres réussis' },
-    { cle: 'dribbles', label: 'Dribbles réussis' }, { cle: 'ballonsTouches', label: 'Ballons touchés' },
-    { cle: 'passesReussies', label: 'Passes réussies' }, { cle: 'mauvaisesPasses', label: 'Mauvaises passes' },
-    { cle: 'pertesBalle', label: 'Pertes de balle' },
-    { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
-    { cle: 'interceptions', label: 'Interceptions' }, { cle: 'horsJeu', label: 'Hors-jeu' },
-    { cle: 'fautesCommises', label: 'Fautes commises' }, { cle: 'fautesSubies', label: 'Fautes subies' },
-    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' },
-  ],
-  defenseur: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'minutes', label: 'Minutes jouées' }, { cle: 'note', label: 'Note' },
-    { cle: 'tacles', label: 'Tacles réussis' }, { cle: 'interceptions', label: 'Interceptions' },
-    { cle: 'degagements', label: 'Dégagements' }, { cle: 'tirsBloques', label: 'Tirs bloqués' },
-    { cle: 'recuperations', label: 'Récupérations' },
-    { cle: 'duelsAeriensGagnes', label: 'Duels aériens gagnés' },
-    { cle: 'duelsGagnes', label: 'Duels gagnés' }, { cle: 'duelsPerdus', label: 'Duels perdus' },
-    { cle: 'dribbleSubis', label: 'Dribblé (subis)' },
-    { cle: 'passesReussies', label: 'Passes réussies' }, { cle: 'longsBallons', label: 'Longs ballons réussis' },
-    { cle: 'mauvaisesPasses', label: 'Mauvaises passes' }, { cle: 'pertesBalle', label: 'Pertes de balle' },
-    { cle: 'erreursBut', label: 'Erreurs menant à un but' },
-    { cle: 'buts', label: 'Buts' }, { cle: 'passesDec', label: 'Passes décisives' },
-    { cle: 'fautesCommises', label: 'Fautes commises' },
-    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' },
-  ],
+// Anciens posts : le poste s'appelait 'champ'.
+export function normaliserPoste(p: string | null | undefined): StatsPoste {
+  return p === 'milieu' || p === 'defenseur' || p === 'gardien' ? p : 'attaquant';
+}
+
+// Catalogue complet des statistiques football (une seule définition par clé).
+const CAT: Record<string, string> = {
+  // Général
+  matchsJoues: 'Matchs joués', titularisations: 'Titularisations', minutes: 'Minutes jouées', note: 'Note',
+  // Attaque
+  buts: 'Buts', penaltysMarques: 'Penalties marqués', tirs: 'Tirs', tirsCadres: 'Tirs cadrés',
+  grossesOccasionsRatees: 'Grosses occasions ratées', dribbles: 'Dribbles réussis', ballonsTouches: 'Ballons touchés', horsJeu: 'Hors-jeu',
+  // Création et passes
+  passesDec: 'Passes décisives', passesCles: 'Passes clés', occasionsCreees: 'Occasions créées', centresReussis: 'Centres réussis',
+  passesReussies: 'Passes réussies', mauvaisesPasses: 'Mauvaises passes', longsBallons: 'Longs ballons réussis', pertesBalle: 'Pertes de balle',
+  // Défense
+  tacles: 'Tacles réussis', interceptions: 'Interceptions', recuperations: 'Récupérations', degagements: 'Dégagements',
+  tirsBloques: 'Tirs bloqués', duelsGagnes: 'Duels gagnés', duelsPerdus: 'Duels perdus', duelsAeriensGagnes: 'Duels aériens gagnés',
+  dribbleSubis: 'Dribblé (subis)', cleanSheet: 'Clean sheets', erreursBut: 'Erreurs menant à un but',
+  // Discipline
+  fautesCommises: 'Fautes commises', fautesSubies: 'Fautes subies', cartonJaune: 'Carton jaune', cartonRouge: 'Carton rouge',
+  // Gardien
+  arrets: 'Arrêts', pctArrets: '% d\'arrêts', butsEncaisses: 'Buts encaissés', penaltysArretes: 'Penalties arrêtés', sorties: 'Sorties',
+};
+
+const g = (titre: string, ...cles: string[]): GroupeStat => ({ titre, champs: cles.map(cle => ({ cle, label: CAT[cle] })) });
+
+const GENERAL = (...extra: string[]) => g('Général', 'matchsJoues', 'titularisations', 'minutes', 'note', ...extra);
+const ATTAQUE = (titre: string) => g(titre, 'buts', 'penaltysMarques', 'tirs', 'tirsCadres', 'grossesOccasionsRatees', 'dribbles', 'ballonsTouches', 'horsJeu');
+const CREATION = (titre: string) => g(titre, 'passesDec', 'passesCles', 'occasionsCreees', 'centresReussis', 'passesReussies', 'mauvaisesPasses', 'longsBallons', 'pertesBalle');
+const DEFENSE = (titre: string) => g(titre, 'tacles', 'interceptions', 'recuperations', 'degagements', 'tirsBloques', 'duelsGagnes', 'duelsPerdus', 'duelsAeriensGagnes', 'dribbleSubis', 'cleanSheet', 'erreursBut');
+const DISCIPLINE = () => g('Discipline', 'fautesCommises', 'fautesSubies', 'cartonJaune', 'cartonRouge');
+
+// Chaque poste a ses statistiques principales PLUS l'apport de l'autre
+// registre (attaquant avec apport défensif, défenseur avec apport offensif,
+// milieu avec les deux).
+export const GROUPES_POSTE: Record<StatsPoste, GroupeStat[]> = {
+  attaquant: [GENERAL(), ATTAQUE('Attaque'), CREATION('Création et passes'), DEFENSE('Apport défensif'), DISCIPLINE()],
+  milieu: [GENERAL(), CREATION('Création et passes'), ATTAQUE('Apport offensif'), DEFENSE('Apport défensif'), DISCIPLINE()],
+  defenseur: [GENERAL(), DEFENSE('Défense'), CREATION('Passes et relance'), ATTAQUE('Apport offensif'), DISCIPLINE()],
   gardien: [
-    { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'minutes', label: 'Minutes jouées' }, { cle: 'note', label: 'Note' },
-    { cle: 'arrets', label: 'Arrêts' }, { cle: 'butsEncaisses', label: 'Buts encaissés' }, { cle: 'cleanSheet', label: 'Clean sheet' },
-    { cle: 'penaltysArretes', label: 'Penalties arrêtés' }, { cle: 'sorties', label: 'Sorties' },
-    { cle: 'degagements', label: 'Dégagements' },
-    { cle: 'passesReussies', label: 'Passes réussies' }, { cle: 'longsBallons', label: 'Longs ballons réussis' },
-    { cle: 'erreursBut', label: 'Erreurs menant à un but' },
-    { cle: 'cartonJaune', label: 'Carton jaune' }, { cle: 'cartonRouge', label: 'Carton rouge' },
+    GENERAL(),
+    g('Gardien', 'arrets', 'pctArrets', 'butsEncaisses', 'cleanSheet', 'penaltysArretes', 'sorties'),
+    g('Jeu au pied', 'passesReussies', 'longsBallons', 'degagements', 'erreursBut'),
+    DISCIPLINE(),
   ],
 };
+
+// Les statistiques saisies hors des groupes du poste ne sont jamais perdues :
+// elles sont regroupées à la fin.
+export function groupesFootball(poste: StatsPoste | string | null | undefined): GroupeStat[] {
+  const groupes = GROUPES_POSTE[normaliserPoste(poste)];
+  const vus = new Set<string>();
+  groupes.forEach(gr => gr.champs.forEach(c => vus.add(c.cle)));
+  const autres: ChampStat[] = [];
+  (Object.keys(GROUPES_POSTE) as StatsPoste[]).forEach(k => GROUPES_POSTE[k].forEach(gr => gr.champs.forEach(c => {
+    if (!vus.has(c.cle)) { vus.add(c.cle); autres.push(c); }
+  })));
+  return autres.length ? [...groupes, { titre: 'Autres statistiques', champs: autres }] : groupes;
+}
 
 export const CHAMPS_STATS_BASKET: ChampStat[] = [
   { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'minutes', label: 'Minutes jouées' }, { cle: 'points', label: 'Points' },
@@ -58,20 +81,48 @@ export const CHAMPS_STATS_BASKET: ChampStat[] = [
   { cle: 'tirsReussis', label: '% Tirs réussis' },
 ];
 
-// Toutes les catégories football, celles du poste choisi en premier.
-// Sert à l'affichage public et au parsing : une stat saisie n'est
-// jamais perdue, même si elle appartient à un autre poste.
+export function groupesAffichage(sport: string | null | undefined, poste: StatsPoste | string | null | undefined): GroupeStat[] {
+  return sport === 'basketball' ? [{ titre: '', champs: CHAMPS_STATS_BASKET }] : groupesFootball(poste);
+}
+
+// Liste à plat (toutes les catégories, celles du poste en premier).
 export function champsFootball(poste: StatsPoste | string | null | undefined): ChampStat[] {
-  const p: StatsPoste = poste === 'defenseur' || poste === 'gardien' ? poste : 'champ';
-  const ordre: StatsPoste[] = [p, ...(['champ', 'defenseur', 'gardien'] as StatsPoste[]).filter(x => x !== p)];
   const vus = new Set<string>();
   const res: ChampStat[] = [];
-  ordre.forEach(k => CHAMPS_STATS[k].forEach(c => { if (!vus.has(c.cle)) { vus.add(c.cle); res.push(c); } }));
+  groupesFootball(poste).forEach(gr => gr.champs.forEach(c => { if (!vus.has(c.cle)) { vus.add(c.cle); res.push(c); } }));
   return res;
 }
 
 export function champsAffichage(sport: string | null | undefined, poste: StatsPoste | string | null | undefined): ChampStat[] {
   return sport === 'basketball' ? CHAMPS_STATS_BASKET : champsFootball(poste);
+}
+
+// ---- Période couverte par les stats ----
+export type PeriodeType = 'match' | 'journee' | 'ldc' | 'mois' | 'trimestre' | 'saison';
+export type Periode = { type: PeriodeType; libelle: string };
+
+export const PERIODES: { type: PeriodeType; label: string; placeholder: string }[] = [
+  { type: 'match', label: '🎯 Un match', placeholder: 'Précision (optionnel, ex: Match amical)' },
+  { type: 'journee', label: '📅 Journée de championnat', placeholder: 'Ex: Journée 7 de Ligue 1' },
+  { type: 'ldc', label: '⭐ Ligue des champions', placeholder: 'Ex: Phase de ligue, Journée 3' },
+  { type: 'mois', label: '🗓️ Un mois', placeholder: 'Ex: Septembre 2026' },
+  { type: 'trimestre', label: '📆 Un trimestre', placeholder: 'Ex: T3 2026' },
+  { type: 'saison', label: '🏆 Une saison', placeholder: 'Ex: 2025-26' },
+];
+
+// Texte du bandeau de période affiché sur le post ('' = rien à afficher).
+export function libellePeriode(periode: Periode | null | undefined, nbMatchs?: string | null): string {
+  if (!periode) return nbMatchs ? 'Bilan sur ' + nbMatchs + ' matchs' : '';
+  const lib = (periode.libelle || '').trim();
+  let texte = '';
+  if (periode.type === 'match') texte = lib;
+  else if (periode.type === 'journee') texte = 'Journée de championnat' + (lib ? ' · ' + lib : '');
+  else if (periode.type === 'ldc') texte = 'Ligue des champions' + (lib ? ' · ' + lib : '');
+  else if (periode.type === 'mois') texte = 'Mois' + (lib ? ' ' + lib : '');
+  else if (periode.type === 'trimestre') texte = 'Trimestre' + (lib ? ' ' + lib : '');
+  else texte = 'Saison' + (lib ? ' ' + lib : '');
+  const nb = periode.type !== 'match' && nbMatchs ? nbMatchs + ' matchs' : '';
+  return [texte, nb].filter(Boolean).join(' · ');
 }
 
 export const normaliserLabel = (s: string) =>
@@ -107,6 +158,12 @@ const ALIAS: Record<string, string> = {
   arret: 'arrets', parades: 'arrets', parade: 'arrets', butencaisse: 'butsEncaisses', butsencaisse: 'butsEncaisses',
   penaltyarrete: 'penaltysArretes', penaltiesarretes: 'penaltysArretes', penaltysarretes: 'penaltysArretes', sortie: 'sorties',
   cleansheets: 'cleanSheet', rebond: 'rebonds', point: 'points', contrebasket: 'contres',
+  passecle: 'passesCles', passescle: 'passesCles', keypass: 'passesCles', keypasses: 'passesCles',
+  titularisation: 'titularisations', titulaire: 'titularisations', titulaires: 'titularisations', matchstitulaire: 'titularisations', matchstitulaires: 'titularisations',
+  penaltymarque: 'penaltysMarques', penaltiesmarques: 'penaltysMarques', penaltysmarque: 'penaltysMarques',
+  grosseoccasionratee: 'grossesOccasionsRatees', grossesoccasionsratee: 'grossesOccasionsRatees', occasionsratees: 'grossesOccasionsRatees', occasionratee: 'grossesOccasionsRatees',
+  pourcentagearrets: 'pctArrets', arretspourcentage: 'pctArrets', tauxarrets: 'pctArrets',
+  fautessubie: 'fautesSubies', fautessubies: 'fautesSubies',
 };
 
 // Retourne la clé de la catégorie correspondant au libellé saisi, en
