@@ -9,6 +9,7 @@ import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
 import { groupesAffichage, libellePeriode, Periode } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
+import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -24,23 +25,6 @@ const couleurTag = (t: string) => {
   return '#bf00ff';
 };
 
-const DRAPEAUX: Record<string, string> = {
-  'france': '🇫🇷', 'haiti': '🇭🇹', 'haïti': '🇭🇹', 'bresil': '🇧🇷', 'brésil': '🇧🇷',
-  'argentine': '🇦🇷', 'espagne': '🇪🇸', 'angleterre': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'allemagne': '🇩🇪',
-  'portugal': '🇵🇹', 'italie': '🇮🇹', 'belgique': '🇧🇪', 'pays-bas': '🇳🇱', 'hollande': '🇳🇱',
-  'usa': '🇺🇸', 'etats-unis': '🇺🇸', 'états-unis': '🇺🇸', 'canada': '🇨🇦', 'mexique': '🇲🇽',
-  'maroc': '🇲🇦', 'senegal': '🇸🇳', 'sénégal': '🇸🇳', 'cameroun': '🇨🇲', 'nigeria': '🇳🇬',
-  'ghana': '🇬🇭', 'algerie': '🇩🇿', 'algérie': '🇩🇿', 'tunisie': '🇹🇳', 'egypte': '🇪🇬', 'égypte': '🇪🇬',
-  'cote d\'ivoire': '🇨🇮', "côte d'ivoire": '🇨🇮', 'colombie': '🇨🇴', 'uruguay': '🇺🇾',
-  'chili': '🇨🇱', 'perou': '🇵🇪', 'pérou': '🇵🇪', 'japon': '🇯🇵', 'coree du sud': '🇰🇷',
-  'corée du sud': '🇰🇷', 'croatie': '🇭🇷', 'suisse': '🇨🇭', 'pologne': '🇵🇱', 'danemark': '🇩🇰',
-  'suede': '🇸🇪', 'suède': '🇸🇪', 'norvege': '🇳🇴', 'norvège': '🇳🇴', 'ecosse': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'écosse': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  'jamaique': '🇯🇲', 'jamaïque': '🇯🇲', 'panama': '🇵🇦', 'costa rica': '🇨🇷', 'honduras': '🇭🇳',
-  'republique dominicaine': '🇩🇴', 'république dominicaine': '🇩🇴', 'venezuela': '🇻🇪', 'equateur': '🇪🇨', 'équateur': '🇪🇨',
-  'australie': '🇦🇺', 'qatar': '🇶🇦', 'arabie saoudite': '🇸🇦', 'iran': '🇮🇷', 'turquie': '🇹🇷',
-  'grece': '🇬🇷', 'grèce': '🇬🇷', 'serbie': '🇷🇸', 'ukraine': '🇺🇦', 'russie': '🇷🇺'
-};
-const drapeau = (pays: string) => DRAPEAUX[pays.toLowerCase().trim()] || '🏳️';
 
 const IconCrampon = () => (
   <span style={{
@@ -58,15 +42,6 @@ const IconCrampon = () => (
   </span>
 );
 
-const FORMATIONS: Record<string, { x: number; y: number }[]> = {
-  '4-4-2': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},{x:38,y:20},{x:62,y:20}],
-  '4-3-3': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:30,y:48},{x:50,y:50},{x:70,y:48},{x:22,y:22},{x:50,y:18},{x:78,y:22}],
-  '4-2-3-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:36,y:54},{x:64,y:54},{x:22,y:32},{x:50,y:34},{x:78,y:32},{x:50,y:14}],
-  '3-5-2': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:12,y:50},{x:34,y:50},{x:50,y:52},{x:66,y:50},{x:88,y:50},{x:38,y:22},{x:62,y:22}],
-  '3-4-3': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:22,y:22},{x:50,y:18},{x:78,y:22}],
-  '5-3-2': [{x:50,y:92},{x:12,y:70},{x:31,y:74},{x:50,y:76},{x:69,y:74},{x:88,y:70},{x:30,y:48},{x:50,y:50},{x:70,y:48},{x:38,y:22},{x:62,y:22}],
-  '4-4-1-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:50,y:30},{x:50,y:12}]
-};
 
 const couleurLigne = (c: string | undefined) => {
   if (c === 'vert') return '#10b981';
@@ -100,7 +75,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string } | null;
-  formation: string | null; onze: { nom: string; equipe: string }[] | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -262,6 +237,7 @@ export default function PostPage() {
     if (post.distinction_type === 'Meilleur passeur') return { label: 'MEILLEUR PASSEUR', couleur: '#14b8a6' };
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
+    if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
     if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
     if (post.declaration?.citation) return { label: 'DÉCLARATION', couleur: '#0ea5e9' };
@@ -612,7 +588,45 @@ export default function PostPage() {
               </div>
             )}
 
-            {post.formation && post.onze && FORMATIONS[post.formation] && (
+            {post.formation && post.onze && FORMATIONS[post.formation] && post.onze_details?.categorie && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'10px'}}>
+                  {(post.onze_details.competition || post.onze_details.periode) && (
+                    <div style={{fontSize:'15px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{post.onze_details.competition}</div>
+                  )}
+                  <div style={{display:'inline-flex',gap:'6px',marginTop:'6px',flexWrap:'wrap',justifyContent:'center'}}>
+                    {post.onze_details.periode && <span style={{background:VIOLET,color:'#fff',fontSize:'12px',fontWeight:900,padding:'4px 14px',borderRadius:'999px'}}>🗓️ {post.onze_details.periode}</span>}
+                    <span style={{background:'#0b1030',color:'#fff',fontSize:'12px',fontWeight:900,padding:'4px 14px',borderRadius:'999px'}}>{post.formation}</span>
+                  </div>
+                </div>
+                <div style={{position:'relative',width:'100%',paddingBottom:'135%',background:'linear-gradient(180deg,#0b1030,#241052 55%,#0b1030)',borderRadius:'16px',overflow:'hidden'}}>
+                  <div style={{position:'absolute',top:'50%',left:0,right:0,height:'2px',background:'rgba(255,255,255,0.18)'}}/>
+                  <div style={{position:'absolute',top:'50%',left:'50%',width:'90px',height:'90px',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'50%',transform:'translate(-50%,-50%)'}}/>
+                  <div style={{position:'absolute',bottom:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.18)',borderBottom:'none'}}/>
+                  <div style={{position:'absolute',top:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.18)',borderTop:'none'}}/>
+                  {FORMATIONS[post.formation].map((pos, i) => {
+                    const j = post.onze![i];
+                    if (!j || !j.nom) return null;
+                    const dr = drapeau(j.equipe || '');
+                    const estPays = dr !== '🏳️';
+                    return (
+                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:(pos.y*0.9+3)+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'76px'}}>
+                        <div style={{position:'relative',width:'52px',height:'52px',margin:'0 auto 3px'}}>
+                          <div style={{width:'52px',height:'52px',borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',background:'#3b2a7a',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:900,fontSize:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
+                            {j.photo ? <img src={j.photo} crossOrigin="anonymous" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (j.nom.trim()[0] || '').toUpperCase()}
+                          </div>
+                          {estPays && <div style={{position:'absolute',right:'-8px',bottom:'-4px',fontSize:'16px',lineHeight:1}}>{dr}</div>}
+                        </div>
+                        <div style={{color:'#fff',fontSize:'10.5px',fontWeight:900,lineHeight:1.2,textShadow:'0 1px 3px rgba(0,0,0,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.nom}</div>
+                        {j.equipe && !estPays && <div style={{color:'#c4b5fd',fontSize:'9px',fontWeight:700,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.equipe}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {post.formation && post.onze && FORMATIONS[post.formation] && !post.onze_details?.categorie && (
               <div style={{margin:'8px 0 24px'}}>
                 <div style={{textAlign:'center',marginBottom:'10px'}}>
                   <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>Formation {post.formation}</span>

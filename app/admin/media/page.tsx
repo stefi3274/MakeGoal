@@ -1,62 +1,17 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
+import { genererVideo, typeVideo } from '../../../lib/video';
+import { FORMATIONS_LISTE, CATEGORIES_ONZE, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
 import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
 import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
 
 
-const FORMATIONS: Record<string, { x: number; y: number }[]> = {
-  '4-4-2': [
-    {x:50,y:92},
-    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
-    {x:16,y:46},{x:38,y:48},{x:62,y:48},{x:84,y:46},
-    {x:38,y:20},{x:62,y:20}
-  ],
-  '4-3-3': [
-    {x:50,y:92},
-    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
-    {x:30,y:48},{x:50,y:50},{x:70,y:48},
-    {x:22,y:22},{x:50,y:18},{x:78,y:22}
-  ],
-  '4-2-3-1': [
-    {x:50,y:92},
-    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
-    {x:36,y:54},{x:64,y:54},
-    {x:22,y:32},{x:50,y:34},{x:78,y:32},
-    {x:50,y:14}
-  ],
-  '3-5-2': [
-    {x:50,y:92},
-    {x:28,y:74},{x:50,y:76},{x:72,y:74},
-    {x:12,y:50},{x:34,y:50},{x:50,y:52},{x:66,y:50},{x:88,y:50},
-    {x:38,y:22},{x:62,y:22}
-  ],
-  '3-4-3': [
-    {x:50,y:92},
-    {x:28,y:74},{x:50,y:76},{x:72,y:74},
-    {x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},
-    {x:22,y:22},{x:50,y:18},{x:78,y:22}
-  ],
-  '5-3-2': [
-    {x:50,y:92},
-    {x:12,y:70},{x:31,y:74},{x:50,y:76},{x:69,y:74},{x:88,y:70},
-    {x:30,y:48},{x:50,y:50},{x:70,y:48},
-    {x:38,y:22},{x:62,y:22}
-  ],
-  '4-4-1-1': [
-    {x:50,y:92},
-    {x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},
-    {x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},
-    {x:50,y:30},
-    {x:50,y:12}
-  ]
-};
-const FORMATIONS_LISTE = Object.keys(FORMATIONS);
 
 const TAGS_GROUPES: { titre: string; tags: string[] }[] = [
   { titre: 'Compétition', tags: ['Club', 'Sélection', 'Championnat', 'Coupe', 'Ligue des Champions', 'Coupe du Monde', 'Euro', 'Éliminatoires', 'Copa America', 'CAN'] },
@@ -98,7 +53,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
-  formation: string | null; onze: { nom: string; equipe: string }[] | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
@@ -177,7 +132,17 @@ export default function AdminMedia() {
   const [typeLotClassements, setTypeLotClassements] = useState<'equipes' | 'joueurs'>('equipes');
   const [importLotClassements, setImportLotClassements] = useState(false);
   const [formation, setFormation] = useState('');
-  const [onze, setOnze] = useState<{ nom: string; equipe: string }[]>(Array.from({length:11},()=>({nom:'',equipe:''})));
+  const [onze, setOnze] = useState<OnzeJoueur[]>(Array.from({length:11},()=>({nom:'',equipe:'',photo:''})));
+  const [onzeDetails, setOnzeDetails] = useState<OnzeDetails>(ONZE_DETAILS_VIDES);
+  const [texteOnze, setTexteOnze] = useState('');
+  const [videoArticle, setVideoArticle] = useState<Article | null>(null);
+  const [videoPct, setVideoPct] = useState(0);
+  const [videoEtape, setVideoEtape] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoExt, setVideoExt] = useState('mp4');
+  const [videoErreur, setVideoErreur] = useState('');
+  const videoSignal = useRef({ annule: false });
+  const [uploadingOnze, setUploadingOnze] = useState<number | null>(null);
   const [matchsDispo, setMatchsDispo] = useState<Match[]>([]);
   const [matchsJourSelection, setMatchsJourSelection] = useState<MatchJour[]>([]);
   const [piocheMatchOuvert, setPiocheMatchOuvert] = useState(false);
@@ -520,9 +485,55 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
-  const erreurColonneDistinction = (msg: string) => msg.includes('distinction_details')
-    ? "❌ La colonne 'distinction_details' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
+  const erreurColonneDistinction = (msg: string) => (msg.includes('distinction_details') || msg.includes('onze_details'))
+    ? "❌ Une colonne ('" + (msg.includes('onze_details') ? 'onze_details' : 'distinction_details') + "') n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
     : '❌ ' + msg;
+
+  const uploadPhotoOnze = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingOnze(i); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file, 500);
+      const nom = 'onze-' + Date.now() + '-' + i + '.jpg';
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/jpeg' });
+      if (error) { setMessage('❌ Photo : ' + error.message); setUploadingOnze(null); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      setJoueur(i, 'photo', data.publicUrl);
+    } catch (err) {
+      setMessage('❌ Photo : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingOnze(null);
+  };
+
+  const lancerVideo = async (a: Article) => {
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    videoSignal.current = { annule: false };
+    setVideoArticle(a); setVideoUrl(''); setVideoErreur(''); setVideoPct(0); setVideoEtape('Préparation…');
+    try {
+      const r = await genererVideo(a, (p, e) => { setVideoPct(p); setVideoEtape(e); }, videoSignal.current);
+      setVideoExt(r.ext);
+      setVideoUrl(URL.createObjectURL(r.blob));
+    } catch (err) {
+      if (!(err instanceof Error && err.message === 'annulé')) setVideoErreur(err instanceof Error ? err.message : 'Erreur vidéo');
+    }
+  };
+
+  const fermerVideo = () => {
+    videoSignal.current.annule = true;
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    setVideoUrl(''); setVideoArticle(null);
+  };
+
+  const appliquerTexteOnze = () => {
+    const r = parserOnze(texteOnze);
+    if (r.erreurs.length) { setMessage('❌ ' + r.erreurs.join(' · ')); return; }
+    setOnzeDetails(r.details);
+    setFormation(r.formation);
+    setOnze(r.joueurs.map((j, i) => ({ nom: j.nom, equipe: j.equipe, photo: onze[i]?.nom === j.nom ? (onze[i]?.photo || '') : '' })));
+    setMessage('✅ Équipe importée : ' + r.joueurs.length + ' joueurs. Ajoutez les photos si vous voulez.');
+  };
 
   const uploadPhotoDistinction = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -687,7 +698,7 @@ export default function AdminMedia() {
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
     setDistEquipe(''); setDistChampionnat(''); setDistPeriode(''); setDistPhoto('');
-    setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
+    setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
@@ -745,7 +756,8 @@ export default function AdminMedia() {
     if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
-    if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze);
+    setOnzeDetails(a.onze_details ? { ...ONZE_DETAILS_VIDES, ...a.onze_details } : ONZE_DETAILS_VIDES);
+    if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze.map(j => ({ photo: '', ...j })));
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
     setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
     setResButs(a.resultat_details?.buts || []); setResRouges(a.resultat_details?.rouges || []); setResJaunes(a.resultat_details?.jaunes || []);
@@ -906,7 +918,7 @@ export default function AdminMedia() {
     { cle: 'rouge', label: 'Éliminé', hex: '#ef4444' },
   ];
 
-  const setJoueur = (i: number, champ: 'nom' | 'equipe', val: string) => {
+  const setJoueur = (i: number, champ: 'nom' | 'equipe' | 'photo', val: string) => {
     setOnze(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   };
 
@@ -919,7 +931,7 @@ export default function AdminMedia() {
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
       else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsPeriodeType === 'match' ? (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') : '') + ' — Stats' + (statsPeriodeType !== 'match' ? ' ' + libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }) : '');
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
-      else if (modePost === 'onze' && formation) titreFinal = 'Onze type — ' + formation;
+      else if (modePost === 'onze' && formation) titreFinal = onzeDetails.categorie ? (onzeDetails.categorie + (onzeDetails.competition ? ' — ' + onzeDetails.competition : '') + (onzeDetails.periode ? ' ' + onzeDetails.periode : '')) : 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
       else if (modePost === 'gagnants' && gTitreTirage) titreFinal = gTitreTirage;
@@ -980,6 +992,7 @@ export default function AdminMedia() {
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'onze' ? { onze_details: { categorie: onzeDetails.categorie.trim(), competition: onzeDetails.competition.trim(), periode: onzeDetails.periode.trim() } } : {}),
       ...(modePost === 'distinction' ? { distinction_details: { equipe: distEquipe.trim(), championnat: distChampionnat.trim(), periode: distPeriode.trim(), photo: distPhoto } } : {})
     };
     if (editId) {
@@ -1694,8 +1707,22 @@ export default function AdminMedia() {
 
             {type === 'post' && modePost === 'onze' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>👥 Onze type</label>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Équipe de la semaine / du tournoi. Choisissez la formation puis remplissez les 11 joueurs.</p>
+                <label style={labelStyle}>👥 Équipe type (onze)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Équipe de la journée / du mois / de la saison : joueurs de plusieurs équipes. Remplissez l'en-tête, la formation, puis les 11 joueurs (photo facultative).</p>
+
+                <select value={onzeDetails.categorie} onChange={e => setOnzeDetails({...onzeDetails, categorie: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
+                  <option value="">Sans titre (onze simple)</option>
+                  {CATEGORIES_ONZE.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input value={onzeDetails.competition} onChange={e => setOnzeDetails({...onzeDetails, competition: e.target.value})} placeholder="Compétition (ex: Concacaf Nations League A)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input value={onzeDetails.periode} onChange={e => setOnzeDetails({...onzeDetails, periode: e.target.value})} placeholder="Période (ex: Septembre-Octobre 2026)" style={{...inputStyle,marginBottom:'12px'}}/>
+
+                <details style={{marginBottom:'14px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute l'équipe d'un coup</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Équipe » : gardien, défenseurs, milieux, attaquants (de gauche à droite).</p>
+                  <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <button type="button" onClick={appliquerTexteOnze} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
+                </details>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Formation</p>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
@@ -1713,6 +1740,10 @@ export default function AdminMedia() {
                         <span style={{color:VIOLET,fontWeight:900,fontSize:'13px',width:'22px'}}>{i+1}</span>
                         <input value={j.nom} onChange={e => setJoueur(i,'nom',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:2}}/>
                         <input value={j.equipe} onChange={e => setJoueur(i,'equipe',e.target.value)} placeholder="Équipe / Pays" style={{...inputStyle,flex:2}}/>
+                        <label style={{width:'34px',height:'34px',flexShrink:0,borderRadius:'50%',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',background:'#1e1e1e',fontSize:'14px'}}>
+                          {j.photo ? <img src={j.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (uploadingOnze===i ? '…' : '📷')}
+                          <input type="file" accept="image/*" onChange={e => uploadPhotoOnze(i,e)} style={{display:'none'}}/>
+                        </label>
                       </div>
                     ))}
                   </div>
@@ -1836,6 +1867,7 @@ export default function AdminMedia() {
                 <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                   <button onClick={() => togglePublie(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:a.publie?'#10b981':'#374151',color:'#fff'}}>{a.publie ? '✓ Publié' : 'Brouillon'}</button>
                   {a.type === 'post' && a.categorie === 'Ponctuel' && <button onClick={() => relancer(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #f59e0b',background:'transparent',color:'#f59e0b',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🔄 Relancer</button>}
+                  {a.type === 'post' && <button onClick={() => lancerVideo(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #10b981',background:'transparent',color:'#10b981',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🎬 Vidéo</button>}
                   <button onClick={() => editerArticle(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid '+VIOLET,background:'transparent',color:VIOLET,cursor:'pointer',fontWeight:700,fontSize:'11px'}}>✏️</button>
                   <button onClick={() => supprimer(a.id)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #ef4444',background:'transparent',color:'#ef4444',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🗑️</button>
                 </div>
@@ -1845,6 +1877,32 @@ export default function AdminMedia() {
         )}
 
       </main>
+
+      {videoArticle && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}>
+          <div style={{background:'#161616',border:'1px solid #333',borderRadius:'16px',padding:'20px',width:'100%',maxWidth:'420px',maxHeight:'94vh',overflowY:'auto',color:'#fff'}}>
+            <p style={{fontWeight:900,fontSize:'15px',margin:'0 0 4px'}}>🎬 Vidéo · {typeVideo(videoArticle)}</p>
+            <p style={{color:'#9ca3af',fontSize:'12px',margin:'0 0 14px'}}>{videoArticle.titre}</p>
+            {videoErreur ? (
+              <p style={{color:'#f87171',fontSize:'13px',fontWeight:700}}>❌ {videoErreur}</p>
+            ) : !videoUrl ? (
+              <div>
+                <div style={{height:'10px',background:'#2a2a2a',borderRadius:'999px',overflow:'hidden',marginBottom:'8px'}}>
+                  <div style={{height:'100%',width:videoPct+'%',background:'linear-gradient(90deg,#bf00ff,#ff7a00)',transition:'width .2s'}}/>
+                </div>
+                <p style={{fontSize:'12px',color:'#d1d5db',margin:0}}>{videoEtape} {videoPct}%</p>
+                <p style={{fontSize:'11px',color:'#9ca3af',margin:'8px 0 0'}}>Gardez cet onglet ouvert et visible pendant l'enregistrement (environ la durée de la vidéo).</p>
+              </div>
+            ) : (
+              <div>
+                <video src={videoUrl} controls playsInline style={{width:'100%',borderRadius:'12px',background:'#000',marginBottom:'12px'}}/>
+                <a href={videoUrl} download={'makegoal-' + slugify(videoArticle.titre) + '.' + videoExt} style={{display:'block',textAlign:'center',padding:'12px',borderRadius:'999px',background:VIOLET,color:'#fff',fontWeight:900,fontSize:'13px',textDecoration:'none',marginBottom:'8px'}}>⬇️ Télécharger la vidéo (.{videoExt})</a>
+              </div>
+            )}
+            <button onClick={fermerVideo} style={{width:'100%',padding:'10px',borderRadius:'999px',border:'1px solid #444',background:'transparent',color:'#d1d5db',fontWeight:700,fontSize:'12px',cursor:'pointer',marginTop:'4px'}}>{videoUrl || videoErreur ? 'Fermer' : 'Annuler'}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
