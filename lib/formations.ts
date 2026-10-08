@@ -32,11 +32,71 @@ export const DRAPEAUX: Record<string, string> = {
   'guadeloupe': '🇬🇵', 'belize': '🇧🇿', 'paraguay': '🇵🇾', 'bolivie': '🇧🇴', 'grenade': '🇬🇩', 'antigua-et-barbuda': '🇦🇬', 'saint-kitts-et-nevis': '🇰🇳', 'sainte-lucie': '🇱🇨',
   'barbade': '🇧🇧', 'autriche': '🇦🇹', 'hongrie': '🇭🇺', 'roumanie': '🇷🇴', 'mali': '🇲🇱', 'rd congo': '🇨🇩', 'afrique du sud': '🇿🇦', 'chine': '🇨🇳', 'inde': '🇮🇳'
 };
-const normPays = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’]/g, "'").trim();
-const DRAPEAUX_NORM: Record<string, string> = Object.fromEntries(Object.entries(DRAPEAUX).map(([k, v]) => [normPays(k), v]));
-export const drapeau = (pays: string) => DRAPEAUX_NORM[normPays(pays || '')] || '🏳️';
+const normPays = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’]/g, "'").replace(/\s+/g, ' ').trim();
 
-export type OnzeJoueur = { nom: string; equipe: string; photo?: string };
+// Drapeau d'après un code pays ISO (HT -> 🇭🇹).
+const emojiDepuisCode = (code: string) => String.fromCodePoint(...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+
+// TOUS les pays du monde : noms français ET anglais générés depuis les codes ISO 3166
+// (Intl.DisplayNames), plus des variantes courantes ci-dessous.
+const VARIANTES: Record<string, string> = {
+  'usa': 'US', 'etats unis': 'US', 'etats-unis': 'US', 'états-unis': 'US', 'u.s.a.': 'US', 'hollande': 'NL', 'pays bas': 'NL', 'holland': 'NL',
+  'rd congo': 'CD', 'rdc': 'CD', 'congo rdc': 'CD', 'congo kinshasa': 'CD', 'republique democratique du congo': 'CD', 'congo brazzaville': 'CG', 'republique du congo': 'CG',
+  'coree du sud': 'KR', 'coree du nord': 'KP', 'republique tcheque': 'CZ', 'tchequie': 'CZ', 'czechia': 'CZ', 'turkiye': 'TR', 'turquie': 'TR',
+  'cap vert': 'CV', 'cap-vert': 'CV', 'cabo verde': 'CV', 'swaziland': 'SZ', 'eswatini': 'SZ', 'macedoine': 'MK', 'macedoine du nord': 'MK', 'birmanie': 'MM', 'myanmar': 'MM',
+  'trinidad': 'TT', 'trinidad et tobago': 'TT', 'trinite et tobago': 'TT', 'trinidad-et-tobago': 'TT', 'trinite-et-tobago': 'TT', 'antigua et barbuda': 'AG', 'saint kitts et nevis': 'KN',
+  'saint-vincent-et-les-grenadines': 'VC', 'sainte lucie': 'LC', 'saint lucie': 'LC', 'bosnie': 'BA', 'bosnie herzegovine': 'BA', 'cote d ivoire': 'CI', "cote d'ivoire": 'CI', 'ivory coast': 'CI',
+  'timor oriental': 'TL', 'palestine': 'PS', 'kosovo': 'XK', 'taiwan': 'TW', 'chine populaire': 'CN', 'emirats arabes unis': 'AE', 'emirats': 'AE', 'ouzbekistan': 'UZ',
+  'uk': 'GB', 'royaume uni': 'GB', 'grande bretagne': 'GB', 'republique centrafricaine': 'CF', 'centrafrique': 'CF', 'guinee equatoriale': 'GQ', 'guinee bissau': 'GW', 'sao tome et principe': 'ST',
+  'rep dominicaine': 'DO', 'republique dominicaine': 'DO', 'salvador': 'SV', 'surinam': 'SR', 'bermudes': 'BM', 'curacao': 'CW', 'antilles neerlandaises': 'CW', 'saint martin': 'MF', 'sint maarten': 'SX',
+  'guyane': 'GF', 'guyane francaise': 'GF', 'iles caimans': 'KY', 'iles vierges': 'VG', 'porto rico': 'PR', 'ile maurice': 'MU', 'maurice': 'MU', 'hong kong': 'HK', 'macao': 'MO', 'nouvelle caledonie': 'NC', 'tahiti': 'PF', 'polynesie francaise': 'PF',
+};
+const SUBDIVISIONS: Record<string, string> = {
+  'angleterre': '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}', 'england': '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',
+  'ecosse': '🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}', 'scotland': '🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}',
+  'pays de galles': '🏴\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}', 'galles': '🏴\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}', 'wales': '🏴\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}',
+};
+
+let CARTE: Map<string, string> | null = null;
+let NOMS: string[] | null = null;
+function construireCarte(): Map<string, string> {
+  if (CARTE) return CARTE;
+  const carte = new Map<string, string>();
+  const noms: string[] = [];
+  const fr = typeof Intl !== 'undefined' && 'DisplayNames' in Intl ? new Intl.DisplayNames(['fr'], { type: 'region' }) : null;
+  const en = typeof Intl !== 'undefined' && 'DisplayNames' in Intl ? new Intl.DisplayNames(['en'], { type: 'region' }) : null;
+  const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (const a of L) for (const b of L) {
+    const code = a + b;
+    if (code === 'ZZ' || code === 'EU' || code === 'UN' || code === 'EZ' || code === 'QO' || code === 'AC' || code === 'CP' || code === 'DG' || code === 'EA' || code === 'IC' || code === 'TA' || ['AN','BU','CS','DD','FX','NT','SU','TP','YD','YU','ZR','QU','XA','XB','UK'].includes(code)) continue;
+    let nomFr = '', nomEn = '';
+    try { nomFr = fr ? fr.of(code) || '' : ''; nomEn = en ? en.of(code) || '' : ''; } catch { continue; }
+    if (!nomFr || nomFr === code || /^r[ée]gion/i.test(nomFr)) continue;
+    const emoji = emojiDepuisCode(code);
+    carte.set(normPays(nomFr), emoji);
+    if (nomEn && nomEn !== code) carte.set(normPays(nomEn), emoji);
+    carte.set(code.toLowerCase(), emoji);
+    noms.push(nomFr);
+  }
+  const nonISO = { 'XK': 'Kosovo' };
+  Object.entries(nonISO).forEach(([code, nom]) => { carte.set(normPays(nom), emojiDepuisCode(code)); noms.push(nom); });
+  Object.entries(VARIANTES).forEach(([k, code]) => carte.set(normPays(k), emojiDepuisCode(code)));
+  Object.entries(SUBDIVISIONS).forEach(([k, v]) => carte.set(normPays(k), v));
+  ['Angleterre', 'Écosse', 'Pays de Galles'].forEach(n => noms.push(n));
+  // anciennes entrées manuelles du site (compatibilité)
+  Object.entries(DRAPEAUX).forEach(([k, v]) => { if (!carte.has(normPays(k))) carte.set(normPays(k), v); });
+  NOMS = Array.from(new Set(noms)).sort((x, y) => x.localeCompare(y, 'fr'));
+  CARTE = carte;
+  return carte;
+}
+
+// '🏳️' = pays inconnu.
+export const drapeau = (pays: string): string => construireCarte().get(normPays(pays || '')) || '🏳️';
+export const estPays = (nom: string): boolean => drapeau(nom) !== '🏳️';
+// Liste des pays (noms français) pour les listes de suggestions de l'admin.
+export const listePays = (): string[] => { construireCarte(); return NOMS || []; };
+
+export type OnzeJoueur = { nom: string; equipe: string; photo?: string; pays?: string };
 export type OnzeDetails = { categorie: string; competition: string; periode: string };
 export const ONZE_DETAILS_VIDES: OnzeDetails = { categorie: '', competition: '', periode: '' };
 export const CATEGORIES_ONZE = ['Équipe de la journée', 'Équipe de la semaine', 'Équipe du mois', 'Équipe du trimestre', 'Équipe de la saison', 'Équipe du tournoi'];
@@ -55,7 +115,7 @@ export function parserOnze(texte: string): { details: OnzeDetails; formation: st
   if (!formation) erreurs.push('Formation non reconnue (ligne 2). Choix : ' + Object.keys(FORMATIONS).join(', '));
   const joueurs: OnzeJoueur[] = lignes.slice(2).map(l => {
     const p = parserLigneJoueur(l);
-    return { nom: p.nom, equipe: p.equipe };
+    return { nom: p.nom, equipe: p.equipe, pays: p.pays };
   }).filter(j => j.nom);
   if (joueurs.length !== 11) erreurs.push('Il faut 11 joueurs : ' + joueurs.length + ' trouvé(s).');
   return { details, formation, joueurs, erreurs };

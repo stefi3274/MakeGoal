@@ -10,6 +10,7 @@ import { SPORT_COULEURS, Sport } from '../../../lib/sport';
 import { groupesAffichage, libellePeriode, Periode } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
+import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -74,18 +75,18 @@ type Post = {
   equipe1: string | null; equipe2: string | null;
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
-  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
+  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
   parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
-  declaration: { nom: string; fonction: string; citation: string; contexte: string } | null;
+  declaration: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
-  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string } | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; valeurs: Record<string, string> }[] } | null;
+  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string } | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; auteur: string; created_at: string;
@@ -203,11 +204,20 @@ export default function PostPage() {
     if (!cardRef.current) return;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      // Qualité : l'image finale a TOUJOURS la même largeur, quel que soit l'écran.
+      // Vertical = 1080 px de large (standard Instagram/WhatsApp), carré = 1620 px.
+      try { await document.fonts.ready; } catch { /* sans importance */ }
+      const largeurCible = format === 'carre' ? 1620 : 1080;
+      const echelle = largeurCible / Math.max(1, cardRef.current.offsetWidth);
+      const canvas = await html2canvas(cardRef.current, { scale: echelle, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const blob: Blob | null = await new Promise(res => canvas.toBlob(b => res(b), 'image/png'));
+      if (!blob) throw new Error('image vide');
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = 'makegoal-post-' + format + '.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = url;
       link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) {
       alert('Erreur lors du téléchargement. Réessayez.');
     }
@@ -238,6 +248,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.elimination?.rencontres?.length) return { label: 'ÉLIMINATION DIRECTE', couleur: '#dc2626' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
     if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
     if (post.declaration?.citation) return { label: 'DÉCLARATION', couleur: '#0ea5e9' };
@@ -398,7 +409,7 @@ export default function PostPage() {
             {post.declaration && post.declaration.citation && (
               <div style={{margin:'8px 0 24px',textAlign:'center'}}>
                 <div style={{width:'62px',height:'62px',borderRadius:'50%',background:'linear-gradient(135deg,#0ea5e9,#0369a1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px',margin:'0 auto 12px',boxShadow:'0 8px 20px rgba(14,165,233,0.4)'}}>🎤</div>
-                <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.declaration.nom}</p>
+                <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.declaration.pays && drapeau(post.declaration.pays) !== '🏳️' ? drapeau(post.declaration.pays) + ' ' : ''}{post.declaration.nom}</p>
                 {post.declaration.fonction && <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:'0 0 16px'}}>{post.declaration.fonction}</p>}
                 <div style={{background:'#f0f9ff',borderRadius:'16px',padding:'20px',position:'relative',textAlign:'left'}}>
                   <span style={{position:'absolute',top:'2px',left:'14px',fontSize:'42px',color:'rgba(14,165,233,0.25)',fontWeight:900,lineHeight:1}}>&ldquo;</span>
@@ -534,7 +545,7 @@ export default function PostPage() {
                           )}
                         </div>
                       )}
-                      <div style={{fontWeight:900,fontSize:seul ? '24px' : '17px',color:'#111',textAlign:'center',lineHeight:1.2,minHeight:seul ? undefined : '2.4em',display:'flex',alignItems:'center',justifyContent:'center'}}>{j.nom}</div>
+                      <div style={{fontWeight:900,fontSize:seul ? '24px' : '17px',color:'#111',textAlign:'center',lineHeight:1.2,minHeight:seul ? undefined : '2.4em',display:'flex',alignItems:'center',justifyContent:'center'}}>{j.pays && drapeau(j.pays) !== '🏳️' ? drapeau(j.pays) + ' ' : ''}{j.nom}</div>
                       {j.equipe && <div style={{fontSize:seul ? '15px' : '13px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'3px'}}>{j.equipe}</div>}
                       {j.adversaire && (
                         <div style={{textAlign:'center',marginTop:'6px'}}>
@@ -579,7 +590,7 @@ export default function PostPage() {
                 )}
                 <div style={{fontSize:'14px',fontWeight:900,color:'#b8860b',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>{post.distinction_type}</div>
                 {post.distinction_details?.periode && <div style={{display:'inline-block',background:'#fff',border:'1px solid #ffd700',color:'#b8860b',fontSize:'13px',fontWeight:800,padding:'3px 14px',borderRadius:'999px',marginBottom:'10px'}}>🗓️ {post.distinction_details.periode}</div>}
-                {post.laureat && <div style={{fontSize:'30px',fontWeight:900,color:'#111',marginBottom:'6px',lineHeight:1.15}}>{post.laureat}</div>}
+                {post.laureat && <div style={{fontSize:'30px',fontWeight:900,color:'#111',marginBottom:'6px',lineHeight:1.15}}>{post.distinction_details?.pays && drapeau(post.distinction_details.pays) !== '🏳️' ? drapeau(post.distinction_details.pays) + ' ' : ''}{post.laureat}</div>}
                 {ligneContexte(post.distinction_details, post.laureat) && <div style={{fontSize:'16px',fontWeight:700,color:'#4b5563',marginBottom:'10px'}}>{ligneContexte(post.distinction_details, post.laureat)}</div>}
                 {post.distinction_stats && (
                   <div style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'14px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'10px'}}>📊 {post.distinction_stats}</div>
@@ -607,7 +618,8 @@ export default function PostPage() {
                   {FORMATIONS[post.formation].map((pos, i) => {
                     const j = post.onze![i];
                     if (!j || !j.nom) return null;
-                    const dr = drapeau(j.equipe || '');
+                    const dr = drapeau(j.pays || j.equipe || '');
+                    const clubTxt = j.equipe && drapeau(j.equipe) === '🏳️' ? j.equipe : '';
                     const estPays = dr !== '🏳️';
                     return (
                       <div key={i} style={{position:'absolute',left:pos.x+'%',top:(pos.y*0.9+3)+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'76px'}}>
@@ -618,7 +630,7 @@ export default function PostPage() {
                           {estPays && <div style={{position:'absolute',right:'-8px',bottom:'-4px',fontSize:'16px',lineHeight:1}}>{dr}</div>}
                         </div>
                         <div style={{color:'#fff',fontSize:'10.5px',fontWeight:900,lineHeight:1.2,textShadow:'0 1px 3px rgba(0,0,0,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.nom}</div>
-                        {j.equipe && !estPays && <div style={{color:'#c4b5fd',fontSize:'9px',fontWeight:700,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.equipe}</div>}
+                        {clubTxt && <div style={{color:'#c4b5fd',fontSize:'9px',fontWeight:700,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{clubTxt}</div>}
                       </div>
                     );
                   })}
@@ -639,7 +651,7 @@ export default function PostPage() {
                   {FORMATIONS[post.formation].map((pos, i) => {
                     const j = post.onze![i];
                     if (!j) return null;
-                    const dr = drapeau(j.equipe);
+                    const dr = drapeau(j.pays || j.equipe);
                     const estPays = dr !== '🏳️';
                     return (
                       <div key={i} style={{position:'absolute',left:pos.x+'%',top:pos.y+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'80px'}}>
@@ -652,6 +664,42 @@ export default function PostPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {post.elimination && post.elimination.rencontres?.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'14px'}}>
+                  {post.elimination.competition && <div style={{fontSize:'15px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginBottom:'6px'}}>{post.elimination.competition}</div>}
+                  {post.elimination.tour && <span style={{display:'inline-block',background:'linear-gradient(135deg,#bf00ff,#7c3aed)',color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{post.elimination.tour}</span>}
+                </div>
+                {post.elimination.rencontres.map((r, i) => {
+                  const q = qualifie(r);
+                  const avecScore = aScore(r);
+                  const detail = detailScore(r);
+                  const ligne = (n: 1 | 2) => {
+                    const nom = n === 1 ? r.equipe1 : r.equipe2;
+                    const sc = n === 1 ? r.score1 : r.score2;
+                    const gagne = q === n, perd = q !== 0 && q !== n;
+                    const dr = drapeau(nom);
+                    return (
+                      <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 12px',borderRadius:'10px',background:gagne ? '#ecfdf5' : perd ? '#f9fafb' : '#fff',border:gagne ? '2px solid #10b981' : '2px solid transparent',opacity:perd ? 0.62 : 1}}>
+                        <span style={{fontSize:'22px',lineHeight:1,width:'28px',textAlign:'center'}}>{dr !== '🏳️' ? dr : '⚽'}</span>
+                        <span style={{flex:1,minWidth:0,fontWeight:900,fontSize:'16px',color:gagne ? '#065f46' : '#111',lineHeight:1.2}}>{nom}</span>
+                        {gagne && <span style={{fontSize:'10px',fontWeight:900,color:'#fff',background:'#10b981',padding:'3px 9px',borderRadius:'999px',whiteSpace:'nowrap'}}>QUALIFIÉ</span>}
+                        {perd && <span style={{fontSize:'10px',fontWeight:900,color:'#fff',background:'#ef4444',padding:'3px 9px',borderRadius:'999px',whiteSpace:'nowrap'}}>ÉLIMINÉ</span>}
+                        {avecScore && <span style={{fontWeight:900,fontSize:'26px',color:'#000',minWidth:'30px',textAlign:'right',lineHeight:1}}>{sc}</span>}
+                      </div>
+                    );
+                  };
+                  return (
+                    <div key={i} style={{border:'1px solid #e5e7eb',borderRadius:'14px',padding:'8px',marginBottom:'10px',background:'#fff',boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+                      {ligne(1)}
+                      <div style={{textAlign:'center',fontSize:'10px',fontWeight:900,color:'#9ca3af',letterSpacing:'2px',margin:'1px 0'}}>{avecScore ? (detail || 'VS') : 'VS'}</div>
+                      {ligne(2)}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

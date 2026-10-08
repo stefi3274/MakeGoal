@@ -4,6 +4,8 @@ import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
+import { listePays } from '../../../lib/formations';
+import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
 import { genererVideo, typeVideo } from '../../../lib/video';
 import { FORMATIONS_LISTE, CATEGORIES_ONZE, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
 import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
@@ -28,7 +30,7 @@ type MatchJour = {
 type But = { equipe: string; joueur: string; minute: string; passeur: string };
 type CarteEvenement = { joueur: string; minute: string };
 
-type StatJoueur = { nom: string; equipe: string; adversaire: string; photo?: string; valeurs: Record<string, string> };
+type StatJoueur = { nom: string; equipe: string; adversaire: string; photo?: string; pays?: string; valeurs: Record<string, string> };
 type QuartTemps = { quart: string; score1: string; score2: string };
 
 type Match = {
@@ -38,7 +40,7 @@ type Match = {
 
 type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string };
 type Parcours = { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] };
-type Declaration = { nom: string; fonction: string; citation: string; contexte: string };
+type Declaration = { nom: string; fonction: string; citation: string; contexte: string; pays?: string };
 type MatchInvitation = { equipe1: string; equipe2: string };
 type InvitationConcours = { titreConcours: string; lots: string; slogan: string; matchs: MatchInvitation[] };
 type Gagnant = { nom: string; prix: string };
@@ -53,7 +55,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
@@ -109,6 +111,7 @@ export default function AdminMedia() {
   const [distChampionnat, setDistChampionnat] = useState('');
   const [distPeriode, setDistPeriode] = useState('');
   const [distPhoto, setDistPhoto] = useState('');
+  const [distPays, setDistPays] = useState('');
   const [uploadingDist, setUploadingDist] = useState(false);
   const [texteLotDistinctions, setTexteLotDistinctions] = useState('');
   const [lotDistinctionsOuvert, setLotDistinctionsOuvert] = useState(false);
@@ -135,6 +138,8 @@ export default function AdminMedia() {
   const [onze, setOnze] = useState<OnzeJoueur[]>(Array.from({length:11},()=>({nom:'',equipe:'',photo:''})));
   const [onzeDetails, setOnzeDetails] = useState<OnzeDetails>(ONZE_DETAILS_VIDES);
   const [texteOnze, setTexteOnze] = useState('');
+  const [elim, setElim] = useState<EliminationDetails>({ ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] });
+  const [texteElim, setTexteElim] = useState('');
   const [videoArticle, setVideoArticle] = useState<Article | null>(null);
   const [videoPct, setVideoPct] = useState(0);
   const [videoEtape, setVideoEtape] = useState('');
@@ -173,6 +178,7 @@ export default function AdminMedia() {
   const [importLotParcours, setImportLotParcours] = useState(false);
 
   const [dNom, setDNom] = useState('');
+  const [dPays, setDPays] = useState('');
   const [dFonction, setDFonction] = useState('');
   const [dCitation, setDCitation] = useState('');
   const [dContexte, setDContexte] = useState('');
@@ -378,7 +384,7 @@ export default function AdminMedia() {
 
   const ajouterJoueurStats = () => { if (statsJoueurs.length < 6) setStatsJoueurs(prev => [...prev, { nom: '', equipe: '', adversaire: '', valeurs: {} }]); };
   const retirerJoueurStats = (i: number) => setStatsJoueurs(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
-  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'adversaire' | 'photo', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
+  const modifierJoueurStats = (i: number, champ: 'nom' | 'equipe' | 'adversaire' | 'photo' | 'pays', val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   const modifierValeurStats = (i: number, cle: string, val: string) => setStatsJoueurs(prev => prev.map((j, idx) => idx === i ? { ...j, valeurs: { ...j.valeurs, [cle]: val } } : j));
 
   const modifierAdversaire = (i: number, champ: keyof AdversaireParcours, val: string) => setPAdversaires(prev => prev.map((a, idx) => idx === i ? { ...a, [champ]: val } : a));
@@ -460,7 +466,7 @@ export default function AdminMedia() {
     if (!dTexteColle.trim()) { setMessage('❌ Collez du texte à analyser.'); return; }
     const d = parserDeclaration(dTexteColle);
     if (!d.nom || !d.citation) { setMessage('❌ Format non reconnu. 1ère ligne : "Nom - Fonction - Contexte (optionnel)", ligne vide, puis la citation.'); return; }
-    setDNom(d.nom); setDFonction(d.fonction); setDContexte(d.contexte); setDCitation(d.citation);
+    setDNom(d.nom); setDPays(''); setDFonction(d.fonction); setDContexte(d.contexte); setDCitation(d.citation);
     setMessage('✅ Déclaration analysée. Vérifiez et corrigez si besoin.');
   };
 
@@ -485,9 +491,20 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
-  const erreurColonneDistinction = (msg: string) => (msg.includes('distinction_details') || msg.includes('onze_details'))
-    ? "❌ Une colonne ('" + (msg.includes('onze_details') ? 'onze_details' : 'distinction_details') + "') n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
-    : '❌ ' + msg;
+  const erreurColonneDistinction = (msg: string) => {
+    const col = ['distinction_details', 'onze_details', 'elimination'].find(c => msg.includes(c));
+    return col
+      ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
+      : '❌ ' + msg;
+  };
+
+  const appliquerTexteElim = () => {
+    const r = parserElimination(texteElim);
+    if (!r.details.rencontres.length) { setMessage('❌ Aucune rencontre reconnue. Une ligne par match : « Haïti 2-1 Cuba » ou « France vs Argentine ».'); return; }
+    setElim(prev => ({ competition: r.details.competition || prev.competition, tour: r.details.tour || prev.tour, rencontres: r.details.rencontres }));
+    setMessage('✅ ' + r.details.rencontres.length + ' rencontre(s) importée(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
+  };
+  const majRencontre = (i: number, champ: keyof Rencontre, val: string) => setElim(prev => ({ ...prev, rencontres: prev.rencontres.map((r, idx) => idx === i ? { ...r, [champ]: val } : r) }));
 
   const uploadPhotoOnze = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -495,7 +512,7 @@ export default function AdminMedia() {
     if (!file) return;
     setUploadingOnze(i); setMessage('');
     try {
-      const blob = await redimensionnerImage(file, 500);
+      const blob = await redimensionnerImage(file, 700);
       const nom = 'onze-' + Date.now() + '-' + i + '.jpg';
       const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/jpeg' });
       if (error) { setMessage('❌ Photo : ' + error.message); setUploadingOnze(null); return; }
@@ -531,7 +548,7 @@ export default function AdminMedia() {
     if (r.erreurs.length) { setMessage('❌ ' + r.erreurs.join(' · ')); return; }
     setOnzeDetails(r.details);
     setFormation(r.formation);
-    setOnze(r.joueurs.map((j, i) => ({ nom: j.nom, equipe: j.equipe, photo: onze[i]?.nom === j.nom ? (onze[i]?.photo || '') : '' })));
+    setOnze(r.joueurs.map((j, i) => ({ nom: j.nom, equipe: j.equipe, pays: j.pays || '', photo: onze[i]?.nom === j.nom ? (onze[i]?.photo || '') : '' })));
     setMessage('✅ Équipe importée : ' + r.joueurs.length + ' joueurs. Ajoutez les photos si vous voulez.');
   };
 
@@ -563,7 +580,7 @@ export default function AdminMedia() {
       titre: d.categorie + ' — ' + d.laureat + (d.periode ? ' (' + d.periode + ')' : ''),
       distinction_type: d.categorie, laureat: d.laureat,
       distinction_stats: d.stats || null, distinction_note: d.note || null,
-      distinction_details: { equipe: d.equipe, championnat: d.championnat, periode: d.periode, photo: '' },
+      distinction_details: { equipe: d.equipe, championnat: d.championnat, periode: d.periode, photo: '', pays: d.pays },
       publie: true
     }));
     const { error } = await supabase.from('articles').insert(rows);
@@ -587,7 +604,7 @@ export default function AdminMedia() {
     const joueurs: StatJoueur[] = blocs.slice(0, 6).map(bloc => {
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       const [nomLigne, ...reste] = lignes;
-      const { nom, equipe, adversaire } = parserLigneJoueur(nomLigne || '');
+      const { nom, equipe, adversaire, pays } = parserLigneJoueur(nomLigne || '');
       const valeurs: Record<string, string> = {};
       reste.forEach(l => {
         const m = l.match(/^(.+?)\s*[:=]\s*(.+)$/) || l.match(/^(.+?)\s+[-–—]\s+(.+)$/) || l.match(/^(.+?)\s+(\d+(?:[.,]\d+)?\s*%?)$/);
@@ -596,7 +613,7 @@ export default function AdminMedia() {
         else nonReconnues.push(l);
       });
       const ancienne = statsJoueurs.find(e => e.photo && e.nom.trim().toLowerCase() === nom.trim().toLowerCase());
-      return { nom, equipe, adversaire, valeurs, photo: ancienne?.photo };
+      return { nom, equipe, adversaire, valeurs, photo: ancienne?.photo, pays: pays || ancienne?.pays || '' };
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
@@ -613,9 +630,9 @@ export default function AdminMedia() {
 
   const slugify = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 
-  // Réduit la photo (max 800 px) avant l'envoi : téléversement rapide sur téléphone,
+  // Réduit la photo (max 1200 px) avant l'envoi : téléversement rapide sur téléphone,
   // et largement assez net pour l'affichage et les vidéos.
-  const redimensionnerImage = (file: File, max = 800): Promise<Blob> => new Promise((resolve, reject) => {
+  const redimensionnerImage = (file: File, max = 1200): Promise<Blob> => new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -627,7 +644,7 @@ export default function AdminMedia() {
       if (!ctx) { URL.revokeObjectURL(url); reject(new Error('canvas indisponible')); return; }
       ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), 'image/jpeg', 0.9);
+      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), 'image/jpeg', 0.92);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image illisible')); };
     img.src = url;
@@ -697,7 +714,8 @@ export default function AdminMedia() {
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
-    setDistEquipe(''); setDistChampionnat(''); setDistPeriode(''); setDistPhoto('');
+    setDistEquipe(''); setDistChampionnat(''); setDistPeriode(''); setDistPhoto(''); setDistPays('');
+    setElim({ ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] }); setTexteElim('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
@@ -715,7 +733,7 @@ export default function AdminMedia() {
     setPEquipe(''); setPCompetition(''); setPPoule('');
     setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
     setPTexteColle('');
-    setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
+    setDNom(''); setDPays(''); setDFonction(''); setDCitation(''); setDContexte('');
     setDTexteColle('');
     setIcTitreConcours(''); setIcLots(''); setIcSlogan('VOTE. FÈ PWEN. RETIRE LAJAN.'); setIcTexteMatchs('');
   };
@@ -738,9 +756,10 @@ export default function AdminMedia() {
     else { setDistinctionType(dt); setDistinctionAutre(''); }
     setLaureat(a.laureat || ''); setDistinctionNote(a.distinction_note || ''); setDistinctionStats(a.distinction_stats || '');
     const dd = { ...DETAILS_VIDES, ...(a.distinction_details || {}) };
-    setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || '');
+    setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || ''); setDistPays(dd.pays || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    else if (a.elimination && a.elimination.rencontres?.length) setModePost('elimination');
     else if (a.formation) setModePost('onze');
     else if (a.classement_type) setModePost('classement');
     else if (a.distinction_type) setModePost('distinction');
@@ -756,6 +775,7 @@ export default function AdminMedia() {
     if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
+    setElim(a.elimination && a.elimination.rencontres?.length ? { competition: a.elimination.competition || '', tour: a.elimination.tour || '', rencontres: a.elimination.rencontres.map(r => ({ ...RENCONTRE_VIDE, ...r })) } : { ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] });
     setOnzeDetails(a.onze_details ? { ...ONZE_DETAILS_VIDES, ...a.onze_details } : ONZE_DETAILS_VIDES);
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze.map(j => ({ photo: '', ...j })));
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
@@ -770,10 +790,10 @@ export default function AdminMedia() {
       setPAdversaires([{ nom: '', date: '', label: '', scoreEquipe: '', scoreAdversaire: '' }]);
     }
     if (a.declaration) {
-      setDNom(a.declaration.nom || ''); setDFonction(a.declaration.fonction || '');
+      setDNom(a.declaration.nom || ''); setDPays(a.declaration.pays || ''); setDFonction(a.declaration.fonction || '');
       setDCitation(a.declaration.citation || ''); setDContexte(a.declaration.contexte || '');
     } else {
-      setDNom(''); setDFonction(''); setDCitation(''); setDContexte('');
+      setDNom(''); setDPays(''); setDFonction(''); setDCitation(''); setDContexte('');
     }
     if (a.gagnants && a.gagnants.gagnants?.length) {
       setGTitreTirage(a.gagnants.titreTirage || '');
@@ -918,7 +938,7 @@ export default function AdminMedia() {
     { cle: 'rouge', label: 'Éliminé', hex: '#ef4444' },
   ];
 
-  const setJoueur = (i: number, champ: 'nom' | 'equipe' | 'photo', val: string) => {
+  const setJoueur = (i: number, champ: 'nom' | 'equipe' | 'photo' | 'pays', val: string) => {
     setOnze(prev => prev.map((j, idx) => idx === i ? { ...j, [champ]: val } : j));
   };
 
@@ -931,6 +951,7 @@ export default function AdminMedia() {
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
       else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsPeriodeType === 'match' ? (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') : '') + ' — Stats' + (statsPeriodeType !== 'match' ? ' ' + libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }) : '');
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
+      else if (modePost === 'elimination' && elim.rencontres[0]?.equipe1) titreFinal = (elim.tour || 'Élimination directe') + (elim.competition ? ' — ' + elim.competition : '');
       else if (modePost === 'onze' && formation) titreFinal = onzeDetails.categorie ? (onzeDetails.categorie + (onzeDetails.competition ? ' — ' + onzeDetails.competition : '') + (onzeDetails.periode ? ' ' + onzeDetails.periode : '')) : 'Onze type — ' + formation;
       else if (modePost === 'parcours' && pEquipe) titreFinal = 'Parcours — ' + pEquipe;
       else if (modePost === 'declaration' && dNom) titreFinal = 'Déclaration — ' + dNom;
@@ -972,7 +993,7 @@ export default function AdminMedia() {
       resultat_details: modePost === 'resultat' && sportForm === 'football' ? { buts: resButs.filter(b=>b.joueur), rouges: resRouges.filter(c=>c.joueur), jaunes: resJaunes.filter(c=>c.joueur) } : null,
       quarts_temps: modePost === 'resultat' && sportForm === 'basketball' ? resQuarts.filter(q=>q.score1!=='' && q.score2!=='') : null,
       parcours: modePost === 'parcours' ? { equipe: pEquipe, competition: pCompetition, poule: pPoule, adversaires: pAdversaires.filter(a=>a.nom) } : null,
-      declaration: modePost === 'declaration' ? { nom: dNom, fonction: dFonction, citation: dCitation, contexte: dContexte } : null,
+      declaration: modePost === 'declaration' ? { nom: dNom, fonction: dFonction, citation: dCitation, contexte: dContexte, pays: dPays.trim() } : null,
       gagnants: modePost === 'gagnants' ? { titreTirage: gTitreTirage, gagnants: gGagnants.filter(g => g.nom) } : null,
       invitation_concours: modePost === 'invitation' ? {
         titreConcours: icTitreConcours, lots: icLots, slogan: icSlogan,
@@ -992,8 +1013,9 @@ export default function AdminMedia() {
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'elimination' ? { elimination: { competition: elim.competition.trim(), tour: elim.tour.trim(), rencontres: elim.rencontres.filter(r => r.equipe1.trim() && r.equipe2.trim()) } } : {}),
       ...(modePost === 'onze' ? { onze_details: { categorie: onzeDetails.categorie.trim(), competition: onzeDetails.competition.trim(), periode: onzeDetails.periode.trim() } } : {}),
-      ...(modePost === 'distinction' ? { distinction_details: { equipe: distEquipe.trim(), championnat: distChampionnat.trim(), periode: distPeriode.trim(), photo: distPhoto } } : {})
+      ...(modePost === 'distinction' ? { distinction_details: { equipe: distEquipe.trim(), championnat: distChampionnat.trim(), periode: distPeriode.trim(), photo: distPhoto, pays: distPays.trim() } } : {})
     };
     if (editId) {
       const { error } = await supabase.from('articles').update(payload).eq('id', editId);
@@ -1090,6 +1112,7 @@ export default function AdminMedia() {
                       <option value="matchsjour">📅 Matchs du jour</option>
                       <option value="resultat">📋 Résultat de match</option>
                       <option value="parcours">🧭 Parcours d'équipe</option>
+                      <option value="elimination">⚔️ Élimination directe</option>
                     </optgroup>
                     <optgroup label="Stats & classements">
                       <option value="stats">📈 Stats joueur</option>
@@ -1319,6 +1342,7 @@ export default function AdminMedia() {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'14px'}}>
                   <input value={dNom} onChange={e => setDNom(e.target.value)} placeholder="Nom (ex: Carlo Ancelotti)" style={inputStyle}/>
                   <input value={dFonction} onChange={e => setDFonction(e.target.value)} placeholder="Fonction (ex: Entraîneur du Real Madrid)" style={inputStyle}/>
+                  <input list="liste-pays" value={dPays} onChange={e => setDPays(e.target.value)} placeholder="Pays (drapeau, optionnel)" style={inputStyle}/>
                 </div>
                 <textarea value={dCitation} onChange={e => setDCitation(e.target.value)} rows={5} placeholder="Le texte de la déclaration, entre guillemets ou non..." style={{...inputStyle,marginBottom:'14px',lineHeight:'1.5'}}/>
                 <input value={dContexte} onChange={e => setDContexte(e.target.value)} placeholder="Contexte (optionnel, ex: Conférence d'avant-match)" style={inputStyle}/>
@@ -1505,6 +1529,7 @@ export default function AdminMedia() {
                       <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.3}}/>
                       <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Son équipe" style={{...inputStyle,flex:1}}/>
                       <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Face à (adversaire)" style={{...inputStyle,flex:1}}/>
+                      <input list="liste-pays" value={j.pays || ''} onChange={e => modifierJoueurStats(i,'pays',e.target.value)} placeholder="Pays 🏳️" style={{...inputStyle,flex:0.8}}/>
                       {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
@@ -1586,6 +1611,12 @@ export default function AdminMedia() {
                         <div>
                           <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Son équipe</p>
                           <input value={distEquipe} onChange={e => setDistEquipe(e.target.value)} placeholder="Ex: Haïti, Arsenal" style={inputStyle}/>
+                        </div>
+                      )}
+                      {!estDistinctionEquipe(distinctionType === 'Autre' ? distinctionAutre : distinctionType) && (
+                        <div>
+                          <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Pays du lauréat (drapeau)</p>
+                          <input list="liste-pays" value={distPays} onChange={e => setDistPays(e.target.value)} placeholder="Ex: Haïti" style={inputStyle}/>
                         </div>
                       )}
                       <div>
@@ -1705,6 +1736,56 @@ export default function AdminMedia() {
               </div>
             )}
 
+            {type === 'post' && modePost === 'elimination' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>⚔️ Élimination directe</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Le qualifié et l'éliminé s'affichent automatiquement. Score, AP (après prolongation) et TAB (tirs au but) sont facultatifs : sans score, la rencontre s'affiche comme à venir.</p>
+                <select value={TOURS.includes(elim.tour) ? elim.tour : ''} onChange={e => setElim({...elim, tour: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
+                  <option value="">Tour (choisir ou écrire ci-dessous)</option>
+                  {TOURS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input value={elim.tour} onChange={e => setElim({...elim, tour: e.target.value})} placeholder="Tour (ex: Quarts de finale)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input value={elim.competition} onChange={e => setElim({...elim, competition: e.target.value})} placeholder="Compétition (ex: Ligue des champions)" style={{...inputStyle,marginBottom:'12px'}}/>
+
+                <details style={{marginBottom:'14px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toutes les rencontres d'un coup</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Tour - Compétition. Puis une ligne par match : « Haïti 2-1 Cuba », « Brésil 1-1 Croatie ap 1-1 tab 4-2 », ou « France vs Argentine » (à venir).</p>
+                  <textarea value={texteElim} onChange={e => setTexteElim(e.target.value)} rows={8} placeholder={'Quarts de finale - Ligue des champions\nHaïti 2-1 Cuba\nBrésil 1-1 Croatie ap 1-1 tab 4-2\nFrance vs Argentine'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <button type="button" onClick={appliquerTexteElim} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
+                </details>
+
+                {elim.rencontres.map((r, i) => {
+                  const q = qualifieRencontre(r);
+                  return (
+                    <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'12px',padding:'10px',marginBottom:'10px'}}>
+                      <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'6px'}}>
+                        <input list="liste-pays" value={r.equipe1} onChange={e => majRencontre(i,'equipe1',e.target.value)} placeholder="Équipe 1" style={{...inputStyle,flex:3,padding:'8px'}}/>
+                        <input value={r.score1} onChange={e => majRencontre(i,'score1',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,flex:1,padding:'8px',textAlign:'center'}}/>
+                        <input value={r.score2} onChange={e => majRencontre(i,'score2',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,flex:1,padding:'8px',textAlign:'center'}}/>
+                        <input list="liste-pays" value={r.equipe2} onChange={e => majRencontre(i,'equipe2',e.target.value)} placeholder="Équipe 2" style={{...inputStyle,flex:3,padding:'8px'}}/>
+                        {elim.rencontres.length > 1 && <button type="button" onClick={() => setElim(prev => ({...prev, rencontres: prev.rencontres.filter((_, idx) => idx !== i)}))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>}
+                      </div>
+                      <div style={{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'11px',color:'#9ca3af',fontWeight:800}}>AP</span>
+                        <input value={r.ap1} onChange={e => majRencontre(i,'ap1',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'46px',padding:'6px',textAlign:'center'}}/>
+                        <input value={r.ap2} onChange={e => majRencontre(i,'ap2',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'46px',padding:'6px',textAlign:'center'}}/>
+                        <span style={{fontSize:'11px',color:'#9ca3af',fontWeight:800,marginLeft:'6px'}}>TAB</span>
+                        <input value={r.tab1} onChange={e => majRencontre(i,'tab1',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'46px',padding:'6px',textAlign:'center'}}/>
+                        <input value={r.tab2} onChange={e => majRencontre(i,'tab2',e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'46px',padding:'6px',textAlign:'center'}}/>
+                        <select value={r.qualifie} onChange={e => majRencontre(i,'qualifie',e.target.value)} style={{...inputStyle,flex:1,minWidth:'130px',padding:'6px'}}>
+                          <option value="">Qualifié : auto</option>
+                          <option value="1">Qualifié : équipe 1</option>
+                          <option value="2">Qualifié : équipe 2</option>
+                        </select>
+                      </div>
+                      <p style={{fontSize:'10px',margin:'6px 0 0',fontWeight:700,color:q ? '#10b981' : '#9ca3af'}}>{q === 1 ? '✅ ' + (r.equipe1 || 'Équipe 1') + ' qualifié(e)' : q === 2 ? '✅ ' + (r.equipe2 || 'Équipe 2') + ' qualifié(e)' : 'Pas encore de qualifié'}</p>
+                    </div>
+                  );
+                })}
+                <button type="button" onClick={() => setElim(prev => ({...prev, rencontres: [...prev.rencontres, { ...RENCONTRE_VIDE }]}))} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter une rencontre</button>
+              </div>
+            )}
+
             {type === 'post' && modePost === 'onze' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>👥 Équipe type (onze)</label>
@@ -1719,7 +1800,7 @@ export default function AdminMedia() {
 
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute l'équipe d'un coup</summary>
-                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Équipe » : gardien, défenseurs, milieux, attaquants (de gauche à droite).</p>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : gardien, défenseurs, milieux, attaquants (de gauche à droite).</p>
                   <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteOnze} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
@@ -1739,7 +1820,8 @@ export default function AdminMedia() {
                       <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
                         <span style={{color:VIOLET,fontWeight:900,fontSize:'13px',width:'22px'}}>{i+1}</span>
                         <input value={j.nom} onChange={e => setJoueur(i,'nom',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:2}}/>
-                        <input value={j.equipe} onChange={e => setJoueur(i,'equipe',e.target.value)} placeholder="Équipe / Pays" style={{...inputStyle,flex:2}}/>
+                        <input value={j.equipe} onChange={e => setJoueur(i,'equipe',e.target.value)} placeholder="Équipe / Club" style={{...inputStyle,flex:2}}/>
+                        <input list="liste-pays" value={j.pays || ''} onChange={e => setJoueur(i,'pays',e.target.value)} placeholder="Pays" style={{...inputStyle,flex:1.4}}/>
                         <label style={{width:'34px',height:'34px',flexShrink:0,borderRadius:'50%',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',background:'#1e1e1e',fontSize:'14px'}}>
                           {j.photo ? <img src={j.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (uploadingOnze===i ? '…' : '📷')}
                           <input type="file" accept="image/*" onChange={e => uploadPhotoOnze(i,e)} style={{display:'none'}}/>
@@ -1877,6 +1959,8 @@ export default function AdminMedia() {
         )}
 
       </main>
+
+      <datalist id="liste-pays">{listePays().map(n => <option key={n} value={n}/>)}</datalist>
 
       {videoArticle && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}>

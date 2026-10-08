@@ -34,6 +34,8 @@ const CAT: Record<string, string> = {
   dribbleSubis: 'Dribblé (subis)', cleanSheet: 'Clean sheets', erreursBut: 'Erreurs menant à un but',
   // Discipline
   fautesCommises: 'Fautes commises', fautesSubies: 'Fautes subies', cartonJaune: 'Carton jaune', cartonRouge: 'Carton rouge',
+  // Palmarès (comparaisons de carrière)
+  titres: 'Titres', ballonsOr: 'Ballons d\'or', trophees: 'Trophées', ligueChampions: 'Ligues des champions', titresChampionnat: 'Titres de champion', selections: 'Sélections', butsSelection: 'Buts en sélection',
   // Gardien
   arrets: 'Arrêts', pctArrets: '% d\'arrêts', butsEncaisses: 'Buts encaissés', penaltysArretes: 'Penalties arrêtés', sorties: 'Sorties',
 };
@@ -44,20 +46,22 @@ const GENERAL = (...extra: string[]) => g('Général', 'matchsJoues', 'titularis
 const ATTAQUE = (titre: string) => g(titre, 'buts', 'penaltysMarques', 'tirs', 'tirsCadres', 'grossesOccasionsRatees', 'dribbles', 'ballonsTouches', 'horsJeu');
 const CREATION = (titre: string) => g(titre, 'passesDec', 'passesCles', 'occasionsCreees', 'centresReussis', 'passesReussies', 'mauvaisesPasses', 'longsBallons', 'pertesBalle');
 const DEFENSE = (titre: string) => g(titre, 'tacles', 'interceptions', 'recuperations', 'degagements', 'tirsBloques', 'duelsGagnes', 'duelsPerdus', 'duelsAeriensGagnes', 'dribbleSubis', 'cleanSheet', 'erreursBut');
+const PALMARES = () => g('Palmarès', 'titres', 'ballonsOr', 'trophees', 'ligueChampions', 'titresChampionnat', 'selections', 'butsSelection');
 const DISCIPLINE = () => g('Discipline', 'fautesCommises', 'fautesSubies', 'cartonJaune', 'cartonRouge');
 
 // Chaque poste a ses statistiques principales PLUS l'apport de l'autre
 // registre (attaquant avec apport défensif, défenseur avec apport offensif,
 // milieu avec les deux).
 export const GROUPES_POSTE: Record<StatsPoste, GroupeStat[]> = {
-  attaquant: [GENERAL(), ATTAQUE('Attaque'), CREATION('Création et passes'), DEFENSE('Apport défensif'), DISCIPLINE()],
-  milieu: [GENERAL(), CREATION('Création et passes'), ATTAQUE('Apport offensif'), DEFENSE('Apport défensif'), DISCIPLINE()],
-  defenseur: [GENERAL(), DEFENSE('Défense'), CREATION('Passes et relance'), ATTAQUE('Apport offensif'), DISCIPLINE()],
+  attaquant: [GENERAL(), ATTAQUE('Attaque'), CREATION('Création et passes'), DEFENSE('Apport défensif'), DISCIPLINE(), PALMARES()],
+  milieu: [GENERAL(), CREATION('Création et passes'), ATTAQUE('Apport offensif'), DEFENSE('Apport défensif'), DISCIPLINE(), PALMARES()],
+  defenseur: [GENERAL(), DEFENSE('Défense'), CREATION('Passes et relance'), ATTAQUE('Apport offensif'), DISCIPLINE(), PALMARES()],
   gardien: [
     GENERAL(),
     g('Gardien', 'arrets', 'pctArrets', 'butsEncaisses', 'cleanSheet', 'penaltysArretes', 'sorties'),
     g('Jeu au pied', 'passesReussies', 'longsBallons', 'degagements', 'erreursBut'),
     DISCIPLINE(),
+    PALMARES(),
   ],
 };
 
@@ -98,7 +102,7 @@ export function champsAffichage(sport: string | null | undefined, poste: StatsPo
 }
 
 // ---- Période couverte par les stats ----
-export type PeriodeType = 'match' | 'journee' | 'ldc' | 'mois' | 'trimestre' | 'saison';
+export type PeriodeType = 'match' | 'journee' | 'ldc' | 'mois' | 'trimestre' | 'saison' | 'carriere';
 export type Periode = { type: PeriodeType; libelle: string };
 
 export const PERIODES: { type: PeriodeType; label: string; placeholder: string }[] = [
@@ -108,6 +112,7 @@ export const PERIODES: { type: PeriodeType; label: string; placeholder: string }
   { type: 'mois', label: '🗓️ Un mois', placeholder: 'Ex: Septembre 2026' },
   { type: 'trimestre', label: '📆 Un trimestre', placeholder: 'Ex: T3 2026' },
   { type: 'saison', label: '🏆 Une saison', placeholder: 'Ex: 2025-26' },
+  { type: 'carriere', label: '👑 Carrière', placeholder: 'Ex: en club, en sélection, complète (optionnel)' },
 ];
 
 // Texte du bandeau de période affiché sur le post ('' = rien à afficher).
@@ -120,6 +125,7 @@ export function libellePeriode(periode: Periode | null | undefined, nbMatchs?: s
   else if (periode.type === 'ldc') texte = 'Ligue des champions' + (lib ? ' · ' + lib : '');
   else if (periode.type === 'mois') texte = 'Mois' + (lib ? ' ' + lib : '');
   else if (periode.type === 'trimestre') texte = 'Trimestre' + (lib ? ' ' + lib : '');
+  else if (periode.type === 'carriere') texte = 'Carrière' + (lib ? ' ' + lib : '');
   else texte = 'Saison' + (lib ? ' ' + lib : '');
   const nb = periode.type !== 'match' && nbMatchs ? nbMatchs + ' matchs' : '';
   return [texte, nb].filter(Boolean).join(' · ');
@@ -164,6 +170,8 @@ const ALIAS: Record<string, string> = {
   grosseoccasionratee: 'grossesOccasionsRatees', grossesoccasionsratee: 'grossesOccasionsRatees', occasionsratees: 'grossesOccasionsRatees', occasionratee: 'grossesOccasionsRatees',
   pourcentagearrets: 'pctArrets', arretspourcentage: 'pctArrets', tauxarrets: 'pctArrets',
   fautessubie: 'fautesSubies', fautessubies: 'fautesSubies',
+  ballondor: 'ballonsOr', ballonsdor: 'ballonsOr', ballondors: 'ballonsOr', trophee: 'trophees', titres: 'titres', titre: 'titres', ligueschampions: 'ligueChampions', liguedeschampions: 'ligueChampions', ldc: 'ligueChampions', championsleague: 'ligueChampions',
+  titredechampion: 'titresChampionnat', titreschampion: 'titresChampionnat', titreschampionnat: 'titresChampionnat', selection: 'selections', caps: 'selections', matchsselection: 'selections', butsenselection: 'butsSelection', butsselection: 'butsSelection',
 };
 
 // Retourne la clé de la catégorie correspondant au libellé saisi, en
@@ -194,8 +202,12 @@ export function trouverCleStat(texte: string, champs: ChampStat[]): string | und
 //   Wilson Isidor (Haïti) face à Trinidad
 // Le séparateur est un tiret ENTOURÉ d'espaces : les traits d'union
 // dans les noms (Jean-Philippe, Saint-Étienne) sont préservés.
-export function parserLigneJoueur(ligne: string): { nom: string; equipe: string; adversaire: string } {
+export function parserLigneJoueur(ligne: string): { nom: string; equipe: string; adversaire: string; pays: string } {
+  // Pays facultatif en fin de ligne après une barre verticale : "Joueur - Équipe - Adversaire | Haïti"
+  let pays = '';
   let reste = (ligne || '').trim();
+  const iBarre = reste.lastIndexOf('|');
+  if (iBarre >= 0) { pays = reste.slice(iBarre + 1).trim(); reste = reste.slice(0, iBarre).trim(); }
   let adversaire = '';
   const mAdv = reste.match(/^(.*?)\s+(?:vs\.?|v\.?|face\s+(?:à|a)|contre)\s+(.+)$/i);
   if (mAdv) { reste = mAdv[1].trim(); adversaire = mAdv[2].trim(); }
@@ -210,5 +222,5 @@ export function parserLigneJoueur(ligne: string): { nom: string; equipe: string;
     equipe = parts[1] || '';
     if (!adversaire) adversaire = parts.slice(2).join(' - ');
   }
-  return { nom, equipe, adversaire };
+  return { nom, equipe, adversaire, pays };
 }

@@ -29,8 +29,8 @@ export const GROUPES_DISTINCTIONS: GroupeDistinction[] = [
 
 export const DISTINCTIONS: string[] = [...GROUPES_DISTINCTIONS.flatMap(g => g.items), 'Autre'];
 
-export type DistinctionDetails = { equipe: string; championnat: string; periode: string; photo: string };
-export const DETAILS_VIDES: DistinctionDetails = { equipe: '', championnat: '', periode: '', photo: '' };
+export type DistinctionDetails = { equipe: string; championnat: string; periode: string; photo: string; pays?: string };
+export const DETAILS_VIDES: DistinctionDetails = { equipe: '', championnat: '', periode: '', photo: '', pays: '' };
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 
@@ -55,6 +55,7 @@ export type DistinctionLot = {
   equipe: string;
   championnat: string;
   periode: string;
+  pays: string;
   stats: string;
   note: string;
 };
@@ -65,6 +66,8 @@ export type DistinctionLot = {
 //   Auteur de 4 buts en 5 matchs.         (lignes suivantes : note, optionnelle)
 // Pour une distinction d'ÉQUIPE le lauréat est l'équipe :
 //   Équipe du mois - Arsenal - Premier League - Septembre 2026
+// Pays du lauréat (drapeau), facultatif, en dernier champ :
+//   Joueur du mois - Wilson Isidor - Grenoble - Ligue 2 - Septembre 2026 - Haïti
 // Séparateurs de champs : " - " (tiret entouré d'espaces) ou "|".
 export function parserLotDistinctions(texte: string): { distinctions: DistinctionLot[]; ignores: number } {
   const blocs = (texte || '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
@@ -83,8 +86,9 @@ export function parserLotDistinctions(texte: string): { distinctions: Distinctio
     const equipe = equipeLaureat ? laureat : (reste[1] || '');
     const championnat = (equipeLaureat ? reste[1] : reste[2]) || '';
     const periode = (equipeLaureat ? reste[2] : reste[3]) || '';
+    const pays = equipeLaureat ? '' : ((reste[4]) || '');
     distinctions.push({
-      categorie, officielle: !!officielle, laureat, equipe, championnat, periode,
+      categorie, officielle: !!officielle, laureat, equipe, championnat, periode, pays,
       stats: lignes[1] || '', note: lignes.slice(2).join(' '),
     });
   }
