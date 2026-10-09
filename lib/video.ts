@@ -675,13 +675,38 @@ function choisirFormat(): { mime: string; ext: string } | null {
   return candidats.find(c => MediaRecorder.isTypeSupported(c.mime)) || null;
 }
 
-export async function genererVideo(post: VideoPost, onProgress: (pct: number, etape: string, duree?: number, nbScenes?: number) => void, signal?: { annule: boolean }): Promise<{ blob: Blob; ext: string; duree: number }> {
+// Une vidéo trop longue (et donc trop lourde) fait planter le navigateur d'un téléphone au moment de
+// la fabriquer ou de la télécharger. On la découpe donc en parties d'environ 22 s maximum, aux
+// frontières des écrans, chacune enregistrée et téléchargeable séparément.
+const DUREE_MAX_PARTIE = 22;
+function decouper(scenes: Scene[]): Scene[][] {
+  const parties: Scene[][] = [];
+  let cur: Scene[] = [], d = 0;
+  for (const sc of scenes) {
+    if (cur.length && d + sc.duree > DUREE_MAX_PARTIE) { parties.push(cur); cur = []; d = 0; }
+    cur.push(sc); d += sc.duree;
+  }
+  if (cur.length) parties.push(cur);
+  // Pas de dernière partie minuscule : on la rattache à la précédente.
+  if (parties.length > 1) {
+    const dern = parties[parties.length - 1];
+    if (dern.reduce((a, x) => a + x.duree, 0) < 5) { parties.pop(); parties[parties.length - 1].push(...dern); }
+  }
+  return parties;
+}
+
+export type PartieVideo = { blob: Blob; ext: string; duree: number };
+type Progression = (pct: number, etape: string, duree?: number, nbScenes?: number) => void;
+
+export async function genererVideos(post: VideoPost, onProgress: Progression, signal?: { annule: boolean }): Promise<PartieVideo[]> {
   const format = choisirFormat();
   if (!format) throw new Error("Ce navigateur ne sait pas enregistrer de vidéo. Utilisez Chrome.");
   const scenes = construireScenes(post);
   if (!scenes.length) throw new Error('Rien à mettre en vidéo pour ce post.');
+  const parties = decouper(scenes);
+  const totalGlobal = dureeTotale(scenes);
 
-  onProgress(0, 'Chargement des images…');
+  onProgress(0, 'Chargement des images…', Math.round(totalGlobal), scenes.length);
   const urls = new Set<string>();
   scenes.forEach(s => {
     if (s.k === 'intro') { if (s.photo) urls.add(s.photo); s.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
@@ -695,61 +720,74 @@ export async function genererVideo(post: VideoPost, onProgress: (pct: number, et
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas indisponible.');
   const statique = fondStatique();
-  const total = dureeTotale(scenes);
-  onProgress(0, 'Chargement des images…', Math.round(total), scenes.length);
 
-  const dessiner = (t: number) => {
-    let reste = t, fond = scenes[0].fond, badge = scenes[0].badge;
-    let courante: { s: Scene; local: number } | null = null;
-    for (const s of scenes) {
-      if (reste < s.duree) { courante = { s, local: reste }; fond = s.fond; badge = s.badge; break; }
-      reste -= s.duree;
-    }
-    const enOutro = !courante;
-    if (enOutro) { fond = 'GOAL'; }
-    let bandeY: number | null = null;
-    if (courante) {
-      const k = courante.s.k;
-      if (k === 'intro') bandeY = (courante.s.photo || courante.s.initiale || courante.s.icone) ? 1130 : (courante.s.k === 'intro' && courante.s.duo ? 1180 : 640);
-      else if (k === 'score') bandeY = 1080;
-    } else bandeY = 1000;
-    dessinerFond(ctx, statique, t, fond, bandeY, courante ? courante.local : reste);
-    if (courante) {
-      dessinerEntete(ctx, badge, 1);
-      dessinerScene(ctx, courante.s, courante.local, images);
-    } else {
-      dessinerOutro(ctx, reste, DUREE_OUTRO);
-    }
-  };
+  const resultats: PartieVideo[] = [];
+  let dejaFait = 0;
+  for (let ip = 0; ip < parties.length; ip++) {
+    const sc = parties[ip];
+    const derniere = ip === parties.length - 1;
+    const total = sc.reduce((a, x) => a + x.duree, 0) + (derniere ? DUREE_OUTRO : 0);
+    const etape = parties.length > 1 ? 'Enregistrement partie ' + (ip + 1) + '/' + parties.length + '…' : 'Enregistrement…';
 
-  // Débit adapté à la durée : une longue vidéo à 14 Mb/s dépasse la mémoire de nombreux téléphones
-  // (la page plante). On plafonne le poids total à ~36 Mo (≈ 290 Mbit), sans descendre sous 7 Mb/s.
-  const debit = Math.round(Math.max(7_000_000, Math.min(14_000_000, 290_000_000 / total)));
-  const flux = canvas.captureStream(30);
-  const rec = new MediaRecorder(flux, { mimeType: format.mime, videoBitsPerSecond: debit });
-  const morceaux: Blob[] = [];
-  rec.ondataavailable = e => { if (e.data.size) morceaux.push(e.data); };
-  const fini = new Promise<void>(res => { rec.onstop = () => res(); });
-
-  dessiner(0);
-  rec.start(1000);
-  const debut = performance.now();
-  await new Promise<void>(resolve => {
-    const boucle = () => {
-      const t = (performance.now() - debut) / 1000;
-      if ((signal && signal.annule) || t >= total) { resolve(); return; }
-      dessiner(t);
-      onProgress(Math.min(99, Math.round((t / total) * 100)), 'Enregistrement…', Math.round(total), scenes.length);
-      requestAnimationFrame(boucle);
+    const dessiner = (t: number) => {
+      let reste = t, fond = sc[0].fond, badge = sc[0].badge;
+      let courante: { s: Scene; local: number } | null = null;
+      for (const s of sc) {
+        if (reste < s.duree) { courante = { s, local: reste }; fond = s.fond; badge = s.badge; break; }
+        reste -= s.duree;
+      }
+      if (!courante && !derniere) { // fin de partie : on reste sur la dernière image de l'écran final
+        const s = sc[sc.length - 1];
+        courante = { s, local: s.duree - 0.01 }; fond = s.fond; badge = s.badge;
+      }
+      if (!courante) fond = 'GOAL';
+      let bandeY: number | null = null;
+      if (courante) {
+        const k = courante.s.k;
+        if (k === 'intro') bandeY = (courante.s.photo || courante.s.initiale || courante.s.icone) ? 1130 : (courante.s.duo ? 1180 : 640);
+        else if (k === 'score') bandeY = 1080;
+      } else bandeY = 1000;
+      dessinerFond(ctx, statique, t + dejaFait, fond, bandeY, courante ? courante.local : reste);
+      if (courante) {
+        dessinerEntete(ctx, badge, 1);
+        dessinerScene(ctx, courante.s, courante.local, images);
+      } else {
+        dessinerOutro(ctx, reste, DUREE_OUTRO);
+      }
     };
-    requestAnimationFrame(boucle);
-  });
-  dessiner(total - 0.01);
-  await new Promise(r => setTimeout(r, 200));
-  rec.stop();
-  flux.getTracks().forEach(tr => tr.stop());
-  await fini;
-  if (signal && signal.annule) throw new Error('annulé');
+
+    // Débit : plafonné pour que chaque partie reste légère (~20 Mo), sans descendre sous 7 Mb/s.
+    const debit = Math.round(Math.max(7_000_000, Math.min(14_000_000, 160_000_000 / total)));
+    const flux = canvas.captureStream(30);
+    const rec = new MediaRecorder(flux, { mimeType: format.mime, videoBitsPerSecond: debit });
+    const morceaux: Blob[] = [];
+    rec.ondataavailable = e => { if (e.data.size) morceaux.push(e.data); };
+    const fini = new Promise<void>(res => { rec.onstop = () => res(); });
+
+    dessiner(0);
+    rec.start(1000);
+    const debut = performance.now();
+    await new Promise<void>(resolve => {
+      const boucle = () => {
+        const t = (performance.now() - debut) / 1000;
+        if ((signal && signal.annule) || t >= total) { resolve(); return; }
+        dessiner(t);
+        const pct = Math.round(((dejaFait + t) / totalGlobal) * 100);
+        onProgress(Math.min(99, pct), etape, Math.round(totalGlobal), scenes.length);
+        requestAnimationFrame(boucle);
+      };
+      requestAnimationFrame(boucle);
+    });
+    dessiner(Math.max(0, total - 0.01));
+    await new Promise(r => setTimeout(r, 200));
+    rec.stop();
+    flux.getTracks().forEach(tr => tr.stop());
+    await fini;
+    if (signal && signal.annule) throw new Error('annulé');
+    resultats.push({ blob: new Blob(morceaux, { type: format.mime.split(';')[0] }), ext: format.ext, duree: total });
+    dejaFait += total;
+    await new Promise(r => setTimeout(r, 300)); // laisse le navigateur libérer l'encodeur
+  }
   onProgress(100, 'Terminé');
-  return { blob: new Blob(morceaux, { type: format.mime.split(';')[0] }), ext: format.ext, duree: total };
+  return resultats;
 }

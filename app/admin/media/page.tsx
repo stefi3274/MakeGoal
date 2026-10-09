@@ -6,7 +6,7 @@ import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport
 import AdminAuth from '../../../components/AdminAuth';
 import { listePays } from '../../../lib/formations';
 import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
-import { genererVideo, typeVideo } from '../../../lib/video';
+import { genererVideos, typeVideo } from '../../../lib/video';
 import { FORMATIONS_LISTE, CATEGORIES_ONZE, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
 import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
 import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, groupesPourPeriode, champsPourPeriode, periodeAvecAdversaire, periodeAvecNbMatchs, estCarriere, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
@@ -143,8 +143,7 @@ export default function AdminMedia() {
   const [videoArticle, setVideoArticle] = useState<Article | null>(null);
   const [videoPct, setVideoPct] = useState(0);
   const [videoEtape, setVideoEtape] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoApercu, setVideoApercu] = useState(false);
+  const [videoParties, setVideoParties] = useState<{ url: string; duree: number }[]>([]);
   const [videoExt, setVideoExt] = useState('mp4');
   const [videoErreur, setVideoErreur] = useState('');
   const videoSignal = useRef({ annule: false });
@@ -200,6 +199,7 @@ export default function AdminMedia() {
   useEffect(() => { setSportForm(getSport()); }, []);
   // Si la page a planté pendant une vidéo, on le signale (et à quel moment) au rechargement.
   useEffect(() => {
+    if (!connecte) return;
     try {
       const t = JSON.parse(localStorage.getItem('mg_video_trace') || 'null');
       if (t && t.enCours) {
@@ -207,7 +207,7 @@ export default function AdminMedia() {
         localStorage.removeItem('mg_video_trace');
       }
     } catch { /* stockage indisponible */ }
-  }, []);
+  }, [connecte]);
   // (la vérification de session + 2FA est maintenant gérée par <AdminAuth />)
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
   useEffect(() => { if (connecte && (modePost === 'matchsjour' || modePost === 'match') && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
@@ -536,16 +536,16 @@ export default function AdminMedia() {
   };
 
   const lancerVideo = async (a: Article) => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    videoParties.forEach(x => URL.revokeObjectURL(x.url));
     videoSignal.current = { annule: false };
-    setVideoArticle(a); setVideoUrl(''); setVideoErreur(''); setVideoPct(0); setVideoEtape('Préparation…'); setVideoApercu(false);
+    setVideoArticle(a); setVideoParties([]); setVideoErreur(''); setVideoPct(0); setVideoEtape('Préparation…');
     let derniere = '';
     const trace = (p: number, e: string, d = 0, n = 0) => { const cle = p + e; if (cle === derniere) return; derniere = cle; try { localStorage.setItem('mg_video_trace', JSON.stringify({ enCours: true, type: typeVideo(a), pct: p, etape: e, duree: d, nbScenes: n })); } catch { /* ignore */ } };
     trace(0, 'Préparation');
     try {
-      const r = await genererVideo(a, (p, e, d, n) => { setVideoPct(p); setVideoEtape(e); trace(p, e, d, n); }, videoSignal.current);
-      setVideoExt(r.ext);
-      setVideoUrl(URL.createObjectURL(r.blob));
+      const r = await genererVideos(a, (p, e, d, n) => { setVideoPct(p); setVideoEtape(e); trace(p, e, d, n); }, videoSignal.current);
+      setVideoExt(r[0]?.ext || 'mp4');
+      setVideoParties(r.map(x => ({ url: URL.createObjectURL(x.blob), duree: Math.round(x.duree) })));
       try { localStorage.removeItem('mg_video_trace'); } catch { /* ignore */ }
     } catch (err) {
       try { localStorage.removeItem('mg_video_trace'); } catch { /* ignore */ }
@@ -555,8 +555,8 @@ export default function AdminMedia() {
 
   const fermerVideo = () => {
     videoSignal.current.annule = true;
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    setVideoUrl(''); setVideoArticle(null);
+    videoParties.forEach(x => URL.revokeObjectURL(x.url));
+    setVideoParties([]); setVideoArticle(null);
   };
 
   const appliquerTexteOnze = () => {
@@ -2021,7 +2021,7 @@ export default function AdminMedia() {
             <p style={{color:'#9ca3af',fontSize:'12px',margin:'0 0 14px'}}>{videoArticle.titre}</p>
             {videoErreur ? (
               <p style={{color:'#f87171',fontSize:'13px',fontWeight:700}}>❌ {videoErreur}</p>
-            ) : !videoUrl ? (
+            ) : videoParties.length === 0 ? (
               <div>
                 <div style={{height:'10px',background:'#2a2a2a',borderRadius:'999px',overflow:'hidden',marginBottom:'8px'}}>
                   <div style={{height:'100%',width:videoPct+'%',background:'linear-gradient(90deg,#bf00ff,#ff7a00)',transition:'width .2s'}}/>
@@ -2031,13 +2031,13 @@ export default function AdminMedia() {
               </div>
             ) : (
               <div>
-                {videoApercu
-                  ? <video src={videoUrl} controls playsInline style={{width:'100%',borderRadius:'12px',background:'#000',marginBottom:'12px'}}/>
-                  : <button onClick={() => setVideoApercu(true)} style={{width:'100%',padding:'12px',borderRadius:'12px',border:'1px solid #444',background:'#222',color:'#fff',fontWeight:700,fontSize:'13px',cursor:'pointer',marginBottom:'12px'}}>▶️ Voir l'aperçu</button>}
-                <a href={videoUrl} download={'makegoal-' + slugify(videoArticle.titre) + '.' + videoExt} style={{display:'block',textAlign:'center',padding:'12px',borderRadius:'999px',background:VIOLET,color:'#fff',fontWeight:900,fontSize:'13px',textDecoration:'none',marginBottom:'8px'}}>⬇️ Télécharger la vidéo (.{videoExt})</a>
+                {videoParties.length > 1 && <p style={{fontSize:'12px',color:'#d1d5db',margin:'0 0 10px'}}>La vidéo est longue : elle est livrée en {videoParties.length} parties, à publier dans l'ordre.</p>}
+                {videoParties.map((x, i) => (
+                  <a key={i} href={x.url} download={'makegoal-' + slugify(videoArticle.titre) + (videoParties.length > 1 ? '-partie' + (i + 1) : '') + '.' + videoExt} style={{display:'block',textAlign:'center',padding:'12px',borderRadius:'999px',background:VIOLET,color:'#fff',fontWeight:900,fontSize:'13px',textDecoration:'none',marginBottom:'8px'}}>⬇️ Télécharger{videoParties.length > 1 ? ' la partie ' + (i + 1) + '/' + videoParties.length : ' la vidéo'} ({x.duree} s · .{videoExt})</a>
+                ))}
               </div>
             )}
-            <button onClick={fermerVideo} style={{width:'100%',padding:'10px',borderRadius:'999px',border:'1px solid #444',background:'transparent',color:'#d1d5db',fontWeight:700,fontSize:'12px',cursor:'pointer',marginTop:'4px'}}>{videoUrl || videoErreur ? 'Fermer' : 'Annuler'}</button>
+            <button onClick={fermerVideo} style={{width:'100%',padding:'10px',borderRadius:'999px',border:'1px solid #444',background:'transparent',color:'#d1d5db',fontWeight:700,fontSize:'12px',cursor:'pointer',marginTop:'4px'}}>{videoParties.length > 0 || videoErreur ? 'Fermer' : 'Annuler'}</button>
           </div>
         </div>
       )}
