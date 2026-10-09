@@ -64,7 +64,7 @@ function pagesDeLignes(lignes: Ligne[], parPage: number): Ligne[][] {
   for (let i = 0; i < lignes.length; i += taille) pages.push(lignes.slice(i, i + taille));
   return pages;
 }
-const dureeLignes = (n: number) => 0.9 + n * 0.5 + 1.8;
+const dureeLignes = (n: number) => 0.9 + n * 0.5 + 2.2;
 const PAR_PAGE_ENTETE = 5;
 const PAR_PAGE_LISTE = 7;
 
@@ -191,7 +191,27 @@ export function construireScenes(p: VideoPost): Scene[] {
   } else {
     scenes.push({ k: 'intro', badge: 'MAKEGOAL', fond: 'GOAL', titre: p.titre, sous: p.extrait || undefined, icone: '⚽', duree: 4 });
   }
-  return scenes;
+  return scenes.map(ajusterLecture);
+}
+
+// Temps de lecture : chaque écran dure au moins le temps de lire son texte
+// (animation d'entrée ~1 s + ~3 mots par seconde + 1,5 s de pause à la fin).
+const VITESSE_FRAPPE = 45; // caractères par seconde
+const motsDe = (t: string | undefined) => (t || '').split(/\s+/).filter(Boolean).length;
+function ajusterLecture(s: Scene): Scene {
+  let mots = 0, plancher = 0;
+  if (s.k === 'texte') {
+    // frappe complète, puis le texte reste affiché assez longtemps pour être relu en entier
+    const frappe = Math.max(1, s.texte.length / VITESSE_FRAPPE);
+    const relecture = 2 + (motsDe(s.texte) + motsDe(s.auteur) + motsDe(s.sous)) / 2.8;
+    const total = 0.3 + frappe + relecture + 1.5;
+    return s.duree >= total ? s : { ...s, duree: Math.min(40, total) };
+  }
+  else if (s.k === 'intro') mots = motsDe(s.titre) + motsDe(s.sous) + motsDe(s.pill);
+  else if (s.k === 'lignes') mots = s.lignes.reduce((n, l) => n + motsDe(l.label) * 0.5 + 1, 0);
+  else return s;
+  const lecture = Math.max(plancher, 1 + mots / 3 + 1.5);
+  return s.duree >= lecture ? s : { ...s, duree: Math.min(30, lecture) };
 }
 
 // ---------- Utilitaires de dessin ----------
@@ -574,7 +594,7 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
     const total = lg.length * taille * 1.25;
     const y0 = 760 - total / 2 + taille * 0.6;
     const nbMots = s.texte.length;
-    const visibles = Math.floor(nbMots * clamp((t - 0.3) / Math.max(1, s.duree - 1.6)));
+    const visibles = Math.floor(nbMots * clamp((t - 0.3) / Math.max(1, nbMots / VITESSE_FRAPPE)));
     let compte = 0;
     lg.forEach((l, i) => {
       const reste = Math.max(0, Math.min(l.length, visibles - compte));
@@ -701,8 +721,11 @@ export async function genererVideo(post: VideoPost, onProgress: (pct: number, et
     }
   };
 
+  // Débit adapté à la durée : une longue vidéo à 14 Mb/s dépasse la mémoire de nombreux téléphones
+  // (la page plante). On plafonne le poids total à ~36 Mo (≈ 290 Mbit), sans descendre sous 7 Mb/s.
+  const debit = Math.round(Math.max(7_000_000, Math.min(14_000_000, 290_000_000 / total)));
   const flux = canvas.captureStream(30);
-  const rec = new MediaRecorder(flux, { mimeType: format.mime, videoBitsPerSecond: 14_000_000 });
+  const rec = new MediaRecorder(flux, { mimeType: format.mime, videoBitsPerSecond: debit });
   const morceaux: Blob[] = [];
   rec.ondataavailable = e => { if (e.data.size) morceaux.push(e.data); };
   const fini = new Promise<void>(res => { rec.onstop = () => res(); });
