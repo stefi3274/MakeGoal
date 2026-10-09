@@ -34,34 +34,50 @@ const CAT: Record<string, string> = {
   dribbleSubis: 'Dribblé (subis)', cleanSheet: 'Clean sheets', erreursBut: 'Erreurs menant à un but',
   // Discipline
   fautesCommises: 'Fautes commises', fautesSubies: 'Fautes subies', cartonJaune: 'Carton jaune', cartonRouge: 'Carton rouge',
+  // Carrière : palmarès collectif
+  coupesMonde: 'Coupes du monde', titresContinentaux: 'Titres continentaux (Euro, Copa, CAN...)', olympiques: 'Médailles olympiques',
+  coupesNationales: 'Coupes nationales', supercoupes: 'Supercoupes nationales', coupesMondeClubs: 'Coupes du monde des clubs',
+  // Carrière : distinctions individuelles
+  theBest: 'Prix The Best (FIFA)', souliersOr: 'Souliers d\'or', meilleurJoueurMondial: 'Meilleur joueur de Coupe du monde', mvpChampionnat: 'MVP de championnat', titresMeilleurButeur: 'Titres de meilleur buteur',
   // Palmarès (comparaisons de carrière)
   titres: 'Titres', ballonsOr: 'Ballons d\'or', trophees: 'Trophées', ligueChampions: 'Ligues des champions', titresChampionnat: 'Titres de champion', selections: 'Sélections', butsSelection: 'Buts en sélection',
+  // Match : ajouts
+  tirsNonCadres: 'Tirs non cadrés', tirsContres: 'Tirs contrés', poteaux: 'Poteaux / barres', penaltysObtenus: 'Penalties obtenus', penaltysRates: 'Penalties ratés',
+  butsTete: 'Buts de la tête', butsCoupFranc: 'Buts sur coup franc', xg: 'xG (buts attendus)', dribblesTentes: 'Dribbles tentés', ballonsSurface: 'Ballons touchés dans la surface',
+  passesTentees: 'Passes tentées', pctPasses: '% de passes réussies', passesProgressives: 'Passes progressives', prePasseDec: 'Passes pré-décisives', grossesOccasionsCreees: 'Grosses occasions créées', xa: 'xA (passes dé. attendues)', centresTentes: 'Centres tentés',
+  pctDuels: '% de duels gagnés', duelsSolGagnes: 'Duels au sol gagnés', duelsAeriensPerdus: 'Duels aériens perdus', sauvetagesLigne: 'Sauvetages sur la ligne', pressings: 'Pressings réussis', butContreSonCamp: 'But contre son camp',
+  doubleJaune: 'Double carton jaune', penaltysConcedes: 'Penalties concédés',
+  distance: 'Distance parcourue (km)', sprints: 'Sprints', vitesseMax: 'Vitesse max (km/h)',
+  tirsAffrontes: 'Tirs cadrés affrontés', arretsDifficiles: 'Arrêts difficiles', butsEvites: 'Buts évités (xGP)', ballonsAeriensCaptes: 'Ballons aériens captés', relancesMain: 'Relances à la main', degagementsPoing: 'Dégagements au poing', passesGardien: 'Passes réussies (gardien)',
+  // Carrière : totaux et détails
+  contributionsDirectes: 'Contributions directes', hatTricks: 'Triplés (hat-tricks)', butsCoupFrancCarriere: 'Buts sur coup franc',
+  titresSelection: 'Titres en sélection', titresClub: 'Titres en club',
+  finalissima: 'Finalissima', coupeMondeJeunes: 'Coupe du monde des jeunes (U20)', supercoupesContinentales: 'Supercoupes continentales (UEFA...)', coupesLigue: 'Coupes de la Ligue / Trophées des champions', ligueNations: 'Ligue des nations', autresTitresClub: 'Autres titres de club (Leagues Cup, Supporters\' Shield...)',
+  joueurAnnee: 'Joueur de l\'année (continental)', meilleurJoueurContinental: 'Meilleur joueur de compétition continentale', titresMeilleurPasseur: 'Titres de meilleur passeur', equipesType: 'Équipes types', meilleurJeune: 'Meilleur jeune',
   // Gardien
   arrets: 'Arrêts', pctArrets: '% d\'arrêts', butsEncaisses: 'Buts encaissés', penaltysArretes: 'Penalties arrêtés', sorties: 'Sorties',
 };
 
 const g = (titre: string, ...cles: string[]): GroupeStat => ({ titre, champs: cles.map(cle => ({ cle, label: CAT[cle] })) });
 
-const GENERAL = (...extra: string[]) => g('Général', 'matchsJoues', 'titularisations', 'minutes', 'note', ...extra);
-const ATTAQUE = (titre: string) => g(titre, 'buts', 'penaltysMarques', 'tirs', 'tirsCadres', 'grossesOccasionsRatees', 'dribbles', 'ballonsTouches', 'horsJeu');
-const CREATION = (titre: string) => g(titre, 'passesDec', 'passesCles', 'occasionsCreees', 'centresReussis', 'passesReussies', 'mauvaisesPasses', 'longsBallons', 'pertesBalle');
-const DEFENSE = (titre: string) => g(titre, 'tacles', 'interceptions', 'recuperations', 'degagements', 'tirsBloques', 'duelsGagnes', 'duelsPerdus', 'duelsAeriensGagnes', 'dribbleSubis', 'cleanSheet', 'erreursBut');
-const PALMARES = () => g('Palmarès', 'titres', 'ballonsOr', 'trophees', 'ligueChampions', 'titresChampionnat', 'selections', 'butsSelection');
-const DISCIPLINE = () => g('Discipline', 'fautesCommises', 'fautesSubies', 'cartonJaune', 'cartonRouge');
+const GENERAL = (...extra: string[]) => g('Général', 'matchsJoues', 'titularisations', 'minutes', 'note', 'distance', 'sprints', 'vitesseMax', ...extra);
+const ATTAQUE = (titre: string) => g(titre, 'buts', 'butsTete', 'butsCoupFranc', 'penaltysMarques', 'penaltysObtenus', 'penaltysRates', 'tirs', 'tirsCadres', 'tirsNonCadres', 'tirsContres', 'poteaux', 'grossesOccasionsRatees', 'xg', 'dribblesTentes', 'dribbles', 'ballonsTouches', 'ballonsSurface', 'horsJeu');
+const CREATION = (titre: string) => g(titre, 'passesDec', 'prePasseDec', 'passesCles', 'occasionsCreees', 'grossesOccasionsCreees', 'xa', 'centresTentes', 'centresReussis', 'passesTentees', 'passesReussies', 'pctPasses', 'passesProgressives', 'mauvaisesPasses', 'longsBallons', 'pertesBalle');
+const DEFENSE = (titre: string) => g(titre, 'tacles', 'interceptions', 'recuperations', 'pressings', 'degagements', 'tirsBloques', 'sauvetagesLigne', 'duelsGagnes', 'duelsPerdus', 'pctDuels', 'duelsSolGagnes', 'duelsAeriensGagnes', 'duelsAeriensPerdus', 'dribbleSubis', 'cleanSheet', 'erreursBut', 'butContreSonCamp');
+const DISCIPLINE = () => g('Discipline', 'fautesCommises', 'fautesSubies', 'cartonJaune', 'doubleJaune', 'cartonRouge', 'penaltysConcedes');
 
 // Chaque poste a ses statistiques principales PLUS l'apport de l'autre
 // registre (attaquant avec apport défensif, défenseur avec apport offensif,
 // milieu avec les deux).
 export const GROUPES_POSTE: Record<StatsPoste, GroupeStat[]> = {
-  attaquant: [GENERAL(), ATTAQUE('Attaque'), CREATION('Création et passes'), DEFENSE('Apport défensif'), DISCIPLINE(), PALMARES()],
-  milieu: [GENERAL(), CREATION('Création et passes'), ATTAQUE('Apport offensif'), DEFENSE('Apport défensif'), DISCIPLINE(), PALMARES()],
-  defenseur: [GENERAL(), DEFENSE('Défense'), CREATION('Passes et relance'), ATTAQUE('Apport offensif'), DISCIPLINE(), PALMARES()],
+  attaquant: [GENERAL(), ATTAQUE('Attaque'), CREATION('Création et passes'), DEFENSE('Apport défensif'), DISCIPLINE()],
+  milieu: [GENERAL(), CREATION('Création et passes'), ATTAQUE('Apport offensif'), DEFENSE('Apport défensif'), DISCIPLINE()],
+  defenseur: [GENERAL(), DEFENSE('Défense'), CREATION('Passes et relance'), ATTAQUE('Apport offensif'), DISCIPLINE()],
   gardien: [
     GENERAL(),
-    g('Gardien', 'arrets', 'pctArrets', 'butsEncaisses', 'cleanSheet', 'penaltysArretes', 'sorties'),
-    g('Jeu au pied', 'passesReussies', 'longsBallons', 'degagements', 'erreursBut'),
+    g('Gardien', 'arrets', 'pctArrets', 'tirsAffrontes', 'arretsDifficiles', 'butsEvites', 'butsEncaisses', 'cleanSheet', 'penaltysArretes', 'sorties', 'ballonsAeriensCaptes', 'degagementsPoing', 'sauvetagesLigne'),
+    g('Jeu au pied', 'passesTentees', 'passesReussies', 'pctPasses', 'longsBallons', 'relancesMain', 'degagements', 'erreursBut', 'butContreSonCamp'),
     DISCIPLINE(),
-    PALMARES(),
   ],
 };
 
@@ -77,6 +93,17 @@ export function groupesFootball(poste: StatsPoste | string | null | undefined): 
   })));
   return autres.length ? [...groupes, { titre: 'Autres statistiques', champs: autres }] : groupes;
 }
+
+// Carrière : un affichage PROPRE et distinct des stats de match (pas de dribbles,
+// de tacles... ni d'adversaire). Trois blocs : chiffres cumulés, palmarès collectif,
+// distinctions individuelles.
+export const GROUPES_CARRIERE: GroupeStat[] = [
+  g('Chiffres de carrière', 'matchsJoues', 'minutes', 'buts', 'passesDec', 'contributionsDirectes', 'penaltysMarques', 'butsCoupFrancCarriere', 'butsTete', 'hatTricks', 'cleanSheet', 'selections', 'butsSelection'),
+  g('Total des titres', 'titres', 'titresClub', 'titresSelection', 'trophees'),
+  g('Palmarès en sélection', 'coupesMonde', 'titresContinentaux', 'finalissima', 'olympiques', 'coupeMondeJeunes', 'ligueNations'),
+  g('Palmarès en club', 'ligueChampions', 'titresChampionnat', 'coupesNationales', 'coupesLigue', 'supercoupes', 'supercoupesContinentales', 'coupesMondeClubs', 'autresTitresClub'),
+  g('Distinctions individuelles', 'ballonsOr', 'theBest', 'joueurAnnee', 'souliersOr', 'meilleurJoueurMondial', 'meilleurJoueurContinental', 'mvpChampionnat', 'titresMeilleurButeur', 'titresMeilleurPasseur', 'equipesType', 'meilleurJeune'),
+];
 
 export const CHAMPS_STATS_BASKET: ChampStat[] = [
   { cle: 'matchsJoues', label: 'Matchs joués' }, { cle: 'minutes', label: 'Minutes jouées' }, { cle: 'points', label: 'Points' },
@@ -94,6 +121,24 @@ export function champsFootball(poste: StatsPoste | string | null | undefined): C
   const vus = new Set<string>();
   const res: ChampStat[] = [];
   groupesFootball(poste).forEach(gr => gr.champs.forEach(c => { if (!vus.has(c.cle)) { vus.add(c.cle); res.push(c); } }));
+  return res;
+}
+
+// Le contexte (match / période / carrière) décide ce qui est proposé :
+//  - match, journée, Ligue des champions : un adversaire, catégories du poste ;
+//  - mois, trimestre, saison : pas d'adversaire, catégories du poste ;
+//  - carrière : ni adversaire ni poste, blocs de carrière uniquement.
+export const periodeAvecAdversaire = (type: string | null | undefined): boolean => !type || type === 'match' || type === 'journee' || type === 'ldc';
+export const periodeAvecNbMatchs = (type: string | null | undefined): boolean => type === 'mois' || type === 'trimestre' || type === 'saison';
+export const estCarriere = (type: string | null | undefined): boolean => type === 'carriere';
+
+export function groupesPourPeriode(sport: string | null | undefined, poste: StatsPoste | string | null | undefined, periodeType?: string | null): GroupeStat[] {
+  if (sport !== 'basketball' && estCarriere(periodeType)) return GROUPES_CARRIERE;
+  return groupesAffichage(sport, poste);
+}
+export function champsPourPeriode(sport: string | null | undefined, poste: StatsPoste | string | null | undefined, periodeType?: string | null): ChampStat[] {
+  const vus = new Set<string>(); const res: ChampStat[] = [];
+  groupesPourPeriode(sport, poste, periodeType).forEach(gr => gr.champs.forEach(c => { if (!vus.has(c.cle)) { vus.add(c.cle); res.push(c); } }));
   return res;
 }
 
@@ -170,7 +215,29 @@ const ALIAS: Record<string, string> = {
   grosseoccasionratee: 'grossesOccasionsRatees', grossesoccasionsratee: 'grossesOccasionsRatees', occasionsratees: 'grossesOccasionsRatees', occasionratee: 'grossesOccasionsRatees',
   pourcentagearrets: 'pctArrets', arretspourcentage: 'pctArrets', tauxarrets: 'pctArrets',
   fautessubie: 'fautesSubies', fautessubies: 'fautesSubies',
+  theb: 'theBest', thebest: 'theBest', prixthebest: 'theBest', fifathebest: 'theBest', soulierdor: 'souliersOr', souliersdor: 'souliersOr', soulierseuropeens: 'souliersOr', meilleurjoueurcoupedumonde: 'meilleurJoueurMondial', ballondorcoupedumonde: 'meilleurJoueurMondial', mvpmls: 'mvpChampionnat', mvp: 'mvpChampionnat', meilleurbuteurtitres: 'titresMeilleurButeur', coupedumonde: 'coupesMonde', coupesdumonde: 'coupesMonde', copaamerica: 'titresContinentaux', euro: 'titresContinentaux', can: 'titresContinentaux', titrescontinentaux: 'titresContinentaux', medailleolympique: 'olympiques', medaillesolympiques: 'olympiques', coupenationale: 'coupesNationales', coupesnationales: 'coupesNationales', supercoupe: 'supercoupes', coupesdumondedesclubs: 'coupesMondeClubs', coupedumondedesclubs: 'coupesMondeClubs',
   ballondor: 'ballonsOr', ballonsdor: 'ballonsOr', ballondors: 'ballonsOr', trophee: 'trophees', titres: 'titres', titre: 'titres', ligueschampions: 'ligueChampions', liguedeschampions: 'ligueChampions', ldc: 'ligueChampions', championsleague: 'ligueChampions',
+  tirsnoncadres: 'tirsNonCadres', tirnoncadre: 'tirsNonCadres', tirscontres: 'tirsContres', tircontre: 'tirsContres', poteau: 'poteaux', poteaux: 'poteaux', barres: 'poteaux', barretransversale: 'poteaux', poteauxbarres: 'poteaux',
+  penaltysobtenus: 'penaltysObtenus', penaltiesobtenus: 'penaltysObtenus', penaltyobtenu: 'penaltysObtenus', penaltysrates: 'penaltysRates', penaltiesrates: 'penaltysRates', penaltyrate: 'penaltysRates',
+  butstete: 'butsTete', butdelatete: 'butsTete', butsdelatete: 'butsTete', butscoupfranc: 'butsCoupFranc', butcoupfranc: 'butsCoupFranc', butssurcoupfranc: 'butsCoupFranc', coupsfrancs: 'butsCoupFranc', xg: 'xg', butsattendus: 'xg', expectedgoals: 'xg',
+  dribblestentes: 'dribblesTentes', dribbletente: 'dribblesTentes', ballonssurface: 'ballonsSurface', ballonstouchesdanslasurface: 'ballonsSurface', touchesdanslasurface: 'ballonsSurface',
+  passestentees: 'passesTentees', passetentee: 'passesTentees', pctpasses: 'pctPasses', pourcentagepasses: 'pctPasses', passesreussiespourcentage: 'pctPasses', precisiondespasses: 'pctPasses', precisionpasses: 'pctPasses',
+  passesprogressives: 'passesProgressives', passeprogressive: 'passesProgressives', prepassedecisive: 'prePasseDec', prepassesdecisives: 'prePasseDec', prepassedec: 'prePasseDec',
+  grossesoccasionscreees: 'grossesOccasionsCreees', grosseoccasioncreee: 'grossesOccasionsCreees', xa: 'xa', centrestentes: 'centresTentes', centretente: 'centresTentes',
+  pctduels: 'pctDuels', pourcentageduels: 'pctDuels', duelssolgagnes: 'duelsSolGagnes', duelsolgagne: 'duelsSolGagnes', duelsaeriensperdus: 'duelsAeriensPerdus', duelaerienperdu: 'duelsAeriensPerdus',
+  sauvetageligne: 'sauvetagesLigne', sauvetagessurlaligne: 'sauvetagesLigne', sauvetagesurlaligne: 'sauvetagesLigne', pressing: 'pressings', pressings: 'pressings', pressingsreussis: 'pressings',
+  butcontresoncamp: 'butContreSonCamp', csc: 'butContreSonCamp', contresoncamp: 'butContreSonCamp',
+  doublejaune: 'doubleJaune', doublecartonjaune: 'doubleJaune', penaltysconcedes: 'penaltysConcedes', penaltiesconcedes: 'penaltysConcedes', penaltyconcede: 'penaltysConcedes',
+  distance: 'distance', distanceparcourue: 'distance', km: 'distance', sprint: 'sprints', vitessemax: 'vitesseMax', vitessemaximale: 'vitesseMax',
+  tirsaffrontes: 'tirsAffrontes', tirscadresaffrontes: 'tirsAffrontes', arretsdifficiles: 'arretsDifficiles', arretdifficile: 'arretsDifficiles', butsevites: 'butsEvites', xgp: 'butsEvites',
+  ballonsaeriens: 'ballonsAeriensCaptes', ballonsaeriensaptes: 'ballonsAeriensCaptes', ballonsaeriencaptes: 'ballonsAeriensCaptes', relancesmain: 'relancesMain', relancesalamain: 'relancesMain', degagementspoing: 'degagementsPoing', degagementsaupoing: 'degagementsPoing',
+  contributionsdirectes: 'contributionsDirectes', contributionsdirectesaunbut: 'contributionsDirectes', hattricks: 'hatTricks', hattrick: 'hatTricks', triples: 'hatTricks', triplet: 'hatTricks',
+  titresselection: 'titresSelection', titresenselection: 'titresSelection', titresclub: 'titresClub', titresenclub: 'titresClub',
+  finalissima: 'finalissima', coupedumondeu20: 'coupeMondeJeunes', coupedumondejeunes: 'coupeMondeJeunes', mondialu20: 'coupeMondeJeunes', liguedesnations: 'ligueNations',
+  supercoupescontinentales: 'supercoupesContinentales', supercoupeuefa: 'supercoupesContinentales', supercoupedeleurope: 'supercoupesContinentales', supercoupesnationales: 'supercoupes', coupesdelaligue: 'coupesLigue', coupedelaligue: 'coupesLigue', trophedeschampions: 'coupesLigue', trophesdeschampions: 'coupesLigue', coupedurioi: 'coupesNationales', coupesduroi: 'coupesNationales',
+  autrestitres: 'autresTitresClub', leaguescup: 'autresTitresClub', supportersshield: 'autresTitresClub',
+  joueurdelannee: 'joueurAnnee', meilleurjoueurdelannee: 'joueurAnnee', meilleurjoueurcontinental: 'meilleurJoueurContinental', meilleurjoueurdelacopa: 'meilleurJoueurContinental', meilleurjoueureuro: 'meilleurJoueurContinental',
+  meilleurpasseur: 'titresMeilleurPasseur', titresmeilleurpasseur: 'titresMeilleurPasseur', equipetype: 'equipesType', equipestypes: 'equipesType', equipedelannee: 'equipesType', meilleurjeune: 'meilleurJeune', goldenboy: 'meilleurJeune', kopa: 'meilleurJeune', trophekopa: 'meilleurJeune',
   titredechampion: 'titresChampionnat', titreschampion: 'titresChampionnat', titreschampionnat: 'titresChampionnat', selection: 'selections', caps: 'selections', matchsselection: 'selections', butsenselection: 'butsSelection', butsselection: 'butsSelection',
 };
 

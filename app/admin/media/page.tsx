@@ -9,7 +9,7 @@ import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS,
 import { genererVideo, typeVideo } from '../../../lib/video';
 import { FORMATIONS_LISTE, CATEGORIES_ONZE, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
 import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
-import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
+import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, groupesPourPeriode, champsPourPeriode, periodeAvecAdversaire, periodeAvecNbMatchs, estCarriere, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
 
@@ -597,14 +597,16 @@ export default function AdminMedia() {
   const analyserStats = () => {
     // Football : on cherche dans TOUTES les catégories (poste choisi en
     // premier) pour ne jamais perdre une stat collée.
-    const champs = sportForm === 'football' ? champsFootball(statsPoste) : CHAMPS_STATS_BASKET;
+    const champs = champsPourPeriode(sportForm, statsPoste, statsPeriodeType);
+    const avecAdv = periodeAvecAdversaire(statsPeriodeType);
     const blocs = statsTexteColle.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     if (blocs.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
     const nonReconnues: string[] = [];
-    const joueurs: StatJoueur[] = blocs.slice(0, 6).map(bloc => {
+    const joueurs: StatJoueur[] = blocs.slice(0, statsMode === 'comparaison' ? 6 : 1).map(bloc => {
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       const [nomLigne, ...reste] = lignes;
-      const { nom, equipe, adversaire, pays } = parserLigneJoueur(nomLigne || '');
+      const { nom, equipe, adversaire: adv, pays } = parserLigneJoueur(nomLigne || '');
+      const adversaire = avecAdv ? adv : '';
       const valeurs: Record<string, string> = {};
       reste.forEach(l => {
         const m = l.match(/^(.+?)\s*[:=]\s*(.+)$/) || l.match(/^(.+?)\s+[-–—]\s+(.+)$/) || l.match(/^(.+?)\s+(\d+(?:[.,]\d+)?\s*%?)$/);
@@ -617,7 +619,7 @@ export default function AdminMedia() {
     });
     setStatsJoueurs(joueurs);
     if (joueurs.length >= 2 && statsMode === 'performance') setStatsMode('comparaison');
-    const sansAdversaire = joueurs.filter(j => !j.adversaire).length;
+    const sansAdversaire = avecAdv ? joueurs.filter(j => !j.adversaire).length : 0;
     setMessage('✅ ' + joueurs.length + ' joueur(s) analysé(s).'
       + (sansAdversaire ? ' ⚠️ Adversaire manquant pour ' + sansAdversaire + ' joueur(s).' : '')
       + (nonReconnues.length ? ' ⚠️ Lignes non reconnues : ' + nonReconnues.join(' | ') : ''));
@@ -949,7 +951,12 @@ export default function AdminMedia() {
     if (!titreFinal) {
       if (modePost === 'classement' && classementTitre) titreFinal = classementTitre;
       else if ((modePost === 'match' || modePost === 'resultat') && equipe1 && equipe2) titreFinal = equipe1 + ' vs ' + equipe2;
-      else if (modePost === 'stats' && statsJoueurs[0]?.nom) titreFinal = statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : '') + (statsPeriodeType === 'match' ? (statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '') : '') + ' — Stats' + (statsPeriodeType !== 'match' ? ' ' + libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }) : '');
+      else if (modePost === 'stats' && statsJoueurs[0]?.nom) {
+        const noms = statsMode === 'comparaison' && statsJoueurs.filter(x => x.nom).length > 1 ? statsJoueurs.filter(x => x.nom).map(x => x.nom).join(' vs ') : (statsJoueurs[0].nom + (statsJoueurs[0].equipe ? ' (' + statsJoueurs[0].equipe + ')' : ''));
+        const faceA = statsMode !== 'comparaison' && periodeAvecAdversaire(statsPeriodeType) && statsJoueurs[0].adversaire ? ' face à ' + statsJoueurs[0].adversaire : '';
+        const per = statsPeriodeType !== 'match' ? ' ' + libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }) : '';
+        titreFinal = noms + faceA + ' — ' + (statsMode === 'comparaison' ? 'Comparaison' : 'Stats') + per;
+      }
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
       else if (modePost === 'elimination' && elim.rencontres[0]?.equipe1) titreFinal = (elim.tour || 'Élimination directe') + (elim.competition ? ' — ' + elim.competition : '');
       else if (modePost === 'onze' && formation) titreFinal = onzeDetails.categorie ? (onzeDetails.categorie + (onzeDetails.competition ? ' — ' + onzeDetails.competition : '') + (onzeDetails.periode ? ' ' + onzeDetails.periode : '')) : 'Onze type — ' + formation;
@@ -1002,7 +1009,17 @@ export default function AdminMedia() {
           return { equipe1: parts[0] || '', equipe2: parts[1] || '' };
         }).filter(m => m.equipe1 && m.equipe2)
       } : null,
-      stats_joueur: modePost === 'stats' ? { mode: statsMode === 'comparaison' ? 'comparaison' : 'performance', poste: statsPoste, nbMatchs: statsPeriodeType !== 'match' ? (statsNbMatchs || null) : null, periode: { type: statsPeriodeType, libelle: statsPeriodeLibelle.trim() }, joueurs: statsJoueurs.filter(j=>j.nom) } : null,
+      stats_joueur: modePost === 'stats' ? (() => {
+        // Compartimenté : seules les données du contexte choisi sont enregistrées.
+        const comp = statsMode === 'comparaison';
+        const clesOk = new Set(champsPourPeriode(sportForm, statsPoste, statsPeriodeType).map(c => c.cle));
+        const joueursOk = statsJoueurs.filter(j => j.nom).slice(0, comp ? 6 : 1).map(j => ({
+          ...j,
+          adversaire: periodeAvecAdversaire(statsPeriodeType) ? j.adversaire : '',
+          valeurs: Object.fromEntries(Object.entries(j.valeurs).filter(([k, v]) => clesOk.has(k) && String(v).trim())),
+        }));
+        return { mode: comp ? 'comparaison' : 'performance', poste: statsPoste, nbMatchs: periodeAvecNbMatchs(statsPeriodeType) ? (statsNbMatchs || null) : null, periode: { type: statsPeriodeType, libelle: statsPeriodeLibelle.trim() }, joueurs: joueursOk };
+      })() : null,
       sport: sportForm,
       pub_actif: pubActif || modePost === 'sponsorise',
       pub_nom: pubNom || null,
@@ -1469,48 +1486,67 @@ export default function AdminMedia() {
             {type === 'post' && modePost === 'stats' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>📈 Stats joueur</label>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Un joueur ou une comparaison, sur un match, une journée, un mois, un trimestre ou une saison.</p>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 14px'}}>Réponds aux étapes dans l'ordre : ce que tu montres, la durée, puis les joueurs. Le formulaire s'adapte : rien d'inutile n'apparaît.</p>
 
-                <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
-                  <button type="button" onClick={() => setStatsMode('performance')} style={btnChoix(statsMode==='performance')}>👤 Performance</button>
-                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs([{nom:'',equipe:'',adversaire:'',valeurs:{}},{nom:'',equipe:'',adversaire:'',valeurs:{}}]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparaison</button>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>1 · Que veux-tu montrer ?</p>
+                <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
+                  <button type="button" onClick={() => { setStatsMode('performance'); setStatsJoueurs(prev => prev.slice(0, 1)); }} style={btnChoix(statsMode!=='comparaison')}>👤 Un seul joueur</button>
+                  <button type="button" onClick={() => { setStatsMode('comparaison'); if (statsJoueurs.length < 2) setStatsJoueurs(prev => [...prev, ...Array.from({length: 2 - prev.length}, () => ({nom:'',equipe:'',adversaire:'',valeurs:{}}))]); }} style={btnChoix(statsMode==='comparaison')}>⚖️ Comparer des joueurs</button>
                 </div>
 
-                <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
-                  {sportForm === 'football' ? (
-                    <>
-                      {(Object.keys(POSTES_LABELS) as StatsPoste[]).map(p => (
-                        <button key={p} type="button" onClick={() => setStatsPoste(p)} style={btnChoix(statsPoste===p)}>{POSTES_LABELS[p]}</button>
-                      ))}
-                    </>
-                  ) : (
-                    <span style={{fontSize:'12px',color:'#6b7280',fontWeight:700}}>🏀 Champs basketball (Points, Rebonds, Passes...)</span>
-                  )}
-                </div>
-
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>📋 Coller un texte (optionnel)</p>
-                <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Un joueur par bloc (ligne vide entre 2 joueurs pour une comparaison). 1ère ligne : "Joueur - Son équipe - Adversaire" (pour un mois, une saison, etc. l'adversaire est inutile : "Joueur - Son équipe"). Puis une ligne par stat : "Label: valeur". Les stats non remplies n'apparaissent pas dans le post.</p>
-                <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={7} placeholder={sportForm==='football' ? "Wilson Isidor - Haïti - Trinidad-et-Tobago\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nRécupérations: 4\n\nAlex Christian - Haïti - Trinidad-et-Tobago\nTacles réussis: 4\nInterceptions: 3\nPasses clés: 2\nTirs cadrés: 1" : "LeBron James - Lakers - Warriors\nPoints: 28\nRebonds: 9\nPasses décisives: 7"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
-                <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
-
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>🗓️ Période couverte par ces stats</p>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>2 · Sur quelle durée ?</p>
                 <div style={{display:'flex',gap:'8px',marginBottom:'10px',flexWrap:'wrap'}}>
                   {PERIODES.map(pe => (
                     <button key={pe.type} type="button" onClick={() => setStatsPeriodeType(pe.type)} style={btnChoix(statsPeriodeType===pe.type)}>{pe.label}</button>
                   ))}
                 </div>
-                <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
+                <div style={{display:'flex',gap:'8px',marginBottom:'10px',flexWrap:'wrap'}}>
                   <input value={statsPeriodeLibelle} onChange={e => setStatsPeriodeLibelle(e.target.value)} placeholder={PERIODES.find(pe => pe.type === statsPeriodeType)?.placeholder} style={{...inputStyle,flex:2,minWidth:'180px'}}/>
-                  {statsPeriodeType !== 'match' && (
+                  {periodeAvecNbMatchs(statsPeriodeType) && (
                     <input value={statsNbMatchs} onChange={e => setStatsNbMatchs(e.target.value)} placeholder="Nb de matchs (optionnel)" style={{...inputStyle,flex:1,minWidth:'140px'}}/>
                   )}
                 </div>
-                {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, statsNbMatchs) && (
-                  <p style={{fontSize:'11px',color:SPORT_COULEURS[sportForm].primaire,margin:'-8px 0 16px',fontWeight:700}}>Sur le post : {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, statsNbMatchs)}</p>
+                {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, periodeAvecNbMatchs(statsPeriodeType) ? statsNbMatchs : '') && (
+                  <p style={{fontSize:'11px',color:SPORT_COULEURS[sportForm].primaire,margin:'0 0 16px',fontWeight:700}}>Sur le post : {libellePeriode({ type: statsPeriodeType, libelle: statsPeriodeLibelle }, periodeAvecNbMatchs(statsPeriodeType) ? statsNbMatchs : '')}</p>
                 )}
+                {estCarriere(statsPeriodeType) && (
+                  <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 16px'}}>🏆 Carrière : chiffres cumulés, palmarès collectif et distinctions individuelles. Pas d'adversaire, pas de poste.</p>
+                )}
+
+                {sportForm === 'football' && !estCarriere(statsPeriodeType) && (
+                  <>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>3 · Poste{statsMode==='comparaison' ? ' (les catégories proposées)' : ''}</p>
+                    <div style={{display:'flex',gap:'8px',marginBottom:'16px',flexWrap:'wrap'}}>
+                      {(Object.keys(POSTES_LABELS) as StatsPoste[]).map(p => (
+                        <button key={p} type="button" onClick={() => setStatsPoste(p)} style={btnChoix(statsPoste===p)}>{POSTES_LABELS[p]}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {sportForm !== 'football' && (
+                  <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:'0 0 16px'}}>🏀 Champs basketball (Points, Rebonds, Passes...)</p>
+                )}
+
+                <details style={{marginBottom:'18px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:SPORT_COULEURS[sportForm].primaire}}>📋 Coller un texte (optionnel)</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>
+                    {statsMode === 'comparaison' ? 'Un bloc par joueur, séparés par une ligne vide. ' : 'Un seul joueur. '}
+                    1ère ligne : « {periodeAvecAdversaire(statsPeriodeType) ? 'Joueur - Son équipe - Adversaire | Pays' : 'Joueur - Son équipe | Pays'} » (le pays est facultatif). Puis une ligne par stat : « Label: valeur ». Les stats vides n'apparaissent pas.
+                  </p>
+                  <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={8} placeholder={
+                    sportForm !== 'football' ? 'LeBron James - Lakers\nPoints: 32\nRebonds: 8\nPasses décisives: 11'
+                    : estCarriere(statsPeriodeType) ? 'Lionel Messi - Inter Miami | Argentine\nMatchs joués: 1060\nButs: 932\nPasses décisives: 426\nTitres: 45\nBallons d\'or: 8\nSouliers d\'or: 6'
+                    : periodeAvecAdversaire(statsPeriodeType) ? 'Wilson Isidor - Haïti - Trinidad-et-Tobago | Haïti\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nRécupérations: 4'
+                    : 'Wilson Isidor - Grenoble | Haïti\nMatchs joués: 8\nButs: 5\nPasses décisives: 3\nRécupérations: 21'
+                  } style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff'}}>🔍 Analyser le texte</button>
+                </details>
+
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>{sportForm === 'football' && !estCarriere(statsPeriodeType) ? '4' : '3'} · {statsMode === 'comparaison' ? 'Les joueurs à comparer' : 'Le joueur'}</p>
 
                 {statsJoueurs.map((j, i) => (
                   <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'14px',marginBottom:'12px'}}>
+                    {statsMode === 'comparaison' && <p style={{fontSize:'11px',fontWeight:900,color:SPORT_COULEURS[sportForm].primaire,margin:'0 0 10px',textTransform:'uppercase',letterSpacing:'1px'}}>Joueur {i + 1}</p>}
                     <div style={{display:'flex',gap:'12px',marginBottom:'12px',alignItems:'center'}}>
                       {j.photo ? (
                         <img src={j.photo} alt="" style={{width:'56px',height:'56px',borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'2px solid '+SPORT_COULEURS[sportForm].primaire}}/>
@@ -1528,13 +1564,13 @@ export default function AdminMedia() {
                     <div style={{display:'flex',gap:'8px',marginBottom:'12px',alignItems:'center'}}>
                       <input value={j.nom} onChange={e => modifierJoueurStats(i,'nom',e.target.value)} placeholder="Nom du joueur" style={{...inputStyle,flex:1.3}}/>
                       <input value={j.equipe} onChange={e => modifierJoueurStats(i,'equipe',e.target.value)} placeholder="Son équipe" style={{...inputStyle,flex:1}}/>
-                      <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Face à (adversaire)" style={{...inputStyle,flex:1}}/>
+                      {periodeAvecAdversaire(statsPeriodeType) && <input value={j.adversaire} onChange={e => modifierJoueurStats(i,'adversaire',e.target.value)} placeholder="Face à (adversaire)" style={{...inputStyle,flex:1}}/>}
                       <input list="liste-pays" value={j.pays || ''} onChange={e => modifierJoueurStats(i,'pays',e.target.value)} placeholder="Pays 🏳️" style={{...inputStyle,flex:0.8}}/>
                       {statsMode === 'comparaison' && statsJoueurs.length > 2 && (
                         <button onClick={() => retirerJoueurStats(i)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>
                       )}
                     </div>
-                    {(sportForm === 'football' ? groupesFootball(statsPoste) : [{ titre: '', champs: CHAMPS_STATS_BASKET }])
+                    {groupesPourPeriode(sportForm, statsPoste, statsPeriodeType)
                       .filter(gr => gr.titre !== 'Autres statistiques' || gr.champs.some(c => statsJoueurs.some(sj => sj.valeurs[c.cle])))
                       .map((gr, gi) => (
                       <details key={gr.titre + gi} open={gi < 2 || gr.champs.some(c => j.valeurs[c.cle])} style={{marginBottom:'10px'}}>

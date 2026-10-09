@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/auth';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
-import { groupesAffichage, libellePeriode, Periode } from '../../../lib/statsJoueur';
+import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
@@ -547,7 +547,7 @@ export default function PostPage() {
                       )}
                       <div style={{fontWeight:900,fontSize:seul ? '24px' : '17px',color:'#111',textAlign:'center',lineHeight:1.2,minHeight:seul ? undefined : '2.4em',display:'flex',alignItems:'center',justifyContent:'center'}}>{j.pays && drapeau(j.pays) !== '🏳️' ? drapeau(j.pays) + ' ' : ''}{j.nom}</div>
                       {j.equipe && <div style={{fontSize:seul ? '15px' : '13px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'3px'}}>{j.equipe}</div>}
-                      {j.adversaire && (
+                      {j.adversaire && periodeAvecAdversaire(post.stats_joueur!.periode?.type) && (
                         <div style={{textAlign:'center',marginTop:'6px'}}>
                           <span style={{display:'inline-block',fontSize:seul ? '14px' : '12px',fontWeight:800,color:couleurSport,background:couleurSport+'14',padding:'3px 10px',borderRadius:'999px'}}>face à {j.adversaire}</span>
                         </div>
@@ -556,7 +556,7 @@ export default function PostPage() {
                       {(() => {
                         // Seules les catégories remplies apparaissent. Un joueur seul voit
                         // ses stats regroupées (Attaque, Apport défensif...) si plusieurs groupes sont remplis.
-                        const groupes = groupesAffichage(post.sport, post.stats_joueur!.poste)
+                        const groupes = groupesPourPeriode(post.sport, post.stats_joueur!.poste, post.stats_joueur!.periode?.type)
                           .map(gr => ({ titre: gr.titre, champs: gr.champs.filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim()) }))
                           .filter(gr => gr.champs.length > 0);
                         const avecTitres = seul && groupes.length > 1;

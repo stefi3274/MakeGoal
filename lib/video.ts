@@ -4,7 +4,7 @@
 // texte), puis un seul moteur les dessine avec le même style (violet, projecteurs,
 // bande orange, pelouse). Ajouter un type de post = ajouter un cas dans construireScenes.
 
-import { groupesAffichage, libellePeriode, Periode } from './statsJoueur';
+import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from './statsJoueur';
 import { ligneContexte, DistinctionDetails } from './distinctions';
 import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
@@ -57,8 +57,11 @@ const avecDrapeau = (pays: string | undefined | null, texte: string) => {
 };
 
 function pagesDeLignes(lignes: Ligne[], parPage: number): Ligne[][] {
+  // Pages équilibrées (ex: 6 lignes -> 3 + 3, jamais 5 + 1).
+  const nbPages = Math.max(1, Math.ceil(lignes.length / parPage));
+  const taille = Math.ceil(lignes.length / nbPages);
   const pages: Ligne[][] = [];
-  for (let i = 0; i < lignes.length; i += parPage) pages.push(lignes.slice(i, i + parPage));
+  for (let i = 0; i < lignes.length; i += taille) pages.push(lignes.slice(i, i + taille));
   return pages;
 }
 const dureeLignes = (n: number) => 0.9 + n * 0.5 + 1.8;
@@ -88,7 +91,8 @@ export function construireScenes(p: VideoPost): Scene[] {
   if (type === 'Stats joueur') {
     const st = p.stats_joueur!;
     const periode = libellePeriode(st.periode, st.nbMatchs);
-    const groupes = groupesAffichage(p.sport, st.poste);
+    const avecAdv = periodeAvecAdversaire(st.periode?.type);
+    const groupes = groupesPourPeriode(p.sport, st.poste, st.periode?.type);
     const lignesDe = (j: typeof st.joueurs[number]): Ligne[] =>
       groupes.flatMap(g => g.champs)
         .filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim())
@@ -110,8 +114,8 @@ export function construireScenes(p: VideoPost): Scene[] {
       }));
     } else {
       st.joueurs.forEach(j => {
-        const sous = [j.equipe, j.adversaire ? 'face à ' + j.adversaire : ''].filter(Boolean).join('  •  ');
-        scenes.push({ k: 'intro', badge: 'STATS JOUEUR', fond: 'GOAL', titre: j.nom, sous: avecDrapeau(j.pays, j.equipe), pill: j.adversaire ? 'FACE À ' + majuscule(j.adversaire) : (periode || undefined), photo: j.photo, initiale: initiale(j.nom), duree: 3.2 });
+        const sous = [j.equipe, avecAdv && j.adversaire ? 'face à ' + j.adversaire : ''].filter(Boolean).join('  •  ');
+        scenes.push({ k: 'intro', badge: 'STATS JOUEUR', fond: 'GOAL', titre: j.nom, sous: avecDrapeau(j.pays, j.equipe), pill: avecAdv && j.adversaire ? 'FACE À ' + majuscule(j.adversaire) : (periode || undefined), photo: j.photo, initiale: initiale(j.nom), duree: 3.2 });
         pagesDeLignes(lignesDe(j), PAR_PAGE_ENTETE).forEach(pg => scenes.push({
           k: 'lignes', badge: 'STATS JOUEUR', fond: 'STATS',
           entete: { nom: j.nom, sous: avecDrapeau(j.pays, periode || sous), photo: j.photo, initiale: initiale(j.nom) },
@@ -447,7 +451,7 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       } else {
         halo(ctx, 540, 340, 130, t, e.photo, e.initiale, e.icone, images, easeBack(t / 0.6));
         texteIncline(ctx, majuscule(e.nom), 540, 560, 72, '#fff', 'center', '#ff7a00', 940);
-        if (e.sous) texteIncline(ctx, majuscule(e.sous), 540, 636, 36, '#e9d5ff', 'center', undefined, 940);
+        if (e.sous) texteIncline(ctx, majuscule(e.sous), 540, 636, 36, '#fff', 'center', '#2e1065', 940);
         y0 = 760; pas = 164; h = 136;
       }
     } else {
