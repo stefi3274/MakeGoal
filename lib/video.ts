@@ -675,7 +675,7 @@ function choisirFormat(): { mime: string; ext: string } | null {
   return candidats.find(c => MediaRecorder.isTypeSupported(c.mime)) || null;
 }
 
-export async function genererVideo(post: VideoPost, onProgress: (pct: number, etape: string) => void, signal?: { annule: boolean }): Promise<{ blob: Blob; ext: string; duree: number }> {
+export async function genererVideo(post: VideoPost, onProgress: (pct: number, etape: string, duree?: number, nbScenes?: number) => void, signal?: { annule: boolean }): Promise<{ blob: Blob; ext: string; duree: number }> {
   const format = choisirFormat();
   if (!format) throw new Error("Ce navigateur ne sait pas enregistrer de vidéo. Utilisez Chrome.");
   const scenes = construireScenes(post);
@@ -696,6 +696,7 @@ export async function genererVideo(post: VideoPost, onProgress: (pct: number, et
   if (!ctx) throw new Error('Canvas indisponible.');
   const statique = fondStatique();
   const total = dureeTotale(scenes);
+  onProgress(0, 'Chargement des images…', Math.round(total), scenes.length);
 
   const dessiner = (t: number) => {
     let reste = t, fond = scenes[0].fond, badge = scenes[0].badge;
@@ -731,14 +732,14 @@ export async function genererVideo(post: VideoPost, onProgress: (pct: number, et
   const fini = new Promise<void>(res => { rec.onstop = () => res(); });
 
   dessiner(0);
-  rec.start(250);
+  rec.start(1000);
   const debut = performance.now();
   await new Promise<void>(resolve => {
     const boucle = () => {
       const t = (performance.now() - debut) / 1000;
       if ((signal && signal.annule) || t >= total) { resolve(); return; }
       dessiner(t);
-      onProgress(Math.min(99, Math.round((t / total) * 100)), 'Enregistrement…');
+      onProgress(Math.min(99, Math.round((t / total) * 100)), 'Enregistrement…', Math.round(total), scenes.length);
       requestAnimationFrame(boucle);
     };
     requestAnimationFrame(boucle);

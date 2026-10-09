@@ -144,6 +144,7 @@ export default function AdminMedia() {
   const [videoPct, setVideoPct] = useState(0);
   const [videoEtape, setVideoEtape] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [videoApercu, setVideoApercu] = useState(false);
   const [videoExt, setVideoExt] = useState('mp4');
   const [videoErreur, setVideoErreur] = useState('');
   const videoSignal = useRef({ annule: false });
@@ -197,6 +198,16 @@ export default function AdminMedia() {
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
+  // Si la page a planté pendant une vidéo, on le signale (et à quel moment) au rechargement.
+  useEffect(() => {
+    try {
+      const t = JSON.parse(localStorage.getItem('mg_video_trace') || 'null');
+      if (t && t.enCours) {
+        setMessage('⚠️ La dernière vidéo (' + (t.type || '?') + ') a fait planter la page à ' + t.pct + ' % (' + t.etape + ', ' + t.duree + ' s, ' + t.nbScenes + ' écrans). Transmettez ce message au développeur.');
+        localStorage.removeItem('mg_video_trace');
+      }
+    } catch { /* stockage indisponible */ }
+  }, []);
   // (la vérification de session + 2FA est maintenant gérée par <AdminAuth />)
   useEffect(() => { if (connecte) chargerArticles(); }, [connecte]);
   useEffect(() => { if (connecte && (modePost === 'matchsjour' || modePost === 'match') && matchsDispo.length === 0) chargerMatchsDispo(); }, [connecte, modePost]);
@@ -527,12 +538,17 @@ export default function AdminMedia() {
   const lancerVideo = async (a: Article) => {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     videoSignal.current = { annule: false };
-    setVideoArticle(a); setVideoUrl(''); setVideoErreur(''); setVideoPct(0); setVideoEtape('Préparation…');
+    setVideoArticle(a); setVideoUrl(''); setVideoErreur(''); setVideoPct(0); setVideoEtape('Préparation…'); setVideoApercu(false);
+    let derniere = '';
+    const trace = (p: number, e: string, d = 0, n = 0) => { const cle = p + e; if (cle === derniere) return; derniere = cle; try { localStorage.setItem('mg_video_trace', JSON.stringify({ enCours: true, type: typeVideo(a), pct: p, etape: e, duree: d, nbScenes: n })); } catch { /* ignore */ } };
+    trace(0, 'Préparation');
     try {
-      const r = await genererVideo(a, (p, e) => { setVideoPct(p); setVideoEtape(e); }, videoSignal.current);
+      const r = await genererVideo(a, (p, e, d, n) => { setVideoPct(p); setVideoEtape(e); trace(p, e, d, n); }, videoSignal.current);
       setVideoExt(r.ext);
       setVideoUrl(URL.createObjectURL(r.blob));
+      try { localStorage.removeItem('mg_video_trace'); } catch { /* ignore */ }
     } catch (err) {
+      try { localStorage.removeItem('mg_video_trace'); } catch { /* ignore */ }
       if (!(err instanceof Error && err.message === 'annulé')) setVideoErreur(err instanceof Error ? err.message : 'Erreur vidéo');
     }
   };
@@ -2015,7 +2031,9 @@ export default function AdminMedia() {
               </div>
             ) : (
               <div>
-                <video src={videoUrl} controls playsInline style={{width:'100%',borderRadius:'12px',background:'#000',marginBottom:'12px'}}/>
+                {videoApercu
+                  ? <video src={videoUrl} controls playsInline style={{width:'100%',borderRadius:'12px',background:'#000',marginBottom:'12px'}}/>
+                  : <button onClick={() => setVideoApercu(true)} style={{width:'100%',padding:'12px',borderRadius:'12px',border:'1px solid #444',background:'#222',color:'#fff',fontWeight:700,fontSize:'13px',cursor:'pointer',marginBottom:'12px'}}>▶️ Voir l'aperçu</button>}
                 <a href={videoUrl} download={'makegoal-' + slugify(videoArticle.titre) + '.' + videoExt} style={{display:'block',textAlign:'center',padding:'12px',borderRadius:'999px',background:VIOLET,color:'#fff',fontWeight:900,fontSize:'13px',textDecoration:'none',marginBottom:'8px'}}>⬇️ Télécharger la vidéo (.{videoExt})</a>
               </div>
             )}
