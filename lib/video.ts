@@ -17,7 +17,7 @@ export type VideoPost = {
   pays1?: string | null; pays2?: string | null;
   equipe1?: string | null; equipe2?: string | null;
   score1?: number | null; score2?: number | null;
-  statut_match?: string | null; heure_match?: string | null; stade?: string | null;
+  statut_match?: string | null; heure_match?: string | null; stade?: string | null; created_at?: string | null;
   distinction_type?: string | null; laureat?: string | null; distinction_note?: string | null;
   distinction_stats?: string | null; distinction_details?: DistinctionDetails | null;
   formation?: string | null; onze?: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
@@ -45,7 +45,7 @@ type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string;
 type Scene =
   | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; duree: number }
   | { k: 'lignes'; badge: string; fond: string; titre?: string; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
-  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; d1?: string; d2?: string; infos: string[]; duree: number }
+  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'texte'; badge: string; fond: string; texte: string; auteur?: string; sous?: string; duree: number };
 
@@ -79,6 +79,8 @@ function pagesDeLignes(lignes: Ligne[], parPage: number): Ligne[][] {
   return pages;
 }
 const dureeLignes = (n: number) => 0.9 + n * 0.5 + 2.2;
+const PAS_BUT = 0.9; // secondes entre deux buts révélés
+const DEBUT_BUTS = 0.7;
 const PAR_PAGE_ENTETE = 5;
 const PAR_PAGE_LISTE = 7;
 
@@ -186,10 +188,26 @@ export function construireScenes(p: VideoPost): Scene[] {
     pagesDeLignes(ic.matchs.map(m => ({ label: m.equipe1 + ' vs ' + m.equipe2, valeur: 'VS' })), PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: 'CONCOURS', fond: 'WIN', titre: ic.titreConcours, lignes: pg, duree: dureeLignes(pg.length) }));
   } else if (type === 'Résultat' || type === 'Match') {
     const fini = type === 'Résultat';
-    const infos = [p.ligue, p.statut_match, p.heure_match ? '🕐 ' + p.heure_match : '', p.stade ? '📍 ' + p.stade : ''].filter((x): x is string => !!x);
+    // Date : celle saisie pour le match, sinon la date de publication du post.
+    const dateTxt = p.heure_match || (p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { timeZone: 'America/Port-au-Prince', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '');
+    const infos = fini
+      ? [p.ligue, dateTxt ? '📅 ' + dateTxt : '', p.statut_match, p.stade ? '📍 ' + p.stade : ''].filter((x): x is string => !!x)
+      : [p.ligue, p.statut_match, p.heure_match ? '🕐 ' + p.heure_match : '', p.stade ? '📍 ' + p.stade : ''].filter((x): x is string => !!x);
     const badge = fini ? 'RÉSULTAT' : 'MATCH À VENIR';
     const iss = fini ? issuesMatch(p.score1, p.score2) : null;
-    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, i1: iss?.[0], i2: iss?.[1], d1: p.pays1 ? drapeau(p.pays1) : undefined, d2: p.pays2 ? drapeau(p.pays2) : undefined, infos, duree: 5 });
+    // Les buts, dans l'ordre chronologique, pour faire monter le score but après but.
+    let butsOrdre: { cote: 1 | 2; texte: string }[] | undefined;
+    if (fini && p.resultat_details?.buts?.length && p.score1 != null && p.score2 != null) {
+      const liste = p.resultat_details.buts.map(b => {
+        const n = normNom(b.equipe);
+        const cote: 0 | 1 | 2 = n && n === normNom(p.equipe1) ? 1 : n && n === normNom(p.equipe2) ? 2 : 0;
+        return { cote, m: minuteNum(b.minute), texte: [(b.minute ? b.minute + "' " : '') + majuscule(b.joueur), majuscule(cote === 1 ? (p.equipe1 || '') : cote === 2 ? (p.equipe2 || '') : b.equipe)].filter(Boolean).join('  ·  ') };
+      }).sort((x, y) => x.m - y.m);
+      const n1 = liste.filter(x => x.cote === 1).length, n2 = liste.filter(x => x.cote === 2).length;
+      // Seulement si tous les buts sont attribués et que leur total correspond au score final.
+      if (liste.every(x => x.cote !== 0) && n1 === p.score1 && n2 === p.score2) butsOrdre = liste.map(x => ({ cote: x.cote as 1 | 2, texte: x.texte }));
+    }
+    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, i1: iss?.[0], i2: iss?.[1], buts: butsOrdre, d1: p.pays1 ? drapeau(p.pays1) : undefined, d2: p.pays2 ? drapeau(p.pays2) : undefined, infos, duree: butsOrdre ? DEBUT_BUTS + (butsOrdre.length - 1) * PAS_BUT + 1.0 : (fini && p.score1 === 0 && p.score2 === 0 ? 5 : fini ? 3.0 : 5) });
     const rd = p.resultat_details;
     if (fini && rd) {
       const cote = (nom: string): { i: Issue | undefined; etiquette: string } | null => {
@@ -625,18 +643,37 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       const iss = idx === 0 ? s.i1 : s.i2;
       lg.forEach((l, i) => texteIncline(ctx, l, x + dx, 620 + i * ts * 1.05, ts, texteIssue(iss), 'center', ombreIssue(iss), 470));
     });
+    const T0 = DEBUT_BUTS;
+    const n = s.buts?.length || 0;
+    const nb = n ? (t < T0 ? 0 : Math.min(n, Math.floor((t - T0) / PAS_BUT) + 1)) : 0;
+    const tDernier = T0 + Math.max(0, n - 1) * PAS_BUT;
+    // petit "coup" sur le score à chaque but
+    const coup = n && nb > 0 ? 1 + 0.14 * Math.max(0, 1 - (t - (T0 + (nb - 1) * PAS_BUT)) / 0.35) : 1;
     ctx.save();
-    ctx.translate(540, 1080); ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop));
+    ctx.translate(540, 1080); ctx.scale(Math.max(0.01, pop * coup), Math.max(0.01, pop * coup));
     if (s.s1 !== null && s.s2 !== null) {
-      const p = (t - 0.4) / 1.0;
-      const a = String(Math.round(s.s1 * easeOut(p))), b = String(Math.round(s.s2 * easeOut(p)));
-      if (s.i1 && s.i1 !== 'N') {
+      let a: string, b: string, couleurs = true;
+      if (n) {
+        a = String(s.buts!.slice(0, nb).filter(x => x.cote === 1).length);
+        b = String(s.buts!.slice(0, nb).filter(x => x.cote === 2).length);
+        couleurs = t > tDernier + 0.25; // les couleurs vert / rouge n'apparaissent qu'une fois le dernier but marqué
+      } else {
+        const p = (t - 0.4) / 1.0;
+        a = String(Math.round(s.s1 * easeOut(p))); b = String(Math.round(s.s2 * easeOut(p)));
+      }
+      if (couleurs && s.i1 && s.i1 !== 'N') {
         // gagnant en vert, perdant en rouge ; le tiret reste fixe au centre
         ctx.font = `italic 900 260px ${POLICE}`;
         const demi = ctx.measureText(' - ').width / 2;
         texteIncline(ctx, a, -demi, 0, 260, texteIssue(s.i1), 'right', ombreIssue(s.i1), 420);
         texteIncline(ctx, '-', 0, 0, 260, '#fff', 'center', '#bf00ff', 120);
         texteIncline(ctx, b, demi, 0, 260, texteIssue(s.i2), 'left', ombreIssue(s.i2), 420);
+      } else if (n) {
+        ctx.font = `italic 900 260px ${POLICE}`;
+        const demi = ctx.measureText(' - ').width / 2;
+        texteIncline(ctx, a, -demi, 0, 260, '#fff', 'right', '#bf00ff', 420);
+        texteIncline(ctx, '-', 0, 0, 260, '#fff', 'center', '#bf00ff', 120);
+        texteIncline(ctx, b, demi, 0, 260, '#fff', 'left', '#bf00ff', 420);
       } else {
         texteIncline(ctx, a + ' - ' + b, 0, 0, 260, '#fff', 'center', '#bf00ff', 900);
       }
@@ -644,9 +681,19 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       texteIncline(ctx, 'VS', 0, 0, 260, '#fff', 'center', '#bf00ff', 900);
     }
     ctx.restore();
+    if (n && nb > 0) {
+      // buteur du dernier but : minute, joueur, équipe
+      const g = s.buts![nb - 1];
+      const tg = t - (T0 + (nb - 1) * PAS_BUT);
+      ctx.save();
+      ctx.globalAlpha = alpha * clamp(tg / 0.2);
+      ctx.translate(0, (1 - easeOut(tg / 0.3)) * 40);
+      texteIncline(ctx, '⚽  ' + g.texte, 540, 1250, 46, '#fff', 'center', '#0b0b2a', 960);
+      ctx.restore();
+    }
     s.infos.slice(0, 4).forEach((inf, i) => {
-      ctx.globalAlpha = alpha * easeOut((t - 1.0 - i * 0.2) / 0.4);
-      pill(ctx, inf, 540, 1330 + i * 115, 40, '#fff', '#111');
+      ctx.globalAlpha = alpha * easeOut((t - (n ? 0.3 : 1.0) - i * 0.2) / 0.4);
+      pill(ctx, inf, 540, 1360 + i * 110, 40, '#fff', '#111');
     });
   }
 
@@ -676,26 +723,66 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
 }
 
 function dessinerOutro(ctx: Ctx, t: number, duree: number) {
-  const a = Math.min(clamp(t / 0.4), clamp((duree - t) / 0.25));
-  ctx.save(); ctx.globalAlpha = a;
-  const p = easeBack(t / 0.7);
+  const sortie = clamp((duree - t) / 0.3);
+  ctx.save(); ctx.globalAlpha = sortie;
+  const SOL = 660, R = 100;
+  // Trajectoire du ballon : chute, deux rebonds de plus en plus petits, puis repos.
+  let y = SOL, impact = 0;
+  if (t < 0.5) y = -260 + (SOL + 260) * Math.pow(t / 0.5, 2);
+  else if (t < 1.1) { const u = (t - 0.5) / 0.6; y = SOL - 4 * 270 * u * (1 - u); }
+  else if (t < 1.5) { const u = (t - 1.1) / 0.4; y = SOL - 4 * 90 * u * (1 - u); }
+  for (const ti of [0.5, 1.1, 1.5]) impact = Math.max(impact, 1 - Math.abs(t - ti) / 0.09);
+  impact = clamp(impact);
+  const rot = 13 * easeOut(t / 1.8);
+  const ancrage = clamp((t - 1.5) / 0.35); // le logo se forme autour du ballon posé
+
+  // ombre au sol, qui s'élargit quand le ballon redescend
+  const haut = clamp((SOL - y) / 600);
   ctx.save();
-  ctx.translate(540, 660); ctx.scale(Math.max(0.01, p), Math.max(0.01, p));
-  ctx.shadowColor = 'rgba(191,0,255,0.8)'; ctx.shadowBlur = 90;
-  ctx.fillStyle = '#bf00ff';
-  ctx.beginPath(); ctx.roundRect(-190, -190, 380, 380, 90); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.font = `160px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(540, SOL + 205, (150 - 70 * haut) * (1 + impact * 0.1), (26 - 12 * haut), 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // onde de choc + plaque violette au moment où le ballon se pose
+  if (t > 1.5) {
+    const tp = t - 1.5;
+    const pp = easeBack(tp / 0.5);
+    ctx.save();
+    ctx.translate(540, SOL); ctx.scale(Math.max(0.01, pp), Math.max(0.01, pp));
+    ctx.shadowColor = 'rgba(191,0,255,0.8)'; ctx.shadowBlur = 90;
+    ctx.fillStyle = '#bf00ff';
+    ctx.beginPath(); ctx.roundRect(-190, -190, 380, 380, 90); ctx.fill();
+    ctx.restore();
+    const onde = clamp(tp / 0.9);
+    ctx.save();
+    ctx.globalAlpha = sortie * (1 - onde) * 0.8;
+    ctx.strokeStyle = '#ff7a00'; ctx.lineWidth = 14;
+    ctx.beginPath(); ctx.roundRect(540 - 190 - onde * 190, SOL - 190 - onde * 190, 380 + onde * 380, 380 + onde * 380, 90 + onde * 140); ctx.stroke();
+    ctx.restore();
+  }
+
+  // le ballon (écrasé à l'impact, qui tourne en roulant)
+  ctx.save();
+  ctx.translate(540, y);
+  ctx.scale(1 + impact * 0.16, 1 - impact * 0.16);
+  ctx.rotate(rot);
+  ctx.font = `${200 - ancrage * 40}px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
   ctx.fillText('⚽', 0, 10);
   ctx.restore();
-  texteIncline(ctx, 'MAKEGOAL', 540, 1000, 140, '#fff', 'center', '#bf00ff', 960);
-  pill(ctx, 'makegoal.vercel.app', 540, 1160, 52, '#fff', '#111');
-  texteIncline(ctx, "N AP ENFÒME W", 540, 1320, 48, '#e9d5ff', 'center');
+
+  // textes
+  const ap = (t0: number) => easeOut((t - t0) / 0.45);
+  const m = ap(1.65);
+  if (m > 0) { ctx.save(); ctx.globalAlpha = sortie * clamp(m); ctx.translate(0, (1 - m) * 70); texteIncline(ctx, 'MAKEGOAL', 540, 1000, 140, '#fff', 'center', '#bf00ff', 960); ctx.restore(); }
+  const u = ap(2.0);
+  if (u > 0) { ctx.save(); ctx.globalAlpha = sortie * clamp(u); ctx.translate(0, (1 - u) * 60); pill(ctx, 'makegoal.vercel.app', 540, 1160, 52, '#fff', '#111'); ctx.restore(); }
+  const g = ap(2.3);
+  if (g > 0) { ctx.save(); ctx.globalAlpha = sortie * clamp(g); ctx.translate(0, (1 - g) * 50); texteIncline(ctx, "N AP ENFÒME W", 540, 1320, 48, '#e9d5ff', 'center'); ctx.restore(); }
   ctx.restore();
 }
 
 // ---------- Moteur ----------
-const DUREE_OUTRO = 3;
+const DUREE_OUTRO = 3.6;
 
 export function dureeTotale(scenes: Scene[]): number {
   return scenes.reduce((s, x) => s + x.duree, 0) + DUREE_OUTRO;
