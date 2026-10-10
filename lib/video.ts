@@ -36,14 +36,16 @@ export type VideoPost = {
 };
 
 // ---------- Scènes ----------
-type Ligne = { label: string; valeur: string; valeur2?: string };
+type Issue = 'G' | 'P' | 'N';
+type Ligne = { label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
+type Morceau = { t: string; c: string; o?: string };
 type Duo = { nom: string; sous?: string; photo?: string; initiale: string };
 type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo] };
 
 type Scene =
   | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; duree: number }
-  | { k: 'lignes'; badge: string; fond: string; titre?: string; entete?: Enseigne; lignes: Ligne[]; duree: number }
-  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; d1?: string; d2?: string; infos: string[]; duree: number }
+  | { k: 'lignes'; badge: string; fond: string; titre?: string; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
+  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'texte'; badge: string; fond: string; texte: string; auteur?: string; sous?: string; duree: number };
 
@@ -51,6 +53,18 @@ const LARGEUR = 1080, HAUTEUR = 1920;
 const POLICE = '"Arial Black", Impact, "Helvetica Neue", Arial, sans-serif';
 
 const majuscule = (s: string) => (s || '').toUpperCase();
+
+// Code couleur des résultats : vert = gagnant, rouge = perdant, violet (couleur du site) = nul.
+const VERT = '#4ade80', ROUGE = '#ff4d4d', VIOLET_NUL = '#bf00ff';
+const issuesMatch = (a: number | null | undefined, b: number | null | undefined): [Issue, Issue] | null => {
+  if (a == null || b == null) return null;
+  return a > b ? ['G', 'P'] : a < b ? ['P', 'G'] : ['N', 'N'];
+};
+const texteIssue = (i: Issue | undefined) => (i === 'G' ? VERT : i === 'P' ? ROUGE : '#fff');
+const ombreIssue = (i: Issue | undefined) => (i === 'G' ? '#052e16' : i === 'P' ? '#4c0519' : '#ff7a00');
+const accentIssue = (i: Issue | undefined) => (i === 'G' ? '#22c55e' : i === 'P' ? '#ef4444' : VIOLET_NUL);
+const normNom = (x: string | null | undefined) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const minuteNum = (m: string) => { const r = (m || '').match(/(\d+)(?:\s*\+\s*(\d+))?/); return r ? Number(r[1]) + (r[2] ? Number(r[2]) / 100 : 0) : 999; };
 const avecDrapeau = (pays: string | undefined | null, texte: string) => {
   const d = pays ? drapeau(pays) : '';
   return d && d !== '🏳️' ? (texte ? d + '  ' + texte : d) : texte;
@@ -174,15 +188,34 @@ export function construireScenes(p: VideoPost): Scene[] {
     const fini = type === 'Résultat';
     const infos = [p.ligue, p.statut_match, p.heure_match ? '🕐 ' + p.heure_match : '', p.stade ? '📍 ' + p.stade : ''].filter((x): x is string => !!x);
     const badge = fini ? 'RÉSULTAT' : 'MATCH À VENIR';
-    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, d1: p.pays1 ? drapeau(p.pays1) : undefined, d2: p.pays2 ? drapeau(p.pays2) : undefined, infos, duree: 5 });
+    const iss = fini ? issuesMatch(p.score1, p.score2) : null;
+    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, i1: iss?.[0], i2: iss?.[1], d1: p.pays1 ? drapeau(p.pays1) : undefined, d2: p.pays2 ? drapeau(p.pays2) : undefined, infos, duree: 5 });
     const rd = p.resultat_details;
     if (fini && rd) {
-      const lignes: Ligne[] = [
-        ...rd.buts.map(b => ({ label: (b.minute ? b.minute + "' " : '') + b.joueur + (b.passeur ? ' (' + b.passeur + ')' : ''), valeur: '⚽' })),
-        ...rd.jaunes.map(c => ({ label: (c.minute ? c.minute + "' " : '') + c.joueur, valeur: '🟨' })),
-        ...rd.rouges.map(c => ({ label: (c.minute ? c.minute + "' " : '') + c.joueur, valeur: '🟥' })),
-      ];
-      pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: badge, fond: 'FINAL', titre: (p.equipe1 || '') + ' ' + (p.score1 ?? '') + '-' + (p.score2 ?? '') + ' ' + (p.equipe2 || ''), lignes: pg, duree: dureeLignes(pg.length) }));
+      const cote = (nom: string): { i: Issue | undefined; etiquette: string } | null => {
+        const n = normNom(nom);
+        if (!n) return null;
+        if (n === normNom(p.equipe1)) return { i: iss?.[0], etiquette: avecDrapeau(p.pays1, majuscule(p.equipe1 || '')) };
+        if (n === normNom(p.equipe2)) return { i: iss?.[1], etiquette: avecDrapeau(p.pays2, majuscule(p.equipe2 || '')) };
+        return { i: undefined, etiquette: majuscule(nom) };
+      };
+      const evts: (Ligne & { m: number })[] = [
+        ...rd.buts.map(b => {
+          const c = cote(b.equipe);
+          return { m: minuteNum(b.minute), label: (b.minute ? b.minute + "' " : '') + b.joueur, valeur: '⚽',
+            sous: c ? [c.etiquette, b.passeur ? 'PASSE : ' + majuscule(b.passeur) : ''].filter(Boolean).join('  •  ') : (b.passeur ? 'PASSE : ' + majuscule(b.passeur) : undefined),
+            accent: c && c.i ? accentIssue(c.i) : undefined, couleurSous: c ? texteIssue(c.i) : undefined };
+        }),
+        ...rd.jaunes.map(c => ({ m: minuteNum(c.minute), label: (c.minute ? c.minute + "' " : '') + c.joueur, valeur: '🟨' })),
+        ...rd.rouges.map(c => ({ m: minuteNum(c.minute), label: (c.minute ? c.minute + "' " : '') + c.joueur, valeur: '🟥' })),
+      ].sort((a, b) => a.m - b.m); // ordre chronologique (tri stable : sans minute, à la fin)
+      const lignes: Ligne[] = evts.map(({ m: _m, ...l }) => l);
+      const morceaux: Morceau[] | undefined = iss && p.score1 != null && p.score2 != null ? [
+        { t: (p.equipe1 || '').toUpperCase(), c: texteIssue(iss[0]), o: ombreIssue(iss[0]) },
+        { t: '  ' + p.score1 + '-' + p.score2 + '  ', c: '#fff', o: '#bf00ff' },
+        { t: (p.equipe2 || '').toUpperCase(), c: texteIssue(iss[1]), o: ombreIssue(iss[1]) },
+      ] : undefined;
+      pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: badge, fond: 'FINAL', titre: (p.equipe1 || '') + ' ' + (p.score1 ?? '') + '-' + (p.score2 ?? '') + ' ' + (p.equipe2 || ''), titreMorceaux: morceaux, lignes: pg, duree: dureeLignes(pg.length) }));
     }
     if (fini && p.quarts_temps?.length) {
       const lignes: Ligne[] = p.quarts_temps.map(q => ({ label: q.quart, valeur: q.score1 + '-' + q.score2 }));
@@ -232,6 +265,20 @@ function texteIncline(ctx: Ctx, txt: string, x: number, y: number, taille: numbe
   ctx.fillStyle = couleur;
   ctx.fillText(txt, 0, 0);
   ctx.restore();
+}
+
+// Une ligne faite de morceaux de couleurs différentes (ex : équipe verte, score blanc, équipe rouge).
+function texteMorceaux(ctx: Ctx, morceaux: Morceau[], cx: number, cy: number, taille: number, maxLarg: number) {
+  let t = taille;
+  const larg = () => morceaux.reduce((a, m) => a + ctx.measureText(m.t).width, 0);
+  ctx.font = `italic 900 ${t}px ${POLICE}`;
+  while (larg() > maxLarg && t > 20) { t -= 2; ctx.font = `italic 900 ${t}px ${POLICE}`; }
+  let x = cx - larg() / 2;
+  for (const m of morceaux) {
+    const w = ctx.measureText(m.t).width;
+    texteIncline(ctx, m.t, x, cy, t, m.c, 'left', m.o);
+    x += w;
+  }
 }
 
 function coupeLignes(ctx: Ctx, txt: string, maxLarg: number): string[] {
@@ -475,7 +522,8 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
         y0 = 760; pas = 164; h = 136;
       }
     } else {
-      if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, 330, 72, '#fff', 'center', '#ff7a00', 940);
+      if (s.titreMorceaux) texteMorceaux(ctx, s.titreMorceaux, 540, 330, 72, 940);
+      else if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, 330, 72, '#fff', 'center', '#ff7a00', 940);
       y0 = 470; pas = 164; h = 136;
     }
     s.lignes.forEach((l, i) => {
@@ -489,7 +537,7 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       ctx.save();
       ctx.translate(540, cy); ctx.transform(1, 0, -0.1, 1, 0, 0);
       ctx.fillStyle = 'rgba(5,5,40,0.7)'; ctx.fillRect(-490, -h / 2, 980, h);
-      ctx.fillStyle = '#ff7a00'; ctx.fillRect(-490, -h / 2, 16, h);
+      ctx.fillStyle = l.accent || '#ff7a00'; ctx.fillRect(-490, -h / 2, 16, h);
       ctx.restore();
       if (l.valeur2 !== undefined) {
         ctx.font = `italic 900 30px ${POLICE}`;
@@ -498,7 +546,12 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
         texteIncline(ctx, valeurAnimee(l.valeur2, (tr - 0.1) / 0.6), 880, cy + 8, 92, '#fff', 'center', '#bf00ff', 280);
       } else {
         const largValeur = Math.min(360, Math.max(160, (l.valeur.length) * 52));
-        texteIncline(ctx, majuscule(l.label), 100, cy, 46, '#e9d5ff', 'left', undefined, 940 - largValeur - 30);
+        if (l.sous) {
+          texteIncline(ctx, majuscule(l.label), 100, cy - 26, 46, '#fff', 'left', undefined, 940 - largValeur - 30);
+          texteIncline(ctx, l.sous, 100, cy + 32, 36, l.couleurSous || '#e9d5ff', 'left', '#0b0b2a', 940 - largValeur - 30);
+        } else {
+          texteIncline(ctx, majuscule(l.label), 100, cy, 46, '#e9d5ff', 'left', undefined, 940 - largValeur - 30);
+        }
         texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), 990, cy, 96, '#fff', 'right', '#bf00ff', largValeur);
       }
       ctx.restore();
@@ -569,13 +622,24 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       const lg = coupeLignes(ctx, majuscule(n), 440).slice(0, 3);
       const ts = lg.length > 2 ? 52 : 66;
       const dx = (1 - easeOut((t - 0.1) / 0.5)) * (idx === 0 ? -500 : 500);
-      lg.forEach((l, i) => texteIncline(ctx, l, x + dx, 620 + i * ts * 1.05, ts, '#fff', 'center', '#ff7a00', 470));
+      const iss = idx === 0 ? s.i1 : s.i2;
+      lg.forEach((l, i) => texteIncline(ctx, l, x + dx, 620 + i * ts * 1.05, ts, texteIssue(iss), 'center', ombreIssue(iss), 470));
     });
     ctx.save();
     ctx.translate(540, 1080); ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop));
     if (s.s1 !== null && s.s2 !== null) {
       const p = (t - 0.4) / 1.0;
-      texteIncline(ctx, Math.round(s.s1 * easeOut(p)) + ' - ' + Math.round(s.s2 * easeOut(p)), 0, 0, 260, '#fff', 'center', '#bf00ff', 900);
+      const a = String(Math.round(s.s1 * easeOut(p))), b = String(Math.round(s.s2 * easeOut(p)));
+      if (s.i1 && s.i1 !== 'N') {
+        // gagnant en vert, perdant en rouge ; le tiret reste fixe au centre
+        ctx.font = `italic 900 260px ${POLICE}`;
+        const demi = ctx.measureText(' - ').width / 2;
+        texteIncline(ctx, a, -demi, 0, 260, texteIssue(s.i1), 'right', ombreIssue(s.i1), 420);
+        texteIncline(ctx, '-', 0, 0, 260, '#fff', 'center', '#bf00ff', 120);
+        texteIncline(ctx, b, demi, 0, 260, texteIssue(s.i2), 'left', ombreIssue(s.i2), 420);
+      } else {
+        texteIncline(ctx, a + ' - ' + b, 0, 0, 260, '#fff', 'center', '#bf00ff', 900);
+      }
     } else {
       texteIncline(ctx, 'VS', 0, 0, 260, '#fff', 'center', '#bf00ff', 900);
     }
