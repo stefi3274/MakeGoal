@@ -32,6 +32,7 @@ export type VideoPost = {
   gagnants?: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
   stats_joueur?: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; joueurs: { nom: string; equipe: string; adversaire: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   elimination?: EliminationDetails | null;
+  quizz?: { titre: string; sport?: string | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
 };
 
@@ -43,10 +44,12 @@ type Duo = { nom: string; sous?: string; photo?: string; initiale: string };
 type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo] };
 
 type Scene =
-  | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; duree: number }
+  | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; fixe?: boolean; duree: number }
   | { k: 'lignes'; badge: string; fond: string; titre?: string; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
   | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
+  | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; duree: number }
+  | { k: 'quiztitre'; badge: string; fond: string; titre: string; sous?: string; pill?: string; icone?: string; duree: number }
   | { k: 'texte'; badge: string; fond: string; texte: string; auteur?: string; sous?: string; duree: number };
 
 const LARGEUR = 1080, HAUTEUR = 1920;
@@ -79,12 +82,15 @@ function pagesDeLignes(lignes: Ligne[], parPage: number): Ligne[][] {
   return pages;
 }
 const dureeLignes = (n: number) => 0.9 + n * 0.5 + 2.2;
+// FootQuizz : 3 s pour lire la question, puis 5 s pour répondre.
+const LECTURE_Q = 3, REPONSE_Q = 5, REVEAL_Q = 2.5;
 const PAS_BUT = 0.9; // secondes entre deux buts révélés
 const DEBUT_BUTS = 0.7;
 const PAR_PAGE_ENTETE = 5;
 const PAR_PAGE_LISTE = 7;
 
 export function typeVideo(p: VideoPost): string {
+  if (p.quizz?.questions?.length) return 'FootQuizz';
   if (p.stats_joueur?.joueurs?.length) return 'Stats joueur';
   if (p.distinction_type) return 'Distinction';
   if (p.formation && p.onze?.length) return 'Équipe type';
@@ -104,7 +110,21 @@ export function construireScenes(p: VideoPost): Scene[] {
   const scenes: Scene[] = [];
   const type = typeVideo(p);
 
-  if (type === 'Stats joueur') {
+  if (type === 'FootQuizz') {
+    // Question par question : la question (3 s), les choix (5 s pour répondre), la réponse en violet.
+    // Fond blanc, caractères noirs. Les questions fournies sont toutes montrées (la liste est choisie en amont).
+    const qz = p.quizz!;
+    const tot = qz.questions.length;
+    const basket = qz.sport === 'basketball';
+    const badge = basket ? 'BASKETQUIZZ' : 'FOOTQUIZZ';
+    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: qz.titre, sous: tot + ' questions · 10 secondes chacune', pill: 'Une seule tentative · actif 24 h', icone: basket ? '🏀' : '🧠', duree: 3.4 });
+    qz.questions.forEach((q, i) => {
+      const options = q.options.filter(o => (o.texte || '').trim());
+      const bonne = q.bonne_reponse && options.some(o => o.cle === q.bonne_reponse) ? q.bonne_reponse : undefined;
+      scenes.push({ k: 'quiz', badge, fond: 'QUIZ', numero: i + 1, total: tot, question: q.question, options, bonne, duree: LECTURE_Q + REPONSE_Q + (bonne ? REVEAL_Q : 0) + 0.3 });
+    });
+    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: 'À toi de jouer !', sous: 'makegoal.vercel.app', pill: 'Tirage au sort parmi les ≥ 80 %', icone: '⚡', duree: 3.2 });
+  } else if (type === 'Stats joueur') {
     const st = p.stats_joueur!;
     const periode = libellePeriode(st.periode, st.nbMatchs);
     const avecAdv = periodeAvecAdversaire(st.periode?.type);
@@ -258,9 +278,10 @@ function ajusterLecture(s: Scene): Scene {
     const total = 0.3 + frappe + relecture + 1.5;
     return s.duree >= total ? s : { ...s, duree: Math.min(40, total) };
   }
+  else if (s.k === 'intro' && s.fixe) return s;
   else if (s.k === 'intro') mots = motsDe(s.titre) + motsDe(s.sous) + motsDe(s.pill);
   else if (s.k === 'lignes') mots = s.lignes.reduce((n, l) => n + motsDe(l.label) * 0.5 + 1, 0);
-  else return s;
+  else return s; // quiz, score, duels : durées fixes
   const lecture = Math.max(plancher, 1 + mots / 3 + 1.5);
   return s.duree >= lecture ? s : { ...s, duree: Math.min(30, lecture) };
 }
@@ -357,7 +378,18 @@ function fondStatique(): HTMLCanvasElement {
   return c;
 }
 
+function dessinerFondClair(ctx: Ctx) {
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, LARGEUR, HAUTEUR);
+  const gr = ctx.createLinearGradient(0, 0, 0, 520);
+  gr.addColorStop(0, '#f3e8ff'); gr.addColorStop(1, 'rgba(243,232,255,0)');
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, LARGEUR, 520);
+  // bandes de marque en bas
+  ctx.fillStyle = '#bf00ff'; ctx.fillRect(0, HAUTEUR - 26, LARGEUR * 0.7, 26);
+  ctx.fillStyle = '#ff7a00'; ctx.fillRect(LARGEUR * 0.7, HAUTEUR - 26, LARGEUR * 0.3, 26);
+}
+
 function dessinerFond(ctx: Ctx, statique: HTMLCanvasElement, t: number, fond: string, bandeY: number | null, local: number) {
+  if (fond === 'QUIZ') { dessinerFondClair(ctx); return; }
   ctx.drawImage(statique, 0, 0);
   // projecteurs
   ctx.save();
@@ -403,7 +435,7 @@ function dessinerFond(ctx: Ctx, statique: HTMLCanvasElement, t: number, fond: st
   ctx.fillStyle = bar; ctx.fillRect(0, HAUTEUR - 22, LARGEUR, 22);
 }
 
-function dessinerEntete(ctx: Ctx, badge: string, a: number) {
+function dessinerEntete(ctx: Ctx, badge: string, a: number, clair = false) {
   ctx.save(); ctx.globalAlpha = a;
   ctx.font = `italic 900 40px ${POLICE}`;
   let t = 40;
@@ -413,7 +445,7 @@ function dessinerEntete(ctx: Ctx, badge: string, a: number) {
   ctx.fillStyle = '#bf00ff'; ctx.fillRect(0, -42, w, 84);
   ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(badge, 40, 2);
   ctx.restore();
-  ctx.font = `italic 900 42px ${POLICE}`; ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.font = `italic 900 42px ${POLICE}`; ctx.fillStyle = clair ? '#111' : '#fff'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   ctx.fillText('MAKEGOAL', 1012, 112);
   ctx.restore();
 }
@@ -697,6 +729,95 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
     });
   }
 
+  else if (s.k === 'quiztitre') {
+    const pop = easeBack((t - 0.1) / 0.6);
+    if (s.icone) {
+      ctx.save(); ctx.translate(540, 520); ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop));
+      ctx.fillStyle = '#bf00ff'; ctx.beginPath(); ctx.roundRect(-170, -170, 340, 340, 80); ctx.fill();
+      ctx.font = `170px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText(s.icone, 0, 10);
+      ctx.restore();
+    }
+    ctx.font = `italic 900 84px ${POLICE}`;
+    let tt = 84;
+    let lg = coupeLignes(ctx, majuscule(s.titre), 900);
+    while (lg.length > 3 && tt > 48) { tt -= 6; ctx.font = `italic 900 ${tt}px ${POLICE}`; lg = coupeLignes(ctx, majuscule(s.titre), 900); }
+    const ta = easeOut((t - 0.3) / 0.5);
+    ctx.save(); ctx.globalAlpha = alpha * clamp(ta); ctx.translate(0, (1 - ta) * 50);
+    lg.slice(0, 3).forEach((l, i) => texteIncline(ctx, l, 540, 860 + i * tt * 1.1, tt, '#111', 'center', undefined, 940));
+    if (s.sous) texteIncline(ctx, majuscule(s.sous), 540, 860 + Math.min(3, lg.length) * tt * 1.1 + 40, 38, '#bf00ff', 'center', undefined, 940);
+    ctx.restore();
+    if (s.pill) { ctx.globalAlpha = alpha * easeOut((t - 0.9) / 0.4); pill(ctx, s.pill, 540, 1330, 44, '#bf00ff', '#fff'); }
+  }
+
+  else if (s.k === 'quiz') {
+    const reveal = s.bonne ? LECTURE_Q + REPONSE_Q : 1e9;
+    pill(ctx, 'QUESTION ' + s.numero + ' / ' + s.total, 540, 330, 56, '#bf00ff', '#fff');
+    // la question
+    ctx.font = `italic 900 60px ${POLICE}`;
+    let taille = 60;
+    let lg = coupeLignes(ctx, s.question, 850);
+    while ((lg.length > 5 || lg.length * taille * 1.22 > 380) && taille > 36) { taille -= 4; ctx.font = `italic 900 ${taille}px ${POLICE}`; lg = coupeLignes(ctx, s.question, 850); }
+    lg = lg.slice(0, 5);
+    const hCarte = lg.length * taille * 1.22 + 80;
+    const qa = easeOut((t - 0.1) / 0.5);
+    ctx.save();
+    ctx.globalAlpha = alpha * clamp(qa);
+    ctx.translate(0, (1 - qa) * 60);
+    ctx.save();
+    ctx.translate(540, 430 + hCarte / 2); ctx.transform(1, 0, -0.06, 1, 0, 0);
+    ctx.fillStyle = '#f5f3ff'; ctx.fillRect(-490, -hCarte / 2, 980, hCarte);
+    ctx.fillStyle = '#bf00ff'; ctx.fillRect(-490, -hCarte / 2, 16, hCarte);
+    ctx.restore();
+    lg.forEach((l, i) => texteIncline(ctx, l, 540, 430 + 40 + taille * 0.61 + i * taille * 1.22, taille, '#111', 'center', undefined, 880));
+    ctx.restore();
+    // les choix (après 3 s)
+    const yOpt = 430 + hCarte + 60;
+    const nOpt = Math.max(1, s.options.length);
+    const pasOpt = Math.min(165, (1500 - yOpt) / nOpt);
+    const hOpt = pasOpt - 22;
+    s.options.forEach((o, i) => {
+      const tr = t - LECTURE_Q - i * 0.12;
+      if (tr < 0) return;
+      const p = easeBack(tr / 0.3);
+      const cy = yOpt + i * pasOpt + hOpt / 2;
+      const rev = t >= reveal;
+      const bonne = rev && o.cle === s.bonne;
+      const estompee = rev && !bonne;
+      ctx.save();
+      ctx.globalAlpha = alpha * clamp(tr / 0.2) * (estompee ? 0.35 : 1);
+      ctx.translate((1 - Math.min(1, p)) * 800, 0);
+      const pulse = bonne ? 1 + 0.03 * Math.max(0, 1 - (t - reveal) / 0.4) : 1;
+      ctx.save();
+      ctx.translate(540, cy); ctx.scale(pulse, pulse); ctx.transform(1, 0, -0.08, 1, 0, 0);
+      ctx.fillStyle = bonne ? '#bf00ff' : '#f5f3ff'; ctx.fillRect(-490, -hOpt / 2, 980, hOpt);
+      ctx.strokeStyle = bonne ? '#bf00ff' : '#ddd6fe'; ctx.lineWidth = 4; ctx.strokeRect(-490, -hOpt / 2, 980, hOpt);
+      ctx.fillStyle = bonne ? '#111' : '#ff7a00'; ctx.fillRect(-490, -hOpt / 2, hOpt, hOpt);
+      ctx.restore();
+      texteIncline(ctx, o.cle, 540 - 490 + hOpt / 2 - 6, cy, hOpt * 0.62, '#fff', 'center', undefined, hOpt - 20);
+      ctx.font = `italic 900 54px ${POLICE}`;
+      const lo = coupeLignes(ctx, o.texte, 700).slice(0, 2);
+      const to = lo.length > 1 ? 42 : 54;
+      lo.forEach((l, k) => texteIncline(ctx, l, 540 - 490 + hOpt + 28, cy + (k - (lo.length - 1) / 2) * to * 1.15, to, bonne ? '#fff' : '#111', 'left', undefined, 740 - hOpt + 80));
+      if (bonne) texteIncline(ctx, '✓', 540 + 440, cy, 70, '#fff', 'center', undefined, 90);
+      ctx.restore();
+    });
+    // 5 s pour répondre : barre qui se vide
+    if (t >= LECTURE_Q && t < reveal) {
+      const prog = clamp((t - LECTURE_Q) / REPONSE_Q);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const yb = 1600;
+      ctx.fillStyle = '#e5e7eb'; ctx.fillRect(110, yb - 18, 860, 36);
+      const gr = ctx.createLinearGradient(110, 0, 970, 0);
+      gr.addColorStop(0, '#bf00ff'); gr.addColorStop(1, '#ff7a00');
+      ctx.fillStyle = prog > 0.7 ? '#ef4444' : gr;
+      ctx.fillRect(110, yb - 18, 860 * (1 - prog), 36);
+      texteIncline(ctx, '⏱ ' + Math.max(0, Math.ceil(REPONSE_Q * (1 - prog))) + ' s', 540, yb + 70, 54, '#111', 'center', undefined, 400);
+      ctx.restore();
+    }
+  }
+
   else if (s.k === 'texte') {
     ctx.font = `italic 900 66px ${POLICE}`;
     let taille = 66;
@@ -827,9 +948,9 @@ function choisirFormat(): { mime: string; ext: string } | null {
 }
 
 // Une vidéo trop longue (et donc trop lourde) fait planter le navigateur d'un téléphone au moment de
-// la fabriquer ou de la télécharger. On la découpe donc en parties d'environ 22 s maximum, aux
+// la fabriquer ou de la télécharger. On la découpe donc en parties d'environ 28 s maximum, aux
 // frontières des écrans, chacune enregistrée et téléchargeable séparément.
-const DUREE_MAX_PARTIE = 22;
+const DUREE_MAX_PARTIE = 28;
 function decouper(scenes: Scene[]): Scene[][] {
   const parties: Scene[][] = [];
   let cur: Scene[] = [], d = 0;
@@ -900,7 +1021,7 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
       } else bandeY = 1000;
       dessinerFond(ctx, statique, t + dejaFait, fond, bandeY, courante ? courante.local : reste);
       if (courante) {
-        dessinerEntete(ctx, badge, 1);
+        dessinerEntete(ctx, badge, 1, fond === 'QUIZ');
         dessinerScene(ctx, courante.s, courante.local, images);
       } else {
         dessinerOutro(ctx, reste, DUREE_OUTRO);

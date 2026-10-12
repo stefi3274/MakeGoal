@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 import AdminAuth from '../../../components/AdminAuth';
+import VideoModal from '../../../components/VideoModal';
 
 const VIOLET = '#bf00ff';
 const NB_QUESTIONS = 10;
@@ -18,6 +19,7 @@ type Quizz = {
   statut: string;
   date_fermeture: string;
   created_at: string;
+  questions?: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[];
 };
 
 type Resultat = { nom: string; score: number; pourcentage: number; termine: boolean; gagnant: boolean };
@@ -30,6 +32,9 @@ const questionVide = (): QuestionForm => ({
 export default function AdminQuizzFoot() {
   const [connecte, setConnecte] = useState(false);
   const [quizzes, setQuizzes] = useState<Quizz[]>([]);
+  const [videoQuizz, setVideoQuizz] = useState<Quizz | null>(null);
+  const [choixVideo, setChoixVideo] = useState<Quizz | null>(null);
+  const [nbVideo, setNbVideo] = useState(0);
   const [message, setMessage] = useState('');
   const [vue, setVue] = useState<'liste' | 'nouveau'>('liste');
   const [sportForm, setSportForm] = useState<Sport>('football');
@@ -47,8 +52,13 @@ export default function AdminQuizzFoot() {
   useEffect(() => { if (connecte) chargerQuizzes(); }, [connecte]);
 
   const chargerQuizzes = async () => {
-    const { data } = await supabase.from('quizz_foot').select('id, titre, sport, statut, date_fermeture, created_at').order('created_at', { ascending: false });
-    if (data) setQuizzes(data);
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setMessage('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/quizz-foot-admin', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setMessage('❌ ' + (data.error || 'Impossible de charger les FootQuizz.')); return; }
+    setQuizzes(data.quizzes || []);
   };
 
   const modifierQuestion = (i: number, champ: 'question' | 'bonne_reponse', val: string) =>
@@ -95,18 +105,16 @@ export default function AdminQuizzFoot() {
     const incompletes = questions.filter(q => !q.question.trim() || q.options.filter(o => o.texte.trim()).length < 2);
     if (incompletes.length > 0) { setMessage('❌ Les ' + NB_QUESTIONS + ' questions doivent avoir un texte et au moins 2 options.'); return; }
     setCreationEnCours(true);
-    const questionsAEnregistrer = questions.map((q, i) => ({
-      id: 'q' + (i + 1),
-      question: q.question,
-      options: q.options.filter(o => o.texte.trim()),
-      bonne_reponse: q.bonne_reponse
-    }));
-    const { error } = await supabase.from('quizz_foot').insert({
-      titre, sport: sportForm, questions: questionsAEnregistrer, statut: 'ouvert',
-      date_fermeture: new Date(Date.now() + DUREE_HEURES * 3600 * 1000).toISOString()
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setCreationEnCours(false); setMessage('❌ Session expirée, reconnectez-vous.'); return; }
+    const res = await fetch('/api/quizz-foot-admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ titre, sport: sportForm, questions: questions.map(q => ({ question: q.question, options: q.options, bonne_reponse: q.bonne_reponse })) })
     });
+    const retour = await res.json().catch(() => ({}));
     setCreationEnCours(false);
-    if (error) { setMessage('❌ ' + error.message); return; }
+    if (!res.ok) { setMessage('❌ ' + (retour.error || 'Erreur lors de la création.')); return; }
     setMessage('✅ FootQuizz publié !');
     setTitre(''); setQuestions(Array.from({ length: NB_QUESTIONS }, questionVide));
     setTexteColle(''); setTexteColleOuvert(false);
@@ -228,6 +236,9 @@ export default function AdminQuizzFoot() {
                   {q.statut !== 'tire' && (
                     <button onClick={() => declencherTirage(q.id)} disabled={tirageEnCours === q.id} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: VIOLET, color: '#fff' }}>{tirageEnCours === q.id ? '⏳...' : '🎲 Clôturer et tirer au sort'}</button>
                   )}
+                  {q.questions && q.questions.length > 0 && (
+                    <button onClick={() => setChoixVideo(q)} style={{ padding: '8px 16px', borderRadius: '999px', border: '2px solid #10b981', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: 'transparent', color: '#10b981' }}>🎬 Vidéo</button>
+                  )}
                   <button onClick={() => voirResultats(q.id)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid #333', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: 'transparent', color: '#9ca3af' }}>{resultatsOuverts === q.id ? '▲ Masquer les résultats' : '▼ Voir les résultats (privé)'}</button>
                 </div>
                 {resultatsOuverts === q.id && (
@@ -248,6 +259,27 @@ export default function AdminQuizzFoot() {
           </>
         )}
       </main>
+      {choixVideo && choixVideo.questions && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '420px', color: '#fff' }}>
+            <p style={{ fontWeight: 900, fontSize: '15px', margin: '0 0 4px' }}>🎬 Vidéo du FootQuizz</p>
+            <p style={{ color: '#9ca3af', fontSize: '12px', margin: '0 0 14px' }}>{choixVideo.titre}</p>
+            <p style={{ fontSize: '13px', margin: '0 0 12px' }}>Combien de questions dans la vidéo ? Chaque question dure environ 11 s (3 s de lecture, 5 s pour répondre, puis la réponse). Au-delà de 28 s, la vidéo est livrée en plusieurs parties.</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+              {Array.from(new Set([2, 3, 5, (choixVideo.questions || []).length])).filter(n => n <= (choixVideo.questions || []).length).map(n => (
+                <button key={n} onClick={() => { setNbVideo(n); setVideoQuizz(choixVideo); setChoixVideo(null); }} style={{ padding: '12px 18px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: '14px', background: VIOLET, color: '#fff' }}>
+                  {n === (choixVideo.questions || []).length ? 'Toutes (' + n + ')' : n + ' questions'}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setChoixVideo(null)} style={{ width: '100%', padding: '10px', borderRadius: '999px', border: '1px solid #444', background: 'transparent', color: '#d1d5db', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Annuler</button>
+          </div>
+        </div>
+      )}
+      {videoQuizz && videoQuizz.questions && (
+        <VideoModal titre={videoQuizz.titre} onFermer={() => setVideoQuizz(null)}
+          post={{ titre: videoQuizz.titre, quizz: { titre: videoQuizz.titre, sport: videoQuizz.sport, questions: videoQuizz.questions.slice(0, nbVideo || 3).map(x => ({ question: x.question, options: x.options, bonne_reponse: x.bonne_reponse })) } }} />
+      )}
     </div>
   );
 }

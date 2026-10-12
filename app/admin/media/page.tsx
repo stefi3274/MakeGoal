@@ -888,8 +888,13 @@ export default function AdminMedia() {
   const [genererClassementQuizzEnCours, setGenererClassementQuizzEnCours] = useState(false);
 
   const chargerQuizzFootListe = async () => {
-    const { data } = await supabase.from('quizz_foot').select('id, titre, statut').order('created_at', { ascending: false }).limit(30);
-    if (data) setQuizzFootListe(data);
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) return;
+    const res = await fetch('/api/quizz-foot-admin', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) return;
+    const retour = await res.json();
+    setQuizzFootListe((retour.quizzes || []).slice(0, 30).map((q: { id: string; titre: string; statut: string }) => ({ id: q.id, titre: q.titre, statut: q.statut })));
   };
 
   const genererClassementQuizz = async () => {
