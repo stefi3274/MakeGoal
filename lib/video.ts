@@ -8,6 +8,7 @@ import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } fr
 import { ligneContexte, DistinctionDetails } from './distinctions';
 import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
+import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
 // ---------- Données d'entrée (compatible avec le type Article de l'admin) ----------
 export type VideoPost = {
@@ -32,6 +33,7 @@ export type VideoPost = {
   gagnants?: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
   stats_joueur?: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; joueurs: { nom: string; equipe: string; adversaire: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   elimination?: EliminationDetails | null;
+  confrontations?: ConfrontationsDetails | null;
   quizz?: { titre: string; sport?: string | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
 };
@@ -98,6 +100,7 @@ export function typeVideo(p: VideoPost): string {
   if (p.gagnants?.gagnants?.length) return 'Gagnants';
   if (p.declaration?.citation) return 'Déclaration';
   if (p.parcours?.adversaires?.length) return 'Parcours';
+  if (p.confrontations && matchsPublies(p.confrontations.matchs || []).length) return 'Confrontations';
   if (p.elimination?.rencontres?.length) return 'Élimination directe';
   if (p.matchs_jour?.length) return 'Matchs du jour';
   if (p.invitation_concours?.matchs?.length) return 'Invitation concours';
@@ -188,8 +191,48 @@ export function construireScenes(p: VideoPost): Scene[] {
     const pc = p.parcours!;
     const sous = [pc.competition, pc.poule].filter(Boolean).join('  •  ');
     scenes.push({ k: 'intro', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, sous: sous || undefined, icone: '🛣️', duree: 3 });
-    const lignes: Ligne[] = pc.adversaires.map(a => ({ label: (a.label ? a.label + ' · ' : '') + a.nom, valeur: a.scoreEquipe !== '' && a.scoreAdversaire !== '' ? a.scoreEquipe + '-' + a.scoreAdversaire : (a.date || 'À venir') }));
-    pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, lignes: pg, duree: dureeLignes(pg.length) }));
+    const joue = (a: typeof pc.adversaires[number]) => a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe != null && a.scoreAdversaire != null;
+    const lignesDe = (a: typeof pc.adversaires[number]): Ligne => {
+      const nom = (a.label ? a.label + ' · ' : '') + a.nom;
+      if (!joue(a)) return { label: nom, sous: a.date || 'À venir', valeur: 'VS', accent: '#9ca3af', couleurSous: '#e9d5ff' };
+      const x = parseInt(a.scoreEquipe, 10), y = parseInt(a.scoreAdversaire, 10);
+      const i: Issue = x > y ? 'G' : x < y ? 'P' : 'N';
+      return { label: nom, sous: a.date || undefined, valeur: a.scoreEquipe + '-' + a.scoreAdversaire, accent: accentIssue(i), couleurSous: '#e9d5ff' };
+    };
+    const joues = pc.adversaires.filter(joue), avenir = pc.adversaires.filter(a => !joue(a));
+    const avecSections = joues.length > 0 && avenir.length > 0;
+    pagesDeLignes(joues.map(lignesDe), PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: avecSections ? pc.equipe + ' • Matchs joués' : pc.equipe, lignes: pg, duree: dureeLignes(pg.length) }));
+    pagesDeLignes(avenir.map(lignesDe), PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: avecSections ? pc.equipe + ' • À venir' : pc.equipe, lignes: pg, duree: dureeLignes(pg.length) }));
+  } else if (type === 'Confrontations') {
+    const c = p.confrontations!;
+    const matchs = matchsPublies(c.matchs);
+    const initiale = (n: string) => ((n || '?').trim()[0] || '?').toUpperCase();
+    const badge = 'CONFRONTATIONS';
+    const duo: [Duo, Duo] = [
+      { nom: c.equipe1, sous: avecDrapeau(c.equipe1, '') || undefined, initiale: initiale(c.equipe1) },
+      { nom: c.equipe2, sous: avecDrapeau(c.equipe2, '') || undefined, initiale: initiale(c.equipe2) },
+    ];
+    scenes.push({ k: 'intro', badge, fond: 'VS', titre: '', pill: 'DANS LE PASSÉ  •  ' + matchs.length + (matchs.length > 1 ? ' MATCHS' : ' MATCH'), duo, duree: 3.4 });
+    const lignes: Ligne[] = matchs.map(m => {
+      const i = issueConf(m) as Issue;
+      const qui = i === 'G' ? 'Victoire ' + c.equipe1 : i === 'P' ? 'Victoire ' + c.equipe2 : 'Match nul';
+      return {
+        label: formaterDate(m.date) || 'Date inconnue',
+        sous: [m.competition, qui].filter(Boolean).join('  •  '),
+        valeur: m.score1.trim() + '-' + m.score2.trim(),
+        accent: accentIssue(i), couleurSous: texteIssue(i),
+      };
+    });
+    const titreC = c.equipe1 + ' vs ' + c.equipe2;
+    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'VS', titre: titreC, lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    const b = bilanConf({ ...c, matchs });
+    const bil: Ligne[] = [
+      { label: 'Victoires ' + c.equipe1, valeur: String(b.v1), accent: accentIssue('G') },
+      { label: 'Matchs nuls', valeur: String(b.n), accent: accentIssue('N') },
+      { label: 'Victoires ' + c.equipe2, valeur: String(b.v2), accent: accentIssue('P') },
+      { label: 'Buts marqués', valeur: b.b1 + '-' + b.b2, accent: '#ff7a00' },
+    ];
+    scenes.push({ k: 'lignes', badge, fond: 'VS', titre: 'Le bilan', lignes: bil, duree: dureeLignes(bil.length) });
   } else if (type === 'Élimination directe') {
     const e = p.elimination!;
     const titre = [e.tour, e.competition].filter(Boolean).join('  •  ');

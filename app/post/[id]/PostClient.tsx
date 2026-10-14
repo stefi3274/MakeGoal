@@ -11,6 +11,7 @@ import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } fr
 import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
+import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -76,7 +77,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -248,6 +249,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.confrontations && matchsPublies(post.confrontations.matchs || []).length) return { label: 'CONFRONTATIONS DANS LE PASSÉ', couleur: '#7c3aed' };
     if (post.elimination?.rencontres?.length) return { label: 'ÉLIMINATION DIRECTE', couleur: '#dc2626' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
     if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
@@ -666,6 +668,44 @@ export default function PostPage() {
                 </div>
               </div>
             )}
+
+            {post.confrontations && matchsPublies(post.confrontations.matchs || []).length > 0 && (() => {
+              const c = post.confrontations!;
+              const ms = matchsPublies(c.matchs);
+              const b = bilanConf({ ...c, matchs: ms });
+              const coul = (i: 'G' | 'P' | 'N' | null) => i === 'G' ? '#16a34a' : i === 'P' ? '#dc2626' : '#bf00ff';
+              const d1 = drapeau(c.equipe1), d2 = drapeau(c.equipe2);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#7c3aed',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Confrontations dans le passé</div>
+                    <div style={{fontSize:'18px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{d1 !== '🏳️' ? d1 + ' ' : ''}{c.equipe1} <span style={{color:'#bf00ff'}}>vs</span> {c.equipe2}{d2 !== '🏳️' ? ' ' + d2 : ''}</div>
+                  </div>
+                  <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+                    {[{ n: b.v1, t: 'Victoires ' + c.equipe1, c: '#16a34a' }, { n: b.n, t: 'Nuls', c: '#bf00ff' }, { n: b.v2, t: 'Victoires ' + c.equipe2, c: '#dc2626' }].map((x, k) => (
+                      <div key={k} style={{flex:1,textAlign:'center',background:x.c + '12',border:'1px solid ' + x.c + '55',borderRadius:'12px',padding:'8px 4px'}}>
+                        <div style={{fontSize:'24px',fontWeight:900,color:x.c,lineHeight:1}}>{x.n}</div>
+                        <div style={{fontSize:'10px',fontWeight:800,color:'#374151',marginTop:'4px',lineHeight:1.2}}>{x.t}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {ms.map((m, i) => {
+                    const is = issueConf(m);
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:'14px',fontWeight:900,color:'#111',lineHeight:1.2}}>{formaterDate(m.date) || 'Date inconnue'}</div>
+                          {m.competition && <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{m.competition}</div>}
+                          <div style={{fontSize:'11px',fontWeight:900,color:coul(is),marginTop:'2px'}}>{is === 'G' ? 'Victoire ' + c.equipe1 : is === 'P' ? 'Victoire ' + c.equipe2 : 'Match nul'}</div>
+                        </div>
+                        <div style={{fontWeight:900,fontSize:'26px',color:'#000',whiteSpace:'nowrap',lineHeight:1}}>{m.score1.trim()}-{m.score2.trim()}</div>
+                      </div>
+                    );
+                  })}
+                  <p style={{textAlign:'center',fontSize:'11px',fontWeight:800,color:'#6b7280',margin:'6px 0 0'}}>Buts marqués : {c.equipe1} {b.b1} - {b.b2} {c.equipe2}</p>
+                </div>
+              );
+            })()}
 
             {post.elimination && post.elimination.rencontres?.length > 0 && (
               <div style={{margin:'8px 0 24px'}}>
