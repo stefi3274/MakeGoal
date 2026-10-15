@@ -264,7 +264,7 @@ export default function AdminQuizzFoot() {
           <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '420px', color: '#fff' }}>
             <p style={{ fontWeight: 900, fontSize: '15px', margin: '0 0 4px' }}>🎬 Vidéo du FootQuizz</p>
             <p style={{ color: '#9ca3af', fontSize: '12px', margin: '0 0 14px' }}>{choixVideo.titre}</p>
-            <p style={{ fontSize: '13px', margin: '0 0 12px' }}>Combien de questions dans la vidéo ? Chaque question dure environ 11 s (3 s de lecture, 5 s pour répondre, puis la réponse). Au-delà de 28 s, la vidéo est livrée en plusieurs parties.</p>
+            <p style={{ fontSize: '13px', margin: '0 0 12px' }}>Combien de questions dans la vidéo ? Chaque question dure environ 11 s (3 s de lecture, 5 s pour répondre, puis la réponse). La vidéo reste toujours en un seul fichier.</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
               {Array.from(new Set([2, 3, 5, (choixVideo.questions || []).length])).filter(n => n <= (choixVideo.questions || []).length).map(n => (
                 <button key={n} onClick={() => { setNbVideo(n); setVideoQuizz(choixVideo); setChoixVideo(null); }} style={{ padding: '12px 18px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: '14px', background: VIOLET, color: '#fff' }}>

@@ -529,7 +529,8 @@ function dessinerFond(ctx: Ctx, statique: HTMLCanvasElement, t: number, fond: st
     const dx = (1 - easeOut(local / 0.6)) * 1800;
     const go = ctx.createLinearGradient(-900, 0, 900, 0);
     go.addColorStop(0, '#ff7a00'); go.addColorStop(1, '#ffb300');
-    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(-900 + dx, -95 + 16, 1800, 190);
     ctx.fillStyle = go;
     ctx.fillRect(-900 + dx, -95, 1800, 190);
     ctx.restore();
@@ -572,7 +573,8 @@ function halo(ctx: Ctx, cx: number, cy: number, r: number, t: number, photo: str
   };
   // décalage orange + ombre
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
+  plaque(r * 0.1 + 4, r * 0.1 + 16, w, h);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
   plaque(r * 0.1, r * 0.1, w, h);
   ctx.fillStyle = '#ff7a00'; ctx.fill();
   ctx.restore();
@@ -1011,7 +1013,9 @@ function dessinerOutro(ctx: Ctx, t: number, duree: number) {
     const pp = easeBack(tp / 0.5);
     ctx.save();
     ctx.translate(540, SOL); ctx.scale(Math.max(0.01, pp), Math.max(0.01, pp));
-    ctx.shadowColor = 'rgba(191,0,255,0.8)'; ctx.shadowBlur = 90;
+    const lueur = ctx.createRadialGradient(0, 0, 120, 0, 0, 330);
+    lueur.addColorStop(0, 'rgba(191,0,255,0.55)'); lueur.addColorStop(1, 'rgba(191,0,255,0)');
+    ctx.fillStyle = lueur; ctx.fillRect(-330, -330, 660, 660);
     ctx.fillStyle = '#bf00ff';
     ctx.beginPath(); ctx.roundRect(-190, -190, 380, 380, 90); ctx.fill();
     ctx.restore();
@@ -1088,24 +1092,13 @@ function choisirFormat(): { mime: string; ext: string } | null {
   return candidats.find(c => MediaRecorder.isTypeSupported(c.mime)) || null;
 }
 
-// Une vidéo trop longue (et donc trop lourde) fait planter le navigateur d'un téléphone au moment de
-// la fabriquer ou de la télécharger. On la découpe donc en parties d'environ 28 s maximum, aux
-// frontières des écrans, chacune enregistrée et téléchargeable séparément.
-const DUREE_MAX_PARTIE = 28;
-function decouper(scenes: Scene[]): Scene[][] {
-  const parties: Scene[][] = [];
-  let cur: Scene[] = [], d = 0;
-  for (const sc of scenes) {
-    if (cur.length && d + sc.duree > DUREE_MAX_PARTIE) { parties.push(cur); cur = []; d = 0; }
-    cur.push(sc); d += sc.duree;
-  }
-  if (cur.length) parties.push(cur);
-  // Pas de dernière partie minuscule : on la rattache à la précédente.
-  if (parties.length > 1) {
-    const dern = parties[parties.length - 1];
-    if (dern.reduce((a, x) => a + x.duree, 0) < 5) { parties.pop(); parties[parties.length - 1].push(...dern); }
-  }
-  return parties;
+// Profil d'enregistrement. Un téléphone enregistre en 720 x 1280 à débit réduit : l'image est nette
+// pour les réseaux sociaux et la vidéo entière (une seule, quelle que soit sa durée) reste légère,
+// ce qui évite de faire planter le navigateur. Un ordinateur garde le 1080 x 1920.
+function profil(): { echelle: number; debit: number } {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && typeof screen !== 'undefined' && screen.width < 900);
+  return mobile ? { echelle: 2 / 3, debit: 5_000_000 } : { echelle: 1, debit: 8_000_000 };
 }
 
 export type PartieVideo = { blob: Blob; ext: string; duree: number };
@@ -1116,7 +1109,8 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   if (!format) throw new Error("Ce navigateur ne sait pas enregistrer de vidéo. Utilisez Chrome.");
   const scenes = construireScenes(post);
   if (!scenes.length) throw new Error('Rien à mettre en vidéo pour ce post.');
-  const parties = decouper(scenes);
+  const parties = [scenes]; // une seule vidéo, jamais découpée
+  const { echelle, debit } = profil();
   const totalGlobal = dureeTotale(scenes);
 
   onProgress(0, 'Chargement des images…', Math.round(totalGlobal), scenes.length);
@@ -1129,7 +1123,7 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   await Promise.all([...urls].map(async u => { images.set(u, await chargerImage(u)); }));
 
   const canvas = document.createElement('canvas');
-  canvas.width = LARGEUR; canvas.height = HAUTEUR;
+  canvas.width = Math.round(LARGEUR * echelle); canvas.height = Math.round(HAUTEUR * echelle);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas indisponible.');
   const statique = fondStatique();
@@ -1140,9 +1134,10 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
     const sc = parties[ip];
     const derniere = ip === parties.length - 1;
     const total = sc.reduce((a, x) => a + x.duree, 0) + (derniere ? DUREE_OUTRO : 0);
-    const etape = parties.length > 1 ? 'Enregistrement partie ' + (ip + 1) + '/' + parties.length + '…' : 'Enregistrement…';
+    const etape = 'Enregistrement…';
 
     const dessiner = (t: number) => {
+      ctx.setTransform(echelle, 0, 0, echelle, 0, 0);
       let reste = t, fond = sc[0].fond, badge = sc[0].badge;
       let courante: { s: Scene; local: number } | null = null;
       for (const s of sc) {
@@ -1169,8 +1164,6 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
       }
     };
 
-    // Débit : plafonné pour que chaque partie reste légère (~20 Mo), sans descendre sous 7 Mb/s.
-    const debit = Math.round(Math.max(7_000_000, Math.min(14_000_000, 160_000_000 / total)));
     const flux = canvas.captureStream(30);
     const rec = new MediaRecorder(flux, { mimeType: format.mime, videoBitsPerSecond: debit });
     const morceaux: Blob[] = [];
@@ -1178,15 +1171,22 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
     const fini = new Promise<void>(res => { rec.onstop = () => res(); });
 
     dessiner(0);
-    rec.start(1000);
+    rec.start(500);
     const debut = performance.now();
+    let derniereMaj = 0;
     await new Promise<void>(resolve => {
       const boucle = () => {
         const t = (performance.now() - debut) / 1000;
         if ((signal && signal.annule) || t >= total) { resolve(); return; }
         dessiner(t);
-        const pct = Math.round(((dejaFait + t) / totalGlobal) * 100);
-        onProgress(Math.min(99, pct), etape, Math.round(totalGlobal), scenes.length);
+        // La barre de progression ne se met à jour que 3 fois par seconde : chaque mise à jour redessine
+        // toute la page d'administration, ce qui, à chaque image, épuise la mémoire d'un téléphone.
+        const maintenant = performance.now();
+        if (maintenant - derniereMaj > 330) {
+          derniereMaj = maintenant;
+          const pct = Math.round(((dejaFait + t) / totalGlobal) * 100);
+          onProgress(Math.min(99, pct), etape, Math.round(totalGlobal), scenes.length);
+        }
         requestAnimationFrame(boucle);
       };
       requestAnimationFrame(boucle);

@@ -9,8 +9,8 @@ const slugify = (t: string) =>
 
 type Props = { post: VideoPost; titre: string; onFermer: () => void };
 
-// Fenêtre de génération vidéo (1080x1920) : enregistre dans le navigateur puis propose le
-// téléchargement. Les vidéos longues sont livrées en plusieurs parties courtes.
+// Fenêtre de génération vidéo : enregistre dans le navigateur (une seule vidéo) puis propose le
+// téléchargement.
 export default function VideoModal({ post, titre, onFermer }: Props) {
   const [pct, setPct] = useState(0);
   const [etape, setEtape] = useState('Préparation…');
