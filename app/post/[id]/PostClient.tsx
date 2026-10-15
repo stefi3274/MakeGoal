@@ -11,6 +11,9 @@ import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } fr
 import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
+import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
+import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
+import { DerniersMatchsDetails, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
 import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
 
 const VIOLET = '#bf00ff';
@@ -77,7 +80,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -249,6 +252,8 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
+    if (post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length) return { label: 'DERNIERS MATCHS', couleur: '#0891b2' };
     if (post.confrontations && matchsPublies(post.confrontations.matchs || []).length) return { label: 'CONFRONTATIONS DANS LE PASSÉ', couleur: '#7c3aed' };
     if (post.elimination?.rencontres?.length) return { label: 'ÉLIMINATION DIRECTE', couleur: '#dc2626' };
     if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
@@ -668,6 +673,66 @@ export default function PostPage() {
                 </div>
               </div>
             )}
+
+            {post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length > 0 && (() => {
+              const j = post.journee_resultats!;
+              const ms = matchsJourneePublies(j.matchs);
+              const dt = formaterDateJ(j.date);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    {j.competition && <div style={{fontSize:'17px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginBottom:'6px'}}>{j.competition}</div>}
+                    {j.journee && <span style={{display:'inline-block',background:'linear-gradient(135deg,#bf00ff,#7c3aed)',color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{j.journee}</span>}
+                    {dt && <div style={{fontSize:'12px',fontWeight:800,color:'#6b7280',marginTop:'8px'}}>📅 {dt}</div>}
+                  </div>
+                  {ms.map((m, i) => {
+                    const is = issueJournee(m);
+                    const c1 = is === 'G' ? '#16a34a' : is === 'P' ? '#dc2626' : '#111';
+                    const c2 = is === 'P' ? '#16a34a' : is === 'G' ? '#dc2626' : '#111';
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'12px 10px',marginBottom:'8px',background:'#fff'}}>
+                        <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:c1,lineHeight:1.2}}>{drapeau(m.equipe1) !== '🏳️' ? drapeau(m.equipe1) + ' ' : ''}{m.equipe1}</span>
+                        <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{m.score1.trim()} - {m.score2.trim()}</span>
+                        <span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:c2,lineHeight:1.2}}>{m.equipe2}{drapeau(m.equipe2) !== '🏳️' ? ' ' + drapeau(m.equipe2) : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length > 0 && (() => {
+              const d = post.derniers_matchs!;
+              const ms = derniersPublies(d.matchs);
+              const b = bilanDerniers(ms);
+              const coul = (i: 'G' | 'P' | 'N' | null) => i === 'G' ? '#16a34a' : i === 'P' ? '#dc2626' : '#bf00ff';
+              const dr = drapeau(d.equipe);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'12px'}}>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#0891b2',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Ses {ms.length} derniers matchs</div>
+                    <div style={{fontSize:'20px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{dr !== '🏳️' ? dr + ' ' : ''}{d.equipe}</div>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'center',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}}>
+                    {ms.map((m, k) => { const i = issueDernier(m); return <span key={k} style={{width:'28px',height:'28px',borderRadius:'50%',background:coul(i),color:'#fff',fontSize:'13px',fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}}>{i === 'G' ? 'V' : i === 'P' ? 'D' : 'N'}</span>; })}
+                  </div>
+                  <p style={{textAlign:'center',fontSize:'12px',fontWeight:800,color:'#374151',margin:'0 0 12px'}}>{b.v} V · {b.n} N · {b.d} D  |  Buts {b.bp}-{b.bc}</p>
+                  {ms.map((m, i) => {
+                    const is = issueDernier(m);
+                    const adr = drapeau(m.adversaire);
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:'15px',fontWeight:900,color:'#111',lineHeight:1.2}}>{adr !== '🏳️' ? adr + ' ' : ''}{m.adversaire}</div>
+                          <div style={{fontSize:'11px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{[formaterDate(m.date), m.competition].filter(Boolean).join(' · ')}</div>
+                        </div>
+                        <div style={{fontWeight:900,fontSize:'26px',color:'#000',whiteSpace:'nowrap',lineHeight:1}}>{m.score1.trim()}-{m.score2.trim()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {post.confrontations && matchsPublies(post.confrontations.matchs || []).length > 0 && (() => {
               const c = post.confrontations!;
