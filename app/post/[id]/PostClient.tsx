@@ -11,6 +11,7 @@ import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } fr
 import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
+import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
 import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
 import { DerniersMatchsDetails, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
@@ -80,7 +81,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -252,6 +253,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.nominations && nominesPublies(post.nominations.nomines || []).length) return { label: 'NOMINATIONS', couleur: '#d97706' };
     if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
     if (post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length) return { label: 'DERNIERS MATCHS', couleur: '#0891b2' };
     if (post.confrontations && matchsPublies(post.confrontations.matchs || []).length) return { label: 'CONFRONTATIONS DANS LE PASSÉ', couleur: '#7c3aed' };
@@ -673,6 +675,35 @@ export default function PostPage() {
                 </div>
               </div>
             )}
+
+            {post.nominations && nominesPublies(post.nominations.nomines || []).length > 0 && (() => {
+              const nm = post.nominations!;
+              const ns = nominesPublies(nm.nomines);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'28px',lineHeight:1}}>🏆</div>
+                    <div style={{fontSize:'20px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginTop:'4px'}}>{nm.categorie || 'Nominations'}</div>
+                    {nm.edition && <div style={{fontSize:'12px',fontWeight:800,color:'#b45309',marginTop:'2px'}}>{nm.edition}</div>}
+                    <span style={{display:'inline-block',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px',marginTop:'8px'}}>{ns.length} nominé{ns.length > 1 ? 's' : ''}</span>
+                  </div>
+                  {ns.map((n, i) => {
+                    const dr = drapeau(n.pays || n.equipe || '');
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #fde68a',borderLeft:'6px solid #f59e0b',borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fffbeb'}}>
+                        <span style={{fontSize:'12px',fontWeight:900,color:'#b45309',minWidth:'20px'}}>{i + 1}</span>
+                        {n.photo && <img src={n.photo} alt="" style={{width:'48px',height:'48px',borderRadius:'12px',objectFit:'cover',border:'2px solid #f59e0b',flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:'16px',fontWeight:900,color:'#111',lineHeight:1.2}}>{n.nom}</div>
+                          <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{[n.equipe, n.note].filter(Boolean).join(' · ')}</div>
+                        </div>
+                        {n.ecusson ? <img src={n.ecusson} alt="" style={{width:'40px',height:'40px',objectFit:'contain',flexShrink:0}}/> : (dr !== '🏳️' && <span style={{fontSize:'24px',lineHeight:1}}>{dr}</span>)}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length > 0 && (() => {
               const j = post.journee_resultats!;

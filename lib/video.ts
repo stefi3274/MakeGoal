@@ -8,6 +8,7 @@ import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } fr
 import { ligneContexte, DistinctionDetails } from './distinctions';
 import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
+import { NominationsDetails, nominesPublies } from './nominations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
 import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
@@ -38,6 +39,7 @@ export type VideoPost = {
   confrontations?: ConfrontationsDetails | null;
   derniers_matchs?: DerniersMatchsDetails | null;
   journee_resultats?: JourneeDetails | null;
+  nominations?: NominationsDetails | null;
   quizz?: { titre: string; sport?: string | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
 };
@@ -45,7 +47,7 @@ export type VideoPost = {
 // ---------- Scènes ----------
 type Issue = 'G' | 'P' | 'N';
 type MatchLigne = { a: string; b: string; sa?: string; sb?: string };
-type Ligne = { cols?: [string, string, string]; match?: MatchLigne; label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
+type Ligne = { photo?: string; ecusson?: string; cols?: [string, string, string]; match?: MatchLigne; label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
 type Morceau = { t: string; c: string; o?: string };
 type Duo = { nom: string; sous?: string; photo?: string; initiale: string };
 type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo] };
@@ -60,6 +62,7 @@ type Scene =
   | { k: 'texte'; badge: string; fond: string; texte: string; auteur?: string; sous?: string; duree: number };
 
 const LARGEUR = 1080, HAUTEUR = 1920;
+const PHOTO_ABSENTE = 'sans-photo'; // pastille avec l'initiale, pour garder les noms alignés
 const POLICE = '"Arial Black", Impact, "Helvetica Neue", Arial, sans-serif';
 
 const majuscule = (s: string) => (s || '').toUpperCase();
@@ -105,6 +108,7 @@ export function typeVideo(p: VideoPost): string {
   if (p.gagnants?.gagnants?.length) return 'Gagnants';
   if (p.declaration?.citation) return 'Déclaration';
   if (p.parcours?.adversaires?.length) return 'Parcours';
+  if (p.nominations && nominesPublies(p.nominations.nomines || []).length) return 'Nominations';
   if (p.journee_resultats && matchsJourneePublies(p.journee_resultats.matchs || []).length) return 'Résultats de la journée';
   if (p.derniers_matchs && derniersPublies(p.derniers_matchs.matchs || []).length) return 'Derniers matchs';
   if (p.confrontations && matchsPublies(p.confrontations.matchs || []).length) return 'Confrontations';
@@ -223,6 +227,23 @@ export function construireScenes(p: VideoPost): Scene[] {
     const st = (suffixe: string) => [compet, avecSections ? suffixe : ''].filter(Boolean).join('  •  ') || undefined;
     pagesDeLignes(joues.map(lignesDe), 5).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, soustitre: st('Matchs joués'), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     pagesDeLignes(avenir.map(lignesDe), 5).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, soustitre: st('Matchs à venir'), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+  } else if (type === 'Nominations') {
+    const nm = p.nominations!;
+    const nomines = nominesPublies(nm.nomines);
+    const cat = nm.categorie || 'Nominations';
+    const badge = 'NOMINATIONS';
+    scenes.push({ k: 'intro', badge, fond: 'NOM', titre: cat, sous: nm.edition || undefined, pill: nomines.length + (nomines.length > 1 ? ' NOMINÉS' : ' NOMINÉ'), icone: '🏆', duree: 3.4 });
+    const lignes: Ligne[] = nomines.map((n, i) => {
+      const dr = drapeau(n.pays || n.equipe || '');
+      return {
+        label: n.nom,
+        sous: [n.equipe, n.note].filter(Boolean).join('  •  ') || undefined,
+        valeur: !n.ecusson && dr && dr !== '🏳️' ? dr : '', accent: '#fbbf24', couleurSous: '#e9d5ff',
+        photo: n.photo || (nomines.some(x => x.photo) ? PHOTO_ABSENTE : undefined), ecusson: n.ecusson || undefined,
+      };
+    });
+    pagesDeLignes(lignes, 6).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'NOM', titre: cat, soustitre: nm.edition ? 'Les nominés • ' + nm.edition : 'Les nominés', lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    scenes.push({ k: 'texte', badge, fond: 'NOM', texte: 'Qui le remportera ? Donne ton avis en commentaire !', sous: cat, duree: 4 });
   } else if (type === 'Résultats de la journée') {
     const j = p.journee_resultats!;
     const matchs = matchsJourneePublies(j.matchs);
@@ -558,6 +579,30 @@ function dessinerEntete(ctx: Ctx, badge: string, a: number, clair = false) {
 
 type Images = Map<string, HTMLImageElement | null>;
 
+// Photo (recadrée en carré arrondi) ou écusson (entier, sans recadrage) dans une ligne.
+function imageCarree(ctx: Ctx, img: HTMLImageElement | null, x: number, y: number, c: number, recadrer: boolean, initiale: string) {
+  ctx.save();
+  if (recadrer) {
+    ctx.beginPath(); ctx.roundRect(x, y, c, c, 22); ctx.clip();
+    if (img) {
+      const s = Math.max(c / img.width, c / img.height);
+      const w = img.width * s, h = img.height * s;
+      ctx.drawImage(img, x + (c - w) / 2, y + (c - h) / 2, w, h);
+    } else {
+      ctx.fillStyle = '#3b1a8a'; ctx.fillRect(x, y, c, c);
+      ctx.fillStyle = '#fff'; ctx.font = `italic 900 56px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(((initiale || '?').trim()[0] || '?').toUpperCase(), x + c / 2, y + c / 2 + 4);
+    }
+    ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x, y, c, c, 22); ctx.stroke();
+  } else if (img) {
+    const s = Math.min(c / img.width, c / img.height);
+    const w = img.width * s, h = img.height * s;
+    ctx.drawImage(img, x + (c - w) / 2, y + (c - h) / 2, w, h);
+  }
+  ctx.restore();
+}
+
 // Cadre photo moderne : plaque inclinée (parallélogramme) avec décalage orange,
 // filet blanc et photo en plein cadre. Sans photo : initiale sur plaque violette.
 // "r" = demi-hauteur de référence (même usage que l'ancien halo).
@@ -738,14 +783,18 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
         texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), 200, cy + 8, 92, '#fff', 'center', '#bf00ff', 280);
         texteIncline(ctx, valeurAnimee(l.valeur2, (tr - 0.1) / 0.6), 880, cy + 8, 92, '#fff', 'center', '#bf00ff', 280);
       } else {
-        const largValeur = Math.min(360, Math.max(160, (l.valeur.length) * 52));
+        const largValeur = l.ecusson ? 0 : Math.min(360, Math.max(160, (l.valeur.length) * 52));
+        const xTxt = l.photo ? 235 : 100;
+        const maxL = (l.ecusson ? 860 : 960 - largValeur) - xTxt;
+        if (l.photo) imageCarree(ctx, images.get(l.photo) || null, 90, cy - 56, 112, true, l.label);
+        if (l.ecusson) imageCarree(ctx, images.get(l.ecusson) || null, 880, cy - 56, 112, false, '');
         if (l.sous) {
-          texteIncline(ctx, majuscule(l.label), 100, cy - 26, 46, '#fff', 'left', undefined, 940 - largValeur - 30);
-          texteIncline(ctx, l.sous, 100, cy + 32, 36, l.couleurSous || '#e9d5ff', 'left', '#0b0b2a', 940 - largValeur - 30);
+          texteIncline(ctx, majuscule(l.label), xTxt, cy - 26, 46, '#fff', 'left', undefined, maxL);
+          texteIncline(ctx, l.sous, xTxt, cy + 32, 36, l.couleurSous || '#e9d5ff', 'left', '#0b0b2a', maxL);
         } else {
-          texteIncline(ctx, majuscule(l.label), 100, cy, 46, '#e9d5ff', 'left', undefined, 940 - largValeur - 30);
+          texteIncline(ctx, majuscule(l.label), xTxt, cy, 46, '#e9d5ff', 'left', undefined, maxL);
         }
-        texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), 990, cy, 96, '#fff', 'right', '#bf00ff', largValeur);
+        if (!l.ecusson) texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), 990, cy, 96, '#fff', 'right', '#bf00ff', largValeur);
       }
       ctx.restore();
     });
@@ -1117,6 +1166,7 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   const urls = new Set<string>();
   scenes.forEach(s => {
     if (s.k === 'intro') { if (s.photo) urls.add(s.photo); s.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
+    if (s.k === 'lignes') s.lignes.forEach(l => { if (l.photo && l.photo !== PHOTO_ABSENTE) urls.add(l.photo); if (l.ecusson) urls.add(l.ecusson); });
     if (s.k === 'lignes' && s.entete) { if (s.entete.photo) urls.add(s.entete.photo); s.entete.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
   });
   const images: Images = new Map();

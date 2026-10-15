@@ -5,6 +5,7 @@ import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport
 
 import AdminAuth from '../../../components/AdminAuth';
 import { listePays } from '../../../lib/formations';
+import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, CATEGORIES_NOMINATION, parserNominations, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, JOURNEE_VIDE, MATCH_JOURNEE_VIDE, MatchJournee, MAX_JOURNEE, JOURNEES, parserJournee, matchsJourneePublies, issueJournee } from '../../../lib/journee';
 import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_DERNIERS, parserDerniers, derniersPublies, issueDernier } from '../../../lib/derniersMatchs';
 import { ConfrontationsDetails, CONFRONTATIONS_VIDE, CONFRONTATION_VIDE, Confrontation, MAX_CONFRONTATIONS, parserConfrontations, matchsPublies, issueConf } from '../../../lib/confrontations';
@@ -58,7 +59,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
@@ -149,6 +150,8 @@ export default function AdminMedia() {
   const [texteDer, setTexteDer] = useState('');
   const [jour, setJour] = useState<JourneeDetails>({ ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] });
   const [texteJour, setTexteJour] = useState('');
+  const [nomi, setNomi] = useState<NominationsDetails>({ ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] });
+  const [texteNomi, setTexteNomi] = useState('');
   const [videoArticle, setVideoArticle] = useState<Article | null>(null);
   const [videoPct, setVideoPct] = useState(0);
   const [videoEtape, setVideoEtape] = useState('');
@@ -512,7 +515,7 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
@@ -542,10 +545,37 @@ export default function AdminMedia() {
     setJour(prev => ({ competition: r.details.competition || prev.competition, journee: r.details.journee || prev.journee, date: r.details.date || prev.date, matchs: r.details.matchs }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
+  const appliquerTexteNomi = () => {
+    const r = parserNominations(texteNomi);
+    if (!r.details.nomines.length) { setMessage('❌ Aucun nominé reconnu. Une ligne par nominé : « Nom - Équipe - Pays - Note ».'); return; }
+    setNomi(prev => ({ categorie: r.details.categorie || prev.categorie, edition: r.details.edition || prev.edition, nomines: r.details.nomines }));
+    setMessage('✅ ' + r.details.nomines.length + ' nominé(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
+  };
+  const majNomi = (i: number, champ: keyof Nomine, val: string) => setNomi(prev => ({ ...prev, nomines: prev.nomines.map((n, idx) => idx === i ? { ...n, [champ]: val } : n) }));
   const majJour = (i: number, champ: keyof MatchJournee, val: string) => setJour(prev => ({ ...prev, matchs: prev.matchs.map((m, idx) => idx === i ? { ...m, [champ]: val } : m) }));
   const majDer = (i: number, champ: keyof DernierMatch, val: string) => setDer(prev => ({ ...prev, matchs: prev.matchs.map((m, idx) => idx === i ? { ...m, [champ]: val } : m) }));
   const majConf = (i: number, champ: keyof Confrontation, val: string) => setConf(prev => ({ ...prev, matchs: prev.matchs.map((m, idx) => idx === i ? { ...m, [champ]: val } : m) }));
   const majRencontre = (i: number, champ: keyof Rencontre, val: string) => setElim(prev => ({ ...prev, rencontres: prev.rencontres.map((r, idx) => idx === i ? { ...r, [champ]: val } : r) }));
+
+  const [uploadingNomi, setUploadingNomi] = useState<string | null>(null);
+  const uploadImageNomi = async (i: number, champ: 'photo' | 'ecusson', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingNomi(i + '-' + champ); setMessage('');
+    try {
+      const estEcusson = champ === 'ecusson';
+      const blob = await redimensionnerImage(file, estEcusson ? 400 : 700, estEcusson);
+      const nom = 'nomine-' + champ + '-' + Date.now() + '-' + i + (estEcusson ? '.png' : '.jpg');
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: estEcusson ? 'image/png' : 'image/jpeg' });
+      if (error) { setMessage('❌ Image : ' + error.message); setUploadingNomi(null); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      majNomi(i, champ, data.publicUrl);
+    } catch (err) {
+      setMessage('❌ Image : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingNomi(null);
+  };
 
   const uploadPhotoOnze = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -680,7 +710,7 @@ export default function AdminMedia() {
 
   // Réduit la photo (max 1200 px) avant l'envoi : téléversement rapide sur téléphone,
   // et largement assez net pour l'affichage et les vidéos.
-  const redimensionnerImage = (file: File, max = 1200): Promise<Blob> => new Promise((resolve, reject) => {
+  const redimensionnerImage = (file: File, max = 1200, png = false): Promise<Blob> => new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -692,7 +722,7 @@ export default function AdminMedia() {
       if (!ctx) { URL.revokeObjectURL(url); reject(new Error('canvas indisponible')); return; }
       ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), 'image/jpeg', 0.92);
+      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), png ? 'image/png' : 'image/jpeg', 0.92);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image illisible')); };
     img.src = url;
@@ -767,6 +797,7 @@ export default function AdminMedia() {
     setConf({ ...CONFRONTATIONS_VIDE, matchs: [{ ...CONFRONTATION_VIDE }] }); setTexteConf('');
     setDer({ ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] }); setTexteDer('');
     setJour({ ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] }); setTexteJour('');
+    setNomi({ ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] }); setTexteNomi('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
@@ -809,7 +840,8 @@ export default function AdminMedia() {
     const dd = { ...DETAILS_VIDES, ...(a.distinction_details || {}) };
     setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || ''); setDistPays(dd.pays || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !(a.nominations && a.nominations.nomines?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    else if (a.nominations && a.nominations.nomines?.length) setModePost('nominations');
     else if (a.journee_resultats && a.journee_resultats.matchs?.length) setModePost('journee');
     else if (a.derniers_matchs && a.derniers_matchs.matchs?.length) setModePost('derniers');
     else if (a.confrontations && a.confrontations.matchs?.length) setModePost('confrontations');
@@ -830,6 +862,7 @@ export default function AdminMedia() {
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
     setElim(a.elimination && a.elimination.rencontres?.length ? { competition: a.elimination.competition || '', tour: a.elimination.tour || '', rencontres: a.elimination.rencontres.map(r => ({ ...RENCONTRE_VIDE, ...r })) } : { ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] });
+    setNomi(a.nominations && a.nominations.nomines?.length ? { categorie: a.nominations.categorie || '', edition: a.nominations.edition || '', nomines: a.nominations.nomines.map(n => ({ ...NOMINE_VIDE, ...n })) } : { ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] });
     setJour(a.journee_resultats && a.journee_resultats.matchs?.length ? { competition: a.journee_resultats.competition || '', journee: a.journee_resultats.journee || '', date: a.journee_resultats.date || '', matchs: a.journee_resultats.matchs.map(m => ({ ...MATCH_JOURNEE_VIDE, ...m })) } : { ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] });
     setDer(a.derniers_matchs && a.derniers_matchs.matchs?.length ? { equipe: a.derniers_matchs.equipe || '', matchs: a.derniers_matchs.matchs.map(m => ({ ...DERNIER_VIDE, ...m })) } : { ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] });
     setConf(a.confrontations && a.confrontations.matchs?.length ? { equipe1: a.confrontations.equipe1 || '', equipe2: a.confrontations.equipe2 || '', matchs: a.confrontations.matchs.map(m => ({ ...CONFRONTATION_VIDE, ...m })) } : { ...CONFRONTATIONS_VIDE, matchs: [{ ...CONFRONTATION_VIDE }] });
@@ -1018,6 +1051,7 @@ export default function AdminMedia() {
         titreFinal = noms + faceA + ' — ' + (statsMode === 'comparaison' ? 'Comparaison' : 'Stats') + per;
       }
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
+      else if (modePost === 'nominations' && nomi.categorie.trim()) titreFinal = 'Nominations — ' + nomi.categorie.trim() + (nomi.edition.trim() ? ' ' + nomi.edition.trim() : '');
       else if (modePost === 'journee' && jour.competition.trim()) titreFinal = 'Résultats — ' + jour.competition.trim() + (jour.journee.trim() ? ' (' + jour.journee.trim() + ')' : '');
       else if (modePost === 'derniers' && der.equipe.trim()) titreFinal = 'Les ' + Math.min(derniersPublies(der.matchs).length || MAX_DERNIERS, MAX_DERNIERS) + ' derniers matchs — ' + der.equipe.trim();
       else if (modePost === 'confrontations' && conf.equipe1.trim() && conf.equipe2.trim()) titreFinal = 'Confrontations dans le passé — ' + conf.equipe1.trim() + ' vs ' + conf.equipe2.trim();
@@ -1093,6 +1127,7 @@ export default function AdminMedia() {
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'nominations' ? { nominations: { categorie: nomi.categorie.trim(), edition: nomi.edition.trim(), nomines: nominesPublies(nomi.nomines).map(n => ({ nom: n.nom.trim(), equipe: n.equipe.trim(), pays: n.pays.trim(), note: n.note.trim(), photo: n.photo || '', ecusson: n.ecusson || '' })) } } : {}),
       ...(modePost === 'journee' ? { journee_resultats: { competition: jour.competition.trim(), journee: jour.journee.trim(), date: jour.date.trim(), matchs: matchsJourneePublies(jour.matchs).map(m => ({ equipe1: m.equipe1.trim(), equipe2: m.equipe2.trim(), score1: m.score1.trim(), score2: m.score2.trim() })) } } : {}),
       ...(modePost === 'derniers' ? { derniers_matchs: { equipe: der.equipe.trim(), matchs: derniersPublies(der.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), adversaire: m.adversaire.trim(), score1: m.score1.trim(), score2: m.score2.trim() })) } } : {}),
       ...(modePost === 'confrontations' ? { confrontations: { equipe1: conf.equipe1.trim(), equipe2: conf.equipe2.trim(), matchs: matchsPublies(conf.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), score1: m.score1.trim(), score2: m.score2.trim() })) } } : {}),
@@ -1203,6 +1238,7 @@ export default function AdminMedia() {
                     <optgroup label="Stats & classements">
                       <option value="stats">📈 Stats joueur</option>
                       <option value="classement">📊 Classement</option>
+                      <option value="nominations">🏅 Nominations</option>
                     </optgroup>
                     <optgroup label="Distinctions & citations">
                       <option value="distinction">🏆 Distinction</option>
@@ -1838,6 +1874,58 @@ export default function AdminMedia() {
                     <button type="button" onClick={ajouterLigne} style={{marginTop:'10px',padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter une ligne</button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'nominations' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🏅 Nominations</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Les nominés d'un prix : Ballon d'or, Meilleur entraîneur, Meilleur gardien, Meilleure équipe... Seul le nom est obligatoire ({MAX_NOMINES} nominés au maximum). Le drapeau vient du pays, ou de l'équipe si c'est une sélection.</p>
+                <select value={CATEGORIES_NOMINATION.includes(nomi.categorie) ? nomi.categorie : ''} onChange={e => setNomi({...nomi, categorie: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
+                  <option value="">Catégorie (choisir ou écrire ci-dessous)</option>
+                  {CATEGORIES_NOMINATION.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input value={nomi.categorie} onChange={e => setNomi({...nomi, categorie: e.target.value})} placeholder="Catégorie (ex: Ballon d'or)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input value={nomi.edition} onChange={e => setNomi({...nomi, edition: e.target.value})} placeholder="Édition (ex: 2026, ou Ligue 1 2025-26)" style={{...inputStyle,marginBottom:'12px'}}/>
+                <details style={{marginBottom:'14px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les nominés d'un coup</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Catégorie | Édition. Puis une ligne par nominé : « Nom - Équipe - Pays - Note » (tout sauf le nom est facultatif).</p>
+                  <textarea value={texteNomi} onChange={e => setTexteNomi(e.target.value)} rows={8} placeholder={"Ballon d'or | 2026\nOusmane Dembélé - PSG - France - 35 buts\nLamine Yamal - FC Barcelone - Espagne\nKylian Mbappé - Real Madrid - France"} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <button type="button" onClick={appliquerTexteNomi} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
+                </details>
+                {nomi.nomines.map((n, i) => (
+                  <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'12px',padding:'10px',marginBottom:'10px'}}>
+                    <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'6px'}}>
+                      <input value={n.nom} onChange={e => majNomi(i,'nom',e.target.value)} placeholder="Nom du nominé" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                      {nomi.nomines.length > 1 && <button type="button" onClick={() => setNomi(prev => ({...prev, nomines: prev.nomines.filter((_, idx) => idx !== i)}))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>}
+                    </div>
+                    <div style={{display:'flex',gap:'6px'}}>
+                      <input value={n.equipe} onChange={e => majNomi(i,'equipe',e.target.value)} placeholder="Équipe" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                      <input list="liste-pays" value={n.pays} onChange={e => majNomi(i,'pays',e.target.value)} placeholder="Pays (drapeau)" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                      <input value={n.note} onChange={e => majNomi(i,'note',e.target.value)} placeholder="Note (ex: 35 buts)" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                    </div>
+                    <div style={{display:'flex',gap:'10px',marginTop:'8px',alignItems:'center'}}>
+                      <label style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',fontSize:'11px',color:'#9ca3af',fontWeight:700}}>
+                        <span style={{width:'38px',height:'38px',borderRadius:'10px',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:'#111',fontSize:'15px'}}>
+                          {n.photo ? <img src={n.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (uploadingNomi === i + '-photo' ? '…' : '📷')}
+                        </span>
+                        Photo du joueur / entraîneur
+                        <input type="file" accept="image/*" onChange={e => uploadImageNomi(i,'photo',e)} style={{display:'none'}}/>
+                      </label>
+                      <label style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',fontSize:'11px',color:'#9ca3af',fontWeight:700}}>
+                        <span style={{width:'38px',height:'38px',borderRadius:'10px',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:'#111',fontSize:'15px'}}>
+                          {n.ecusson ? <img src={n.ecusson} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/> : (uploadingNomi === i + '-ecusson' ? '…' : '🛡️')}
+                        </span>
+                        Écusson du club
+                        <input type="file" accept="image/*" onChange={e => uploadImageNomi(i,'ecusson',e)} style={{display:'none'}}/>
+                      </label>
+                      {(n.photo || n.ecusson) && <button type="button" onClick={() => setNomi(prev => ({...prev, nomines: prev.nomines.map((x, idx) => idx === i ? { ...x, photo: '', ecusson: '' } : x)}))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'11px',fontWeight:700}}>Retirer les images</button>}
+                    </div>
+                  </div>
+                ))}
+                {nomi.nomines.length < MAX_NOMINES
+                  ? <button type="button" onClick={() => setNomi(prev => ({...prev, nomines: [...prev.nomines, { ...NOMINE_VIDE }]}))} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un nominé</button>
+                  : <p style={{fontSize:'11px',color:'#9ca3af',margin:0}}>Maximum atteint ({MAX_NOMINES} nominés).</p>}
               </div>
             )}
 
