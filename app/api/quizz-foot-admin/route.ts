@@ -6,7 +6,8 @@ const supabaseAdmin = createClient(
 );
 
 const NB_QUESTIONS = 10;
-const DUREE_HEURES = 24;
+import { TYPES_QUIZZ, typeValide } from '../../../lib/quizzTypes';
+import { sponsorsPublies } from '../../../lib/promo';
 
 // La table quizz_foot est verrouillée (aucun accès direct depuis le navigateur).
 // L'admin passe donc par cette route : lecture de la liste et création d'un quizz.
@@ -32,10 +33,15 @@ export async function GET(request: Request) {
   if (refus) return refus;
   const { data, error } = await supabaseAdmin
     .from('quizz_foot')
-    .select('id, titre, sport, statut, date_fermeture, created_at, questions')
+    .select('id, titre, sport, statut, date_fermeture, created_at, questions, sponsors')
     .order('created_at', { ascending: false })
     .limit(60);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Colonne « sponsors » pas encore créée : on relit sans elle pour ne rien casser.
+    const r2 = await supabaseAdmin.from('quizz_foot').select('id, titre, sport, statut, date_fermeture, created_at, questions').order('created_at', { ascending: false }).limit(60);
+    if (r2.error) return Response.json({ error: r2.error.message }, { status: 500 });
+    return Response.json({ quizzes: r2.data || [] });
+  }
   return Response.json({ quizzes: data || [] });
 }
 
@@ -46,10 +52,11 @@ export async function POST(request: Request) {
   const refus = await verifierAdmin(request);
   if (refus) return refus;
 
-  const body = await request.json().catch(() => null) as { titre?: string; sport?: string; questions?: QuestionQ[] } | null;
+  const body = await request.json().catch(() => null) as { titre?: string; sport?: string; type?: string; sponsors?: { nom?: string; logo?: string }[]; questions?: QuestionQ[] } | null;
   const titre = (body?.titre || '').trim();
   const sport = body?.sport === 'basketball' ? 'basketball' : 'football';
   const questions = body?.questions;
+  const duree = TYPES_QUIZZ[typeValide(body?.type)].heures;
   if (!titre) return Response.json({ error: 'Le titre est obligatoire.' }, { status: 400 });
   if (!Array.isArray(questions) || questions.length !== NB_QUESTIONS) {
     return Response.json({ error: 'Il faut exactement ' + NB_QUESTIONS + ' questions.' }, { status: 400 });
@@ -67,10 +74,16 @@ export async function POST(request: Request) {
     propres.push({ id: 'q' + (i + 1), question: q.question.trim(), options, bonne_reponse: q.bonne_reponse });
   }
 
-  const { error } = await supabaseAdmin.from('quizz_foot').insert({
+  const sponsors = sponsorsPublies((body?.sponsors || []).map(x => ({ nom: (x.nom || '').trim(), logo: x.logo || '' })));
+  const ligne = {
     titre, sport, questions: propres, statut: 'ouvert',
-    date_fermeture: new Date(Date.now() + DUREE_HEURES * 3600 * 1000).toISOString(),
-  });
+    date_fermeture: new Date(Date.now() + duree * 3600 * 1000).toISOString(),
+  };
+  // La colonne « sponsors » n'est envoyée que s'il y en a : tant que le SQL n'est pas passé, rien ne casse.
+  let { error } = await supabaseAdmin.from('quizz_foot').insert(sponsors.length ? { ...ligne, sponsors } : ligne);
+  if (error && sponsors.length && /sponsors/i.test(error.message)) {
+    return Response.json({ error: "La colonne « sponsors » n'existe pas encore : lance d'abord le SQL fourni, puis recrée le quizz." }, { status: 500 });
+  }
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ success: true });
 }

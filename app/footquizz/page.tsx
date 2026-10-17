@@ -10,10 +10,12 @@ import { getSport, Sport } from '../../lib/sport';
 const COULEUR = '#bf00ff';
 const DUREE_QUESTION_MS = 10 * 1000;
 
-type Quizz = { id: string; titre: string; sport: string | null; statut: string; date_fermeture: string; created_at: string };
+type Quizz = { id: string; titre: string; sport: string | null; statut: string; date_fermeture: string; created_at: string; sponsors?: Sponsor[] | null };
 type Participation = { termine: boolean; score: number | null; pourcentage: number | null };
 type QuestionJeu = { id: string; question: string; options: { cle: string; texte: string }[] };
 
+import { TYPES_QUIZZ, typeDepuisDurees } from '../../lib/quizzTypes';
+import { Sponsor, sponsorsPublies } from '../../lib/promo';
 const formatChrono = (ms: number) => {
   if (ms <= 0) return '00:00:00';
   const h = Math.floor(ms / 3600000);
@@ -44,16 +46,14 @@ export default function FootQuizzPage() {
 
   useEffect(() => { setSportLocal(getSport()); }, []);
   useEffect(() => { charger(); }, [sport]);
+  // Horloge : sert seulement au chrono de chaque question (10 s).
   useEffect(() => { const t = setInterval(() => setMaintenant(Date.now()), 1000); return () => clearInterval(t); }, []);
-
+  // Quand le temps du quizz est écoulé, on le ferme côté serveur (le tirage reste manuel, côté admin).
   useEffect(() => {
     quizzes.forEach(q => {
-      if (q.statut === 'ouvert' && q.date_fermeture) {
-        const reste = new Date(q.date_fermeture).getTime() - maintenant;
-        if (reste <= 0 && !declencheursEnvoyes.current.has(q.id)) {
-          declencheursEnvoyes.current.add(q.id);
-          fetch('/api/quizz-foot-tirage-auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quizzId: q.id }) }).then(charger);
-        }
+      if (q.statut === 'ouvert' && q.date_fermeture && new Date(q.date_fermeture).getTime() - maintenant <= 0 && !declencheursEnvoyes.current.has(q.id)) {
+        declencheursEnvoyes.current.add(q.id);
+        fetch('/api/quizz-foot-tirage-auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quizzId: q.id }) }).then(charger);
       }
     });
   }, [maintenant, quizzes]);
@@ -203,10 +203,14 @@ export default function FootQuizzPage() {
               const part = participations[q.id];
               const reste = q.date_fermeture ? new Date(q.date_fermeture).getTime() - maintenant : null;
               const encoreOuvert = q.statut === 'ouvert' && (reste === null || reste > 0);
+              const typeQ = typeDepuisDurees(q.created_at, q.date_fermeture);
               return (
                 <div key={q.id} style={{ border: '2px solid ' + (encoreOuvert ? '#e9d5ff' : '#e5e7eb'), borderRadius: '20px', padding: '24px', marginBottom: '20px', opacity: encoreOuvert ? 1 : 0.9 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
-                    <h2 style={{ fontWeight: 900, fontSize: '19px', margin: 0 }}>{q.titre}</h2>
+                    <div>
+                      {typeQ && <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 800, color: '#6d28d9', background: '#f3e8ff', padding: '3px 10px', borderRadius: '999px', marginBottom: '6px' }}>{TYPES_QUIZZ[typeQ].emoji} {TYPES_QUIZZ[typeQ].label}</span>}
+                      <h2 style={{ fontWeight: 900, fontSize: '19px', margin: 0 }}>{q.titre}</h2>
+                    </div>
                     {encoreOuvert && reste !== null && (
                       <div style={{ flexShrink: 0, textAlign: 'center', background: '#3b0764', color: '#fff', borderRadius: '12px', padding: '8px 12px' }}>
                         <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.8 }}>Temps restant</div>
@@ -214,6 +218,18 @@ export default function FootQuizzPage() {
                       </div>
                     )}
                   </div>
+
+                  {sponsorsPublies(q.sponsors).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', margin: '-4px 0 14px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' }}>Offert par</span>
+                      {sponsorsPublies(q.sponsors).map((s, si) => (
+                        <span key={si} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {s.logo && <img src={s.logo} alt="" style={{ height: '28px', maxWidth: '80px', objectFit: 'contain' }} />}
+                          {s.nom && <span style={{ fontSize: '13px', fontWeight: 800, color: '#374151' }}>{s.nom}</span>}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {!encoreOuvert && !part?.termine && (
                     <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>Ce FootQuizz est terminé.</p>

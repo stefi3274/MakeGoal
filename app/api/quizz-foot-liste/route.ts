@@ -13,12 +13,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sport = searchParams.get('sport') || 'football';
 
-  const { data: quizzes, error } = await supabaseAdmin
+  let { data: quizzes, error } = await supabaseAdmin
     .from('quizz_foot')
-    .select('id, titre, sport, statut, date_fermeture, created_at')
+    .select('id, titre, sport, statut, date_fermeture, created_at, sponsors')
     .eq('sport', sport)
     .order('created_at', { ascending: false })
     .limit(10);
+  if (error) {
+    // Colonne « sponsors » pas encore créée : on relit sans elle pour ne rien casser.
+    const r2 = await supabaseAdmin.from('quizz_foot').select('id, titre, sport, statut, date_fermeture, created_at').eq('sport', sport).order('created_at', { ascending: false }).limit(10);
+    quizzes = r2.data; error = r2.error;
+  }
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
   let userId: string | null = null;

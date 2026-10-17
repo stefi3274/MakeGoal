@@ -12,6 +12,7 @@ import { ligneContexte } from '../../../lib/distinctions';
 import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
 import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
+import { PromoDetails, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
 import { visuelEquipe } from '../../../lib/ecussons';
 import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
@@ -82,7 +83,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -262,6 +263,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.promo && lotsPublies(post.promo.lots || []).length) return { label: 'PROMO', couleur: '#e11d48' };
     if (post.nominations && nominesPublies(post.nominations.nomines || []).length) return { label: 'NOMINATIONS', couleur: '#d97706' };
     if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
     if (post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length) return { label: 'DERNIERS MATCHS', couleur: '#0891b2' };
@@ -684,6 +686,45 @@ export default function PostPage() {
                 </div>
               </div>
             )}
+
+            {post.promo && lotsPublies(post.promo.lots || []).length > 0 && (() => {
+              const pr = post.promo!;
+              const lots = lotsPublies(pr.lots);
+              const sp = sponsorsPublies(pr.sponsors);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'30px',lineHeight:1}}>🎁</div>
+                    <div style={{fontSize:'21px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginTop:'4px'}}>{pr.accroche || 'À gagner !'}</div>
+                    {pr.quizz && <div style={{fontSize:'13px',fontWeight:800,color:'#be123c',marginTop:'2px'}}>{pr.quizz}</div>}
+                    {pr.fin && <span style={{display:'inline-block',background:'linear-gradient(135deg,#fb7185,#e11d48)',color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px',marginTop:'8px'}}>Jusqu&apos;au {formaterDate(pr.fin)}</span>}
+                  </div>
+                  {lots.map((l, i) => (
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:'12px',border:'1px solid #fecdd3',borderLeft:'6px solid #e11d48',borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff1f2'}}>
+                      {l.photo && <img src={l.photo} alt="" style={{width:'64px',height:'64px',borderRadius:'12px',objectFit:'cover',border:'2px solid #e11d48',flexShrink:0}}/>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:'17px',fontWeight:900,color:'#111',lineHeight:1.2}}>{l.nom}</div>
+                        {l.detail && <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{l.detail}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  {pr.conditions && <p style={{fontSize:'13px',fontWeight:700,color:'#374151',textAlign:'center',margin:'12px 0 0',whiteSpace:'pre-line'}}>{pr.conditions}</p>}
+                  {sp.length > 0 && (
+                    <div style={{marginTop:'16px',textAlign:'center'}}>
+                      <div style={{fontSize:'11px',fontWeight:800,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Avec le soutien de</div>
+                      <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:'14px'}}>
+                        {sp.map((s, i) => (
+                          <div key={i} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                            {s.logo && <img src={s.logo} alt="" style={{height:'36px',maxWidth:'90px',objectFit:'contain'}}/>}
+                            {s.nom && <span style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{s.nom}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {post.nominations && nominesPublies(post.nominations.nomines || []).length > 0 && (() => {
               const nm = post.nominations!;

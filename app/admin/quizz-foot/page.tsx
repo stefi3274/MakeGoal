@@ -7,7 +7,9 @@ import VideoModal from '../../../components/VideoModal';
 
 const VIOLET = '#bf00ff';
 const NB_QUESTIONS = 10;
-const DUREE_HEURES = 24;
+import { TYPES_QUIZZ, TypeQuizz, typeDepuisDurees } from '../../../lib/quizzTypes';
+import { Sponsor, SPONSOR_VIDE, MAX_SPONSORS, sponsorsPublies } from '../../../lib/promo';
+import { redimensionnerImage } from '../../../lib/images';
 
 type OptionQ = { cle: string; texte: string };
 type QuestionForm = { question: string; options: OptionQ[]; bonne_reponse: string };
@@ -19,6 +21,7 @@ type Quizz = {
   statut: string;
   date_fermeture: string;
   created_at: string;
+  sponsors?: Sponsor[] | null;
   questions?: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[];
 };
 
@@ -38,8 +41,28 @@ export default function AdminQuizzFoot() {
   const [message, setMessage] = useState('');
   const [vue, setVue] = useState<'liste' | 'nouveau'>('liste');
   const [sportForm, setSportForm] = useState<Sport>('football');
+  const [typeForm, setTypeForm] = useState<TypeQuizz>('weekend');
 
   const [titre, setTitre] = useState('');
+  const [sponsors, setSponsors] = useState<Sponsor[]>([{ ...SPONSOR_VIDE }]);
+  const [uploadingSponsor, setUploadingSponsor] = useState<number | null>(null);
+  const majSponsor = (i: number, champ: keyof Sponsor, val: string) => setSponsors(prev => prev.map((s, idx) => idx === i ? { ...s, [champ]: val } : s));
+  const uploadLogoSponsor = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingSponsor(i); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file, 400, true);
+      const nom = 'sponsor-quizz-' + Date.now() + '-' + i + '.png';
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/png' });
+      if (error) { setMessage('❌ Logo : ' + error.message); setUploadingSponsor(null); return; }
+      majSponsor(i, 'logo', supabase.storage.from('articles').getPublicUrl(nom).data.publicUrl);
+    } catch (err) {
+      setMessage('❌ Logo : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingSponsor(null);
+  };
   const [questions, setQuestions] = useState<QuestionForm[]>(Array.from({ length: NB_QUESTIONS }, questionVide));
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [tirageEnCours, setTirageEnCours] = useState('');
@@ -110,13 +133,13 @@ export default function AdminQuizzFoot() {
     if (!token) { setCreationEnCours(false); setMessage('❌ Session expirée, reconnectez-vous.'); return; }
     const res = await fetch('/api/quizz-foot-admin', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ titre, sport: sportForm, questions: questions.map(q => ({ question: q.question, options: q.options, bonne_reponse: q.bonne_reponse })) })
+      body: JSON.stringify({ titre, sport: sportForm, type: typeForm, sponsors: sponsorsPublies(sponsors), questions: questions.map(q => ({ question: q.question, options: q.options, bonne_reponse: q.bonne_reponse })) })
     });
     const retour = await res.json().catch(() => ({}));
     setCreationEnCours(false);
     if (!res.ok) { setMessage('❌ ' + (retour.error || 'Erreur lors de la création.')); return; }
     setMessage('✅ FootQuizz publié !');
-    setTitre(''); setQuestions(Array.from({ length: NB_QUESTIONS }, questionVide));
+    setTitre(''); setSponsors([{ ...SPONSOR_VIDE }]); setQuestions(Array.from({ length: NB_QUESTIONS }, questionVide));
     setTexteColle(''); setTexteColleOuvert(false);
     chargerQuizzes();
     setTimeout(() => setVue('liste'), 1200);
@@ -177,8 +200,13 @@ export default function AdminQuizzFoot() {
         {vue === 'nouveau' && (
           <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '24px' }}>
             <h2 style={{ color: '#fff', fontWeight: 900, fontSize: '20px', marginBottom: '8px' }}>Nouveau FootQuizz</h2>
-            <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>{NB_QUESTIONS} questions, 10 secondes par question, actif {DUREE_HEURES}h, une seule tentative par utilisateur. Le tirage au sort parmi les ≥80% se fait manuellement, ici même.</p>
+            <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>{NB_QUESTIONS} questions, 10 secondes par question, une seule tentative par utilisateur. Durée : 48 h pour le quizz du weekend, 72 h pour le quizz de semaine. Le tirage au sort parmi les ≥80% se fait manuellement, ici même.</p>
 
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              {(['weekend', 'semaine'] as TypeQuizz[]).map(t => (
+                <button key={t} type="button" onClick={() => setTypeForm(t)} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px', background: typeForm === t ? '#7c3aed' : '#333', color: '#fff' }}>{TYPES_QUIZZ[t].emoji} {TYPES_QUIZZ[t].label} ({TYPES_QUIZZ[t].heures} h)</button>
+              ))}
+            </div>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {(['football', 'basketball'] as Sport[]).map(s => (
                 <button key={s} type="button" onClick={() => setSportForm(s)} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px', background: sportForm === s ? SPORT_COULEURS[s].primaire : '#333', color: '#fff' }}>{SPORT_LABEL[s].emoji} {SPORT_LABEL[s].nom}</button>
@@ -188,6 +216,22 @@ export default function AdminQuizzFoot() {
             <div style={{ marginBottom: '20px' }}>
               <label style={labelStyle}>Titre du quizz</label>
               <input value={titre} onChange={e => setTitre(e.target.value)} placeholder="FootQuizz de la semaine" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>Sponsors du quizz (facultatif : nom et logo)</label>
+              {sponsors.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+                  <input value={s.nom} onChange={e => majSponsor(i, 'nom', e.target.value)} placeholder="Nom du sponsor" style={{ ...inputStyle, flex: 1 }} />
+                  <label style={{ width: '44px', height: '44px', borderRadius: '10px', border: '1px dashed #555', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', fontSize: '20px', flexShrink: 0 }}>
+                    {s.logo ? <img src={s.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : (uploadingSponsor === i ? '…' : '🏢')}
+                    <input type="file" accept="image/*" onChange={e => uploadLogoSponsor(i, e)} style={{ display: 'none' }} />
+                  </label>
+                  {s.logo && <button type="button" onClick={() => majSponsor(i, 'logo', '')} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}>✕</button>}
+                  {sponsors.length > 1 && <button type="button" onClick={() => setSponsors(prev => prev.filter((_, idx) => idx !== i))} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px' }}>✕</button>}
+                </div>
+              ))}
+              {sponsors.length < MAX_SPONSORS && <button type="button" onClick={() => setSponsors(prev => [...prev, { ...SPONSOR_VIDE }])} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px dashed #555', background: 'transparent', color: '#9ca3af', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>+ Ajouter un sponsor</button>}
             </div>
 
             <button type="button" onClick={() => setTexteColleOuvert(v => !v)} style={{ padding: '10px 18px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px', background: texteColleOuvert ? '#333' : VIOLET, color: '#fff', marginBottom: '16px' }}>{texteColleOuvert ? '✕ Fermer' : '📋 Coller les 10 questions'}</button>
@@ -229,7 +273,8 @@ export default function AdminQuizzFoot() {
                       {q.statut === 'ouvert' ? '🟢 Ouvert' : q.statut === 'ferme' ? '🟡 Fermé' : '✓ Tiré'}
                     </span>
                     <p style={{ color: '#fff', fontWeight: 700, fontSize: '15px', margin: '8px 0 4px' }}>{q.titre}</p>
-                    {q.statut === 'ouvert' && <p style={{ color: VIOLET, fontSize: '11px', margin: '4px 0 0', fontWeight: 700 }}>⏱️ Ferme le {new Date(q.date_fermeture).toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
+                    {typeDepuisDurees(q.created_at, q.date_fermeture) && <p style={{ color: '#a78bfa', fontSize: '11px', margin: '4px 0 0', fontWeight: 700 }}>{TYPES_QUIZZ[typeDepuisDurees(q.created_at, q.date_fermeture) as TypeQuizz].emoji} {TYPES_QUIZZ[typeDepuisDurees(q.created_at, q.date_fermeture) as TypeQuizz].label}</p>}
+                    {q.statut === 'ouvert' && <p style={{ color: VIOLET, fontSize: '11px', margin: '4px 0 0', fontWeight: 700 }}>⏱️ Ferme le {new Date(q.date_fermeture).toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -278,7 +323,7 @@ export default function AdminQuizzFoot() {
       )}
       {videoQuizz && videoQuizz.questions && (
         <VideoModal titre={videoQuizz.titre} onFermer={() => setVideoQuizz(null)}
-          post={{ titre: videoQuizz.titre, quizz: { titre: videoQuizz.titre, sport: videoQuizz.sport, questions: videoQuizz.questions.slice(0, nbVideo || 3).map(x => ({ question: x.question, options: x.options, bonne_reponse: x.bonne_reponse })) } }} />
+          post={{ titre: videoQuizz.titre, quizz: { titre: videoQuizz.titre, sport: videoQuizz.sport, sponsors: videoQuizz.sponsors, duree_heures: (() => { const t = typeDepuisDurees(videoQuizz.created_at, videoQuizz.date_fermeture); return t ? TYPES_QUIZZ[t].heures : null; })(), questions: videoQuizz.questions.slice(0, nbVideo || 3).map(x => ({ question: x.question, options: x.options, bonne_reponse: x.bonne_reponse })) } }} />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
+import { PromoDetails, PROMO_VIDE, LOT_VIDE, SPONSOR_VIDE, Lot, Sponsor, MAX_LOTS, MAX_SPONSORS, parserPromo, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { listePays } from '../../../lib/formations';
 import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../../../lib/ecussons';
 import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, CATEGORIES_NOMINATION, parserNominations, nominesPublies } from '../../../lib/nominations';
@@ -62,7 +63,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
@@ -518,7 +519,7 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations', 'promo'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
@@ -612,6 +613,37 @@ export default function AdminMedia() {
       })}
     </div>
   );
+
+  // Promo : lots à gagner + sponsors (nom, logo).
+  const [promo, setPromo] = useState<PromoDetails>({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] });
+  const [textePromo, setTextePromo] = useState('');
+  const [uploadingPromo, setUploadingPromo] = useState<string | null>(null);
+  const appliquerTextePromo = () => {
+    const r = parserPromo(textePromo);
+    if (!r.details.lots.length) { setMessage('❌ Aucun lot reconnu. Une ligne par lot : « iPhone 16 Pro - 256 Go ».'); return; }
+    setPromo(prev => ({ accroche: r.details.accroche || prev.accroche, quizz: r.details.quizz || prev.quizz, fin: r.details.fin || prev.fin, conditions: r.details.conditions || prev.conditions, lots: r.details.lots, sponsors: r.details.sponsors.length ? r.details.sponsors : prev.sponsors }));
+    setMessage('✅ ' + r.details.lots.length + ' lot(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
+  };
+  const majLot = (i: number, champ: keyof Lot, val: string) => setPromo(prev => ({ ...prev, lots: prev.lots.map((l, idx) => idx === i ? { ...l, [champ]: val } : l) }));
+  const majSponsorPromo = (i: number, champ: keyof Sponsor, val: string) => setPromo(prev => ({ ...prev, sponsors: prev.sponsors.map((s, idx) => idx === i ? { ...s, [champ]: val } : s) }));
+  const uploadImagePromo = async (kind: 'lot' | 'sponsor', i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingPromo(kind + '-' + i); setMessage('');
+    try {
+      const logo = kind === 'sponsor';
+      const blob = await redimensionnerImage(file, logo ? 400 : 700, logo);
+      const nom = 'promo-' + kind + '-' + Date.now() + '-' + i + (logo ? '.png' : '.jpg');
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: logo ? 'image/png' : 'image/jpeg' });
+      if (error) { setMessage('❌ Image : ' + error.message); setUploadingPromo(null); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      if (logo) majSponsorPromo(i, 'logo', data.publicUrl); else majLot(i, 'photo', data.publicUrl);
+    } catch (err) {
+      setMessage('❌ Image : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingPromo(null);
+  };
 
   const uploadImageNomi = async (i: number, champ: 'photo' | 'ecusson', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -853,6 +885,7 @@ export default function AdminMedia() {
     setDer({ ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] }); setTexteDer('');
     setJour({ ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] }); setTexteJour('');
     setNomi({ ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] }); setTexteNomi('');
+    setPromo({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] }); setTextePromo('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
@@ -895,7 +928,8 @@ export default function AdminMedia() {
     const dd = { ...DETAILS_VIDES, ...(a.distinction_details || {}) };
     setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || ''); setDistPays(dd.pays || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !(a.nominations && a.nominations.nomines?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !(a.nominations && a.nominations.nomines?.length) && !(a.promo && a.promo.lots?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    else if (a.promo && a.promo.lots?.length) setModePost('promo');
     else if (a.nominations && a.nominations.nomines?.length) setModePost('nominations');
     else if (a.journee_resultats && a.journee_resultats.matchs?.length) setModePost('journee');
     else if (a.derniers_matchs && a.derniers_matchs.matchs?.length) setModePost('derniers');
@@ -917,6 +951,7 @@ export default function AdminMedia() {
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
     setElim(a.elimination && a.elimination.rencontres?.length ? { competition: a.elimination.competition || '', tour: a.elimination.tour || '', rencontres: a.elimination.rencontres.map(r => ({ ...RENCONTRE_VIDE, ...r })) } : { ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] });
+    setPromo(a.promo && a.promo.lots?.length ? { accroche: a.promo.accroche || '', quizz: a.promo.quizz || '', fin: a.promo.fin || '', conditions: a.promo.conditions || '', lots: a.promo.lots.map(l => ({ ...LOT_VIDE, ...l })), sponsors: a.promo.sponsors?.length ? a.promo.sponsors.map(s => ({ ...SPONSOR_VIDE, ...s })) : [{ ...SPONSOR_VIDE }] } : { ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] });
     setNomi(a.nominations && a.nominations.nomines?.length ? { categorie: a.nominations.categorie || '', edition: a.nominations.edition || '', nomines: a.nominations.nomines.map(n => ({ ...NOMINE_VIDE, ...n })) } : { ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] });
     setJour(a.journee_resultats && a.journee_resultats.matchs?.length ? { competition: a.journee_resultats.competition || '', journee: a.journee_resultats.journee || '', date: a.journee_resultats.date || '', matchs: a.journee_resultats.matchs.map(m => ({ ...MATCH_JOURNEE_VIDE, ...m })), ecussons: a.journee_resultats.ecussons || {} } : { ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] });
     setDer(a.derniers_matchs && a.derniers_matchs.matchs?.length ? { equipe: a.derniers_matchs.equipe || '', matchs: a.derniers_matchs.matchs.map(m => ({ ...DERNIER_VIDE, ...m })), ecussons: a.derniers_matchs.ecussons || {} } : { ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] });
@@ -1106,6 +1141,7 @@ export default function AdminMedia() {
         titreFinal = noms + faceA + ' — ' + (statsMode === 'comparaison' ? 'Comparaison' : 'Stats') + per;
       }
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
+      else if (modePost === 'promo' && (promo.accroche.trim() || lotsPublies(promo.lots).length)) titreFinal = 'Promo — ' + (promo.accroche.trim() || lotsPublies(promo.lots)[0].nom);
       else if (modePost === 'nominations' && nomi.categorie.trim()) titreFinal = 'Nominations — ' + nomi.categorie.trim() + (nomi.edition.trim() ? ' ' + nomi.edition.trim() : '');
       else if (modePost === 'journee' && jour.competition.trim()) titreFinal = 'Résultats — ' + jour.competition.trim() + (jour.journee.trim() ? ' (' + jour.journee.trim() + ')' : '');
       else if (modePost === 'derniers' && der.equipe.trim()) titreFinal = libelleDerniers(derniersPublies(der.matchs).length || MAX_DERNIERS) + ' — ' + der.equipe.trim();
@@ -1182,6 +1218,7 @@ export default function AdminMedia() {
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'promo' ? { promo: { accroche: promo.accroche.trim(), quizz: promo.quizz.trim(), fin: promo.fin.trim(), conditions: promo.conditions.trim(), lots: lotsPublies(promo.lots).map(l => ({ nom: l.nom.trim(), detail: (l.detail || '').trim(), photo: l.photo || '' })), sponsors: sponsorsPublies(promo.sponsors).map(s => ({ nom: s.nom.trim(), logo: s.logo || '' })) } } : {}),
       ...(modePost === 'nominations' ? { nominations: { categorie: nomi.categorie.trim(), edition: nomi.edition.trim(), nomines: nominesPublies(nomi.nomines).map(n => ({ nom: n.nom.trim(), equipe: n.equipe.trim(), pays: n.pays.trim(), note: n.note.trim(), photo: n.photo || '', ecusson: n.ecusson || '' })) } } : {}),
       ...(modePost === 'journee' ? { journee_resultats: { competition: jour.competition.trim(), journee: jour.journee.trim(), date: jour.date.trim(), matchs: matchsJourneePublies(jour.matchs).map(m => ({ equipe1: m.equipe1.trim(), equipe2: m.equipe2.trim(), score1: m.score1.trim(), score2: m.score2.trim() })), ecussons: ecussonsUtiles(jour.ecussons, equipesJour) } } : {}),
       ...(modePost === 'derniers' ? { derniers_matchs: { equipe: der.equipe.trim(), matchs: derniersPublies(der.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), adversaire: m.adversaire.trim(), score1: m.score1.trim(), score2: m.score2.trim(), exterieur: !!m.exterieur })), ecussons: ecussonsUtiles(der.ecussons, equipesDer) } } : {}),
@@ -1293,6 +1330,7 @@ export default function AdminMedia() {
                     <optgroup label="Stats & classements">
                       <option value="stats">📈 Stats joueur</option>
                       <option value="classement">📊 Classement</option>
+                      <option value="promo">🎁 Promo quizz (lots)</option>
                       <option value="nominations">🏅 Nominations</option>
                     </optgroup>
                     <optgroup label="Distinctions & citations">
@@ -1929,6 +1967,56 @@ export default function AdminMedia() {
                     <button type="button" onClick={ajouterLigne} style={{marginTop:'10px',padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter une ligne</button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {type === 'post' && modePost === 'promo' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>🎁 Promo quizz (lots à gagner)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Annonce les lots à gagner en répondant à un quizz (tablette, téléphone, maillot...), avec les conditions, la date limite et les sponsors (nom + logo).</p>
+                <input value={promo.accroche} onChange={e => setPromo({...promo, accroche: e.target.value})} placeholder="Accroche (ex: Gagne un iPhone 16 !)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input value={promo.quizz} onChange={e => setPromo({...promo, quizz: e.target.value})} placeholder="Quizz concerné (ex: Quizz du weekend)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(promo.fin) ? promo.fin : ''} onChange={e => setPromo({...promo, fin: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}/>
+                <textarea value={promo.conditions} onChange={e => setPromo({...promo, conditions: e.target.value})} rows={2} placeholder="Conditions (ex: 80 % de bonnes réponses minimum, tirage au sort parmi les gagnants)" style={{...inputStyle,marginBottom:'12px',resize:'vertical'}}/>
+                <details style={{marginBottom:'12px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute la promo d'un coup</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Accroche | Quizz | Date de fin. Puis une ligne par lot (Nom - détail), « Condition : ... » et « Sponsor : Nom1, Nom2 ». Les photos et logos s'ajoutent ensuite.</p>
+                  <textarea value={textePromo} onChange={e => setTextePromo(e.target.value)} rows={7} placeholder={"Gagne un iPhone 16 | Quizz du weekend | 19/10/2026\niPhone 16 Pro - 256 Go\nMaillot du Real Madrid - dédicacé\nCondition : 80 % de bonnes réponses minimum\nSponsor : Natcom, Digicel"} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
+                  <button type="button" onClick={appliquerTextePromo} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer',marginTop:'8px'}}>Appliquer</button>
+                </details>
+                <label style={labelStyle}>Lots</label>
+                {promo.lots.map((l, i) => (
+                  <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'12px',padding:'10px',marginBottom:'10px'}}>
+                    <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'6px'}}>
+                      <input value={l.nom} onChange={e => majLot(i,'nom',e.target.value)} placeholder="Lot (ex: Tablette Samsung)" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                      {promo.lots.length > 1 && <button type="button" onClick={() => setPromo(prev => ({...prev, lots: prev.lots.filter((_, idx) => idx !== i)}))} style={{border:'none',background:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>✕</button>}
+                    </div>
+                    <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
+                      <input value={l.detail || ''} onChange={e => majLot(i,'detail',e.target.value)} placeholder="Détail (ex: 128 Go, neuve)" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                      <label style={{width:'44px',height:'44px',borderRadius:'10px',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',fontSize:'20px',flexShrink:0}}>
+                        {l.photo ? <img src={l.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (uploadingPromo === 'lot-' + i ? '…' : '📷')}
+                        <input type="file" accept="image/*" onChange={e => uploadImagePromo('lot', i, e)} style={{display:'none'}}/>
+                      </label>
+                      {l.photo && <button type="button" onClick={() => majLot(i,'photo','')} style={{border:'none',background:'none',color:'#ef4444',cursor:'pointer',fontSize:'14px'}}>✕</button>}
+                    </div>
+                  </div>
+                ))}
+                {promo.lots.length < MAX_LOTS
+                  ? <button type="button" onClick={() => setPromo(prev => ({...prev, lots: [...prev.lots, { ...LOT_VIDE }]}))} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',fontWeight:700,fontSize:'12px',cursor:'pointer'}}>+ Ajouter un lot</button>
+                  : <p style={{fontSize:'11px',color:'#9ca3af',margin:0}}>Maximum atteint ({MAX_LOTS} lots).</p>}
+                <label style={{...labelStyle,marginTop:'16px'}}>Sponsors (nom et logo)</label>
+                {promo.sponsors.map((s, i) => (
+                  <div key={i} style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'8px'}}>
+                    <input value={s.nom} onChange={e => majSponsorPromo(i,'nom',e.target.value)} placeholder="Nom du sponsor" style={{...inputStyle,flex:1,padding:'8px'}}/>
+                    <label style={{width:'44px',height:'44px',borderRadius:'10px',border:'1px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',fontSize:'20px',flexShrink:0}}>
+                      {s.logo ? <img src={s.logo} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/> : (uploadingPromo === 'sponsor-' + i ? '…' : '🏢')}
+                      <input type="file" accept="image/*" onChange={e => uploadImagePromo('sponsor', i, e)} style={{display:'none'}}/>
+                    </label>
+                    {s.logo && <button type="button" onClick={() => majSponsorPromo(i,'logo','')} style={{border:'none',background:'none',color:'#ef4444',cursor:'pointer',fontSize:'14px'}}>✕</button>}
+                    {promo.sponsors.length > 1 && <button type="button" onClick={() => setPromo(prev => ({...prev, sponsors: prev.sponsors.filter((_, idx) => idx !== i)}))} style={{border:'none',background:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>✕</button>}
+                  </div>
+                ))}
+                {promo.sponsors.length < MAX_SPONSORS && <button type="button" onClick={() => setPromo(prev => ({...prev, sponsors: [...prev.sponsors, { ...SPONSOR_VIDE }]}))} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',fontWeight:700,fontSize:'12px',cursor:'pointer'}}>+ Ajouter un sponsor</button>}
               </div>
             )}
 

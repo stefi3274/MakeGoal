@@ -9,6 +9,8 @@ import { ligneContexte, DistinctionDetails } from './distinctions';
 import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
 import { NominationsDetails, nominesPublies } from './nominations';
+import { PromoDetails, Sponsor, lotsPublies, sponsorsPublies } from './promo';
+import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
 import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
@@ -41,7 +43,8 @@ export type VideoPost = {
   derniers_matchs?: DerniersMatchsDetails | null;
   journee_resultats?: JourneeDetails | null;
   nominations?: NominationsDetails | null;
-  quizz?: { titre: string; sport?: string | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
+  promo?: PromoDetails | null;
+  quizz?: { titre: string; sport?: string | null; duree_heures?: number | null; sponsors?: Sponsor[] | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
 };
 
@@ -111,6 +114,7 @@ export function typeVideo(p: VideoPost): string {
   if (p.gagnants?.gagnants?.length) return 'Gagnants';
   if (p.declaration?.citation) return 'Déclaration';
   if (p.parcours?.adversaires?.length) return 'Parcours';
+  if (p.promo && lotsPublies(p.promo.lots || []).length) return 'Promo';
   if (p.nominations && nominesPublies(p.nominations.nomines || []).length) return 'Nominations';
   if (p.journee_resultats && matchsJourneePublies(p.journee_resultats.matchs || []).length) return 'Résultats de la journée';
   if (p.derniers_matchs && derniersPublies(p.derniers_matchs.matchs || []).length) return 'Derniers matchs';
@@ -134,7 +138,12 @@ export function construireScenes(p: VideoPost): Scene[] {
     const tot = qz.questions.length;
     const basket = qz.sport === 'basketball';
     const badge = basket ? 'BASKETQUIZZ' : 'FOOTQUIZZ';
-    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: qz.titre, sous: tot + ' questions · 10 secondes chacune', pill: 'Une seule tentative · actif 24 h', icone: basket ? '🏀' : '🧠', duree: 3.4 });
+    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: qz.titre, sous: tot + ' questions · 10 secondes chacune', pill: 'Une seule tentative' + (qz.duree_heures ? ' · actif ' + qz.duree_heures + ' h' : ''), icone: basket ? '🏀' : '🧠', duree: 3.4 });
+    const spQ = sponsorsPublies(qz.sponsors);
+    if (spQ.length) {
+      const ls: Ligne[] = spQ.map(s => ({ label: s.nom || 'Sponsor', valeur: '', accent: '#fbbf24', ecusson: s.logo || undefined }));
+      pagesDeLignes(ls, 4).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'QUIZ', titre: 'Quizz offert par', lignes: pg, duree: dureeLignes(pg.length) }));
+    }
     qz.questions.forEach((q, i) => {
       const options = q.options.filter(o => (o.texte || '').trim());
       const bonne = q.bonne_reponse && options.some(o => o.cle === q.bonne_reponse) ? q.bonne_reponse : undefined;
@@ -230,6 +239,24 @@ export function construireScenes(p: VideoPost): Scene[] {
     const st = (suffixe: string) => [compet, avecSections ? suffixe : ''].filter(Boolean).join('  •  ') || undefined;
     pagesDeLignes(joues.map(lignesDe), 5).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, soustitre: st('Matchs joués'), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     pagesDeLignes(avenir.map(lignesDe), 5).forEach(pg => scenes.push({ k: 'lignes', badge: 'PARCOURS', fond: 'ROAD', titre: pc.equipe, soustitre: st('Matchs à venir'), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+  } else if (type === 'Promo') {
+    const pr = p.promo!;
+    const lots = lotsPublies(pr.lots);
+    const badge = 'PROMO';
+    const fin = formaterDatePromo(pr.fin);
+    scenes.push({ k: 'intro', badge, fond: 'NOM', titre: pr.accroche || (lots.length > 1 ? 'À gagner !' : 'À gagner : ' + lots[0].nom), sous: pr.quizz || undefined, pill: fin ? "JUSQU'AU " + majuscule(fin) : 'À GAGNER', icone: '🎁', duree: 3.6 });
+    const lignes: Ligne[] = lots.map(l => ({
+      label: l.nom, sous: l.detail || undefined, valeur: '', accent: '#e11d48', couleurSous: '#e9d5ff',
+      photo: l.photo || (lots.some(x => x.photo) ? PHOTO_ABSENTE : undefined),
+    }));
+    pagesDeLignes(lignes, 4).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'NOM', titre: lots.length > 1 ? 'Les lots à gagner' : 'Le lot à gagner', soustitre: pr.quizz || undefined, lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    const cond = (pr.conditions || '').trim();
+    if (cond || fin) scenes.push({ k: 'texte', badge, fond: 'NOM', texte: cond || 'Réponds au quizz sur MakeGoal et tente ta chance !', auteur: fin ? "Jusqu'au " + fin : undefined, sous: pr.quizz || undefined, duree: Math.min(9, 4 + cond.length / 40) });
+    const sp = sponsorsPublies(pr.sponsors);
+    if (sp.length) {
+      const ls: Ligne[] = sp.map(s => ({ label: s.nom || 'Sponsor', valeur: '', accent: '#fbbf24', ecusson: s.logo || undefined }));
+      pagesDeLignes(ls, 4).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'NOM', titre: 'Avec le soutien de', lignes: pg, duree: dureeLignes(pg.length) }));
+    }
   } else if (type === 'Nominations') {
     const nm = p.nominations!;
     const nomines = nominesPublies(nm.nomines);
