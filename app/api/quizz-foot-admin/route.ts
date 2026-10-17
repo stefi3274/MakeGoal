@@ -75,12 +75,12 @@ export async function POST(request: Request) {
   }
 
   const sponsors = sponsorsPublies((body?.sponsors || []).map(x => ({ nom: (x.nom || '').trim(), logo: x.logo || '' })));
-  const ligne = {
+  const ligne: Record<string, unknown> = {
     titre, sport, questions: propres, statut: 'ouvert',
     date_fermeture: new Date(Date.now() + duree * 3600 * 1000).toISOString(),
   };
   // La colonne « sponsors » n'est envoyée que s'il y en a : tant que le SQL n'est pas passé, rien ne casse.
-  let { error } = await supabaseAdmin.from('quizz_foot').insert(sponsors.length ? { ...ligne, sponsors } : ligne);
+  const { error } = await supabaseAdmin.from('quizz_foot').insert((sponsors.length ? { ...ligne, sponsors } : ligne) as never);
   if (error && sponsors.length && /sponsors/i.test(error.message)) {
     return Response.json({ error: "La colonne « sponsors » n'existe pas encore : lance d'abord le SQL fourni, puis recrée le quizz." }, { status: 500 });
   }
