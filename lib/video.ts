@@ -14,7 +14,7 @@ import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
 import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
-import { ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
+import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
 // ---------- Données d'entrée (compatible avec le type Article de l'admin) ----------
 export type VideoPost = {
@@ -329,6 +329,13 @@ export function construireScenes(p: VideoPost): Scene[] {
       { label: 'Buts marqués', valeur: b.b1 + '-' + b.b2, accent: '#ff7a00' },
     ];
     scenes.push({ k: 'lignes', badge, fond: 'VS', titre: 'Le bilan', lignes: bil, duree: dureeLignes(bil.length) });
+    if (prochainRempli(c.prochain)) {
+      const ap = affichageProchain(c);
+      const sousP = [formaterDate(c.prochain.date), c.prochain.competition].filter(Boolean).join('  •  ') || undefined;
+      const lp: Ligne = { match: avecVisuels({ a: ap.a, b: ap.b }, c.ecussons), label: ap.a + ' vs ' + ap.b, valeur: '', sous: sousP, accent: '#ff7a00', couleurSous: '#e9d5ff' };
+      scenes.push({ k: 'lignes', badge, fond: 'VS', titre: 'Le prochain match', lignes: [lp], duree: dureeLignes(1) + 0.8 });
+      scenes.push({ k: 'texte', badge, fond: 'VS', texte: MESSAGE_PRONOSTIC, sous: c.prochain.sansCadeaux ? undefined : MESSAGE_CADEAUX, duree: 5 });
+    }
   } else if (type === 'Élimination directe') {
     const e = p.elimination!;
     const titre = [e.tour, e.competition].filter(Boolean).join('  •  ');
@@ -1069,7 +1076,8 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
     const yb = y0 + total + 40;
     ctx.globalAlpha = alpha * easeOut((t - (s.duree - 1.5)) / 0.4);
     if (s.auteur) pill(ctx, majuscule(s.auteur), 540, yb + 40, 46, '#ff7a00', '#fff');
-    if (s.sous) texteIncline(ctx, majuscule(s.sous), 540, yb + 150, 34, '#e9d5ff', 'center', undefined, 940);
+    if (s.sous && s.sous.startsWith('🎁')) texteOr(ctx, majuscule(s.sous), 540, yb + 150, 38, 'center', 940);
+    else if (s.sous) texteIncline(ctx, majuscule(s.sous), 540, yb + 150, 34, '#e9d5ff', 'center', undefined, 940);
   }
 
   ctx.restore();

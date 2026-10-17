@@ -10,7 +10,7 @@ import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../.
 import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, CATEGORIES_NOMINATION, parserNominations, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, JOURNEE_VIDE, MATCH_JOURNEE_VIDE, MatchJournee, MAX_JOURNEE, JOURNEES, parserJournee, matchsJourneePublies, issueJournee } from '../../../lib/journee';
 import { libelleDerniers } from '../../../lib/derniersMatchs';
-import { libelleConfrontations } from '../../../lib/confrontations';
+import { libelleConfrontations, PROCHAIN_VIDE, prochainRempli } from '../../../lib/confrontations';
 import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_DERNIERS, parserDerniers, derniersPublies, issueDernier } from '../../../lib/derniersMatchs';
 import { ConfrontationsDetails, CONFRONTATIONS_VIDE, CONFRONTATION_VIDE, Confrontation, MAX_CONFRONTATIONS, parserConfrontations, matchsPublies, issueConf } from '../../../lib/confrontations';
 import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
@@ -534,7 +534,7 @@ export default function AdminMedia() {
   const appliquerTexteConf = () => {
     const r = parserConfrontations(texteConf);
     if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « 12/03/2022 | Gold Cup | Haïti 2-1 Cuba ».'); return; }
-    setConf(prev => ({ equipe1: r.details.equipe1 || prev.equipe1, equipe2: r.details.equipe2 || prev.equipe2, matchs: r.details.matchs, ecussons: prev.ecussons }));
+    setConf(prev => ({ equipe1: r.details.equipe1 || prev.equipe1, equipe2: r.details.equipe2 || prev.equipe2, matchs: r.details.matchs, ecussons: prev.ecussons, prochain: r.details.prochain || prev.prochain }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteDer = () => {
@@ -955,7 +955,7 @@ export default function AdminMedia() {
     setNomi(a.nominations && a.nominations.nomines?.length ? { categorie: a.nominations.categorie || '', edition: a.nominations.edition || '', nomines: a.nominations.nomines.map(n => ({ ...NOMINE_VIDE, ...n })) } : { ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] });
     setJour(a.journee_resultats && a.journee_resultats.matchs?.length ? { competition: a.journee_resultats.competition || '', journee: a.journee_resultats.journee || '', date: a.journee_resultats.date || '', matchs: a.journee_resultats.matchs.map(m => ({ ...MATCH_JOURNEE_VIDE, ...m })), ecussons: a.journee_resultats.ecussons || {} } : { ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] });
     setDer(a.derniers_matchs && a.derniers_matchs.matchs?.length ? { equipe: a.derniers_matchs.equipe || '', matchs: a.derniers_matchs.matchs.map(m => ({ ...DERNIER_VIDE, ...m })), ecussons: a.derniers_matchs.ecussons || {} } : { ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] });
-    setConf(a.confrontations && a.confrontations.matchs?.length ? { equipe1: a.confrontations.equipe1 || '', equipe2: a.confrontations.equipe2 || '', matchs: a.confrontations.matchs.map(m => ({ ...CONFRONTATION_VIDE, ...m })), ecussons: a.confrontations.ecussons || {} } : { ...CONFRONTATIONS_VIDE, matchs: [{ ...CONFRONTATION_VIDE }] });
+    setConf(a.confrontations && a.confrontations.matchs?.length ? { equipe1: a.confrontations.equipe1 || '', equipe2: a.confrontations.equipe2 || '', matchs: a.confrontations.matchs.map(m => ({ ...CONFRONTATION_VIDE, ...m })), ecussons: a.confrontations.ecussons || {}, prochain: a.confrontations.prochain || null } : { ...CONFRONTATIONS_VIDE, matchs: [{ ...CONFRONTATION_VIDE }] });
     setOnzeDetails(a.onze_details ? { ...ONZE_DETAILS_VIDES, ...a.onze_details } : ONZE_DETAILS_VIDES);
     if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze.map(j => ({ photo: '', ...j })));
     else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
@@ -1222,7 +1222,7 @@ export default function AdminMedia() {
       ...(modePost === 'nominations' ? { nominations: { categorie: nomi.categorie.trim(), edition: nomi.edition.trim(), nomines: nominesPublies(nomi.nomines).map(n => ({ nom: n.nom.trim(), equipe: n.equipe.trim(), pays: n.pays.trim(), note: n.note.trim(), photo: n.photo || '', ecusson: n.ecusson || '' })) } } : {}),
       ...(modePost === 'journee' ? { journee_resultats: { competition: jour.competition.trim(), journee: jour.journee.trim(), date: jour.date.trim(), matchs: matchsJourneePublies(jour.matchs).map(m => ({ equipe1: m.equipe1.trim(), equipe2: m.equipe2.trim(), score1: m.score1.trim(), score2: m.score2.trim() })), ecussons: ecussonsUtiles(jour.ecussons, equipesJour) } } : {}),
       ...(modePost === 'derniers' ? { derniers_matchs: { equipe: der.equipe.trim(), matchs: derniersPublies(der.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), adversaire: m.adversaire.trim(), score1: m.score1.trim(), score2: m.score2.trim(), exterieur: !!m.exterieur })), ecussons: ecussonsUtiles(der.ecussons, equipesDer) } } : {}),
-      ...(modePost === 'confrontations' ? { confrontations: { equipe1: conf.equipe1.trim(), equipe2: conf.equipe2.trim(), matchs: matchsPublies(conf.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), score1: m.score1.trim(), score2: m.score2.trim(), inverse: !!m.inverse })), ecussons: ecussonsUtiles(conf.ecussons, equipesConf) } } : {}),
+      ...(modePost === 'confrontations' ? { confrontations: { equipe1: conf.equipe1.trim(), equipe2: conf.equipe2.trim(), matchs: matchsPublies(conf.matchs).map(m => ({ date: m.date.trim(), competition: m.competition.trim(), score1: m.score1.trim(), score2: m.score2.trim(), inverse: !!m.inverse })), ecussons: ecussonsUtiles(conf.ecussons, equipesConf), ...(prochainRempli(conf.prochain) ? { prochain: { date: conf.prochain.date.trim(), competition: conf.prochain.competition.trim(), inverse: !!conf.prochain.inverse, sansCadeaux: !!conf.prochain.sansCadeaux } } : {}) } } : {}),
       ...(modePost === 'elimination' ? { elimination: { competition: elim.competition.trim(), tour: elim.tour.trim(), rencontres: elim.rencontres.filter(r => r.equipe1.trim() && r.equipe2.trim()) } } : {}),
       ...(modePost === 'onze' ? { onze_details: { categorie: onzeDetails.categorie.trim(), competition: onzeDetails.competition.trim(), periode: onzeDetails.periode.trim() } } : {}),
       ...(modePost === 'distinction' ? { distinction_details: { equipe: distEquipe.trim(), championnat: distChampionnat.trim(), periode: distPeriode.trim(), photo: distPhoto, pays: distPays.trim() } } : {})
@@ -2188,6 +2188,23 @@ export default function AdminMedia() {
                   ? <button type="button" onClick={() => setConf(prev => ({...prev, matchs: [...prev.matchs, { ...CONFRONTATION_VIDE }]}))} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un match</button>
                   : <p style={{fontSize:'11px',color:'#9ca3af',margin:0}}>Maximum atteint ({MAX_CONFRONTATIONS} matchs).</p>}
                 {blocEcussons('confrontations', equipesConf, conf.ecussons)}
+                <div style={{marginTop:'14px',padding:'12px',borderRadius:'12px',background:'#fff7ed',border:'1px solid #fed7aa'}}>
+                  <p style={{fontSize:'12px',fontWeight:800,margin:'0 0 4px',color:'#c2410c'}}>🔮 Prochain match (facultatif)</p>
+                  <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Ajoute à la fin de la vidéo le prochain match avec « Qui gagnera le prochain ? Dis-le-nous en commentaire » et le message cadeaux.</p>
+                  <div style={{display:'flex',gap:'6px',marginBottom:'6px'}}>
+                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test((conf.prochain || PROCHAIN_VIDE).date) ? (conf.prochain || PROCHAIN_VIDE).date : ''} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), date: e.target.value }}))} style={{...inputStyle,flex:1,padding:'8px'}}/>
+                    <input value={(conf.prochain || PROCHAIN_VIDE).competition} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), competition: e.target.value }}))} placeholder="Compétition (ex: LaLiga)" style={{...inputStyle,flex:2,padding:'8px'}}/>
+                  </div>
+                  <div style={{display:'flex',gap:'14px',alignItems:'center',flexWrap:'wrap'}}>
+                    <label style={{fontSize:'12px',color:'#d1d5db',display:'flex',gap:'6px',alignItems:'center',cursor:'pointer'}}>
+                      <input type="checkbox" checked={!!conf.prochain?.inverse} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), inverse: e.target.checked }}))}/> ⇄ {conf.equipe2 || 'Équipe 2'} reçoit
+                    </label>
+                    <label style={{fontSize:'12px',color:'#d1d5db',display:'flex',gap:'6px',alignItems:'center',cursor:'pointer'}}>
+                      <input type="checkbox" checked={!!conf.prochain?.sansCadeaux} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), sansCadeaux: e.target.checked }}))}/> Sans message cadeaux
+                    </label>
+                    {prochainRempli(conf.prochain) && <button type="button" onClick={() => setConf(prev => ({...prev, prochain: null}))} style={{border:'none',background:'none',color:'#ef4444',cursor:'pointer',fontSize:'12px'}}>✕ Retirer</button>}
+                  </div>
+                </div>
               </div>
             )}
 

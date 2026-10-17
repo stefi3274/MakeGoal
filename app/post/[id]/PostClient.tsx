@@ -17,7 +17,7 @@ import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib
 import { visuelEquipe } from '../../../lib/ecussons';
 import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
-import { ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
+import { prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -857,6 +857,20 @@ export default function PostPage() {
                       </div>
                     );
                   })}
+                  {prochainRempli(c.prochain) && (() => {
+                    const ap = affichageProchain(c);
+                    return (
+                      <div style={{marginTop:'14px',border:'2px dashed #fb923c',borderRadius:'14px',padding:'12px',background:'#fff7ed',textAlign:'center'}}>
+                        <div style={{fontSize:'11px',fontWeight:900,color:'#c2410c',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Le prochain match</div>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',fontSize:'16px',fontWeight:900,color:'#111'}}>
+                          {pastille(ap.a, c.ecussons)}<span>{ap.a}</span><span style={{color:'#bf00ff'}}>-</span><span>{ap.b}</span>{pastille(ap.b, c.ecussons)}
+                        </div>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',marginTop:'4px'}}>{[formaterDate(c.prochain.date), c.prochain.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{fontSize:'14px',fontWeight:900,color:'#7c3aed',marginTop:'8px'}}>{MESSAGE_PRONOSTIC}</div>
+                        {!c.prochain.sansCadeaux && <div style={{fontSize:'12px',fontWeight:800,color:'#be123c',marginTop:'4px'}}>{MESSAGE_CADEAUX}</div>}
+                      </div>
+                    );
+                  })()}
                   <p style={{textAlign:'center',fontSize:'11px',fontWeight:800,color:'#6b7280',margin:'6px 0 0'}}>Buts marqués : {c.equipe1} {b.b1} - {b.b2} {c.equipe2}</p>
                 </div>
               );

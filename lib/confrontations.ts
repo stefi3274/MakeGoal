@@ -4,7 +4,18 @@
 
 // inverse = true : c'est l'équipe 2 qui reçoit (elle s'affiche à gauche). score1 reste toujours celui de l'équipe 1.
 export type Confrontation = { date: string; competition: string; score1: string; score2: string; inverse?: boolean };
-export type ConfrontationsDetails = { equipe1: string; equipe2: string; matchs: Confrontation[]; ecussons?: Record<string, string> };
+// Prochain match entre les deux équipes (facultatif) : invite à pronostiquer en commentaire.
+// inverse = true : l'équipe 2 reçoit. sansCadeaux = true : pas de message « cadeaux à gagner ».
+export type ProchainMatch = { date: string; competition: string; inverse?: boolean; sansCadeaux?: boolean };
+export type ConfrontationsDetails = { equipe1: string; equipe2: string; matchs: Confrontation[]; ecussons?: Record<string, string>; prochain?: ProchainMatch | null };
+
+export const PROCHAIN_VIDE: ProchainMatch = { date: '', competition: '', inverse: false, sansCadeaux: false };
+export const prochainRempli = (p: ProchainMatch | null | undefined): p is ProchainMatch => !!p && ((p.date || '').trim() !== '' || (p.competition || '').trim() !== '');
+export const MESSAGE_PRONOSTIC = 'Qui gagnera le prochain ? Dis-nous en commentaire !';
+export const MESSAGE_CADEAUX = '🎁 Cadeaux à gagner parmi les bonnes réponses';
+export function affichageProchain(d: ConfrontationsDetails) {
+  return d.prochain?.inverse ? { a: d.equipe2, b: d.equipe1 } : { a: d.equipe1, b: d.equipe2 };
+}
 
 export const MAX_CONFRONTATIONS = 10;
 export const CONFRONTATION_VIDE: Confrontation = { date: '', competition: '', score1: '', score2: '', inverse: false };
@@ -99,15 +110,24 @@ export const matchsPublies = (matchs: Confrontation[]) => matchs.filter(matchVal
 //   Haïti vs Cuba                                   (1re ligne facultative : les deux équipes)
 //   12/03/2022 | Gold Cup | Haïti 2-1 Cuba
 //   2019 - Éliminatoires - Cuba 0-0 Haïti
+//   Prochain : 25/10/2026 | Gold Cup               (facultatif : date | compétition du prochain match)
 // Si les équipes sont données, le score est automatiquement orienté vers l'équipe 1.
 export function parserConfrontations(texte: string): { details: ConfrontationsDetails; ignorees: string[] } {
   const lignes = (texte || '').split('\n').map(l => l.trim()).filter(Boolean);
   const matchs: Confrontation[] = [];
   const ignorees: string[] = [];
   let equipe1 = '', equipe2 = '';
+  let prochain: ProchainMatch | null = null;
   const RE_SCORE = /^(.+?)\s+(\d+)\s*[-–:]\s*(\d+)\s+(.+)$/;
   const nn = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
   lignes.forEach((brut, idx) => {
+    // « Prochain : 25/10/2026 | LaLiga » (date | compétition)
+    const mPro = brut.match(/^prochain(?:\s+match)?\s*[:=]\s*(.+)$/i);
+    if (mPro) {
+      const p = mPro[1].split(/\s*\|\s*/).map(s => s.trim());
+      prochain = { date: normaliserDate(p[0] || ''), competition: p[1] || '', inverse: false, sansCadeaux: false };
+      return;
+    }
     const segs = brut.split(/\s*\|\s*|\s+[-–—]\s+/).map(s => s.trim()).filter(Boolean);
     const nett = nettoyerFinLigne(segs[segs.length - 1] || '');
     const dernier = nett.texte;
@@ -130,5 +150,5 @@ export function parserConfrontations(texte: string): { details: ConfrontationsDe
     const competition = competition0 + (nett.mention ? (competition0 ? ' ' : '') + '(' + nett.mention + ')' : '');
     matchs.push({ date, competition, score1: sa, score2: sb, inverse: gaucheEst2 || droiteEst1 });
   });
-  return { details: { equipe1, equipe2, matchs: matchs.slice(0, MAX_CONFRONTATIONS) }, ignorees };
+  return { details: { equipe1, equipe2, matchs: matchs.slice(0, MAX_CONFRONTATIONS), ...(prochain ? { prochain } : {}) }, ignorees };
 }
