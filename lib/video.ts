@@ -13,6 +13,7 @@ import { PromoDetails, Sponsor, lotsPublies, sponsorsPublies } from './promo';
 import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
+import { adversaireAGauche } from './lieu';
 import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
 import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
@@ -33,7 +34,7 @@ export type VideoPost = {
   matchs_jour?: { equipe1: string; equipe2: string; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details?: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps?: { quart: string; score1: string; score2: string }[] | null;
-  parcours?: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
+  parcours?: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string; exterieur?: boolean }[] } | null;
   declaration?: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
   invitation_concours?: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants?: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
@@ -228,7 +229,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     const joue = (a: typeof pc.adversaires[number]) => a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe != null && a.scoreAdversaire != null;
     const lignesDe = (a: typeof pc.adversaires[number]): Ligne => {
       const sousTxt = [a.label, a.date].filter(Boolean).join('  •  ') || undefined;
-      const base = { match: avecVisuels({ a: pc.equipe, b: a.nom, sa: joue(a) ? a.scoreEquipe : undefined, sb: joue(a) ? a.scoreAdversaire : undefined }), label: pc.equipe + ' vs ' + a.nom, valeur: '', sous: sousTxt, couleurSous: '#e9d5ff' };
+      const base = { match: avecVisuels(adversaireAGauche(p.sport, a.exterieur) ? { a: a.nom, b: pc.equipe, sa: joue(a) ? a.scoreAdversaire : undefined, sb: joue(a) ? a.scoreEquipe : undefined } : { a: pc.equipe, b: a.nom, sa: joue(a) ? a.scoreEquipe : undefined, sb: joue(a) ? a.scoreAdversaire : undefined }), label: pc.equipe + ' vs ' + a.nom, valeur: '', sous: sousTxt, couleurSous: '#e9d5ff' };
       if (!joue(a)) return { ...base, accent: '#9ca3af' };
       const x = parseInt(a.scoreEquipe, 10), y = parseInt(a.scoreAdversaire, 10);
       return { ...base, accent: accentIssue(x > y ? 'G' : x < y ? 'P' : 'N') };
@@ -289,7 +290,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     const badge = 'DERNIERS MATCHS';
     scenes.push({ k: 'intro', badge, fond: 'FORM', titre: d.equipe, sous: avecDrapeau(d.equipe, '') || undefined, photo: visuelEquipe(d.equipe, d.ecussons).url, pill: majuscule(libelleDerniers(matchs.length)), initiale: ((d.equipe || '?').trim()[0] || '?').toUpperCase(), duree: 3.4 });
     const lignes: Ligne[] = matchs.map(m => ({
-      match: avecVisuels(affichageDernier(d.equipe, m), d.ecussons),
+      match: avecVisuels(affichageDernier(d.equipe, m, p.sport), d.ecussons),
       label: d.equipe + ' vs ' + m.adversaire,
       sous: [formaterDate(m.date), m.competition].filter(Boolean).join('  •  ') || undefined,
       valeur: '', accent: accentIssue(issueDernier(m) as Issue), couleurSous: '#e9d5ff',
@@ -624,7 +625,9 @@ function imageCarree(ctx: Ctx, img: HTMLImageElement | null, x: number, y: numbe
     if (img) {
       const s = Math.max(c / img.width, c / img.height);
       const w = img.width * s, h = img.height * s;
-      ctx.drawImage(img, x + (c - w) / 2, y + (c - h) / 2, w, h);
+      // Photo longue (portrait) : on garde le haut (visage) plutôt que le centre.
+      const hautGarde = img.height > img.width * 1.1 ? 0.15 : 0.5;
+      ctx.drawImage(img, x + (c - w) / 2, y + (c - h) * hautGarde, w, h);
     } else {
       ctx.fillStyle = '#3b1a8a'; ctx.fillRect(x, y, c, c);
       ctx.fillStyle = '#fff'; ctx.font = `italic 900 56px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -670,7 +673,10 @@ function halo(ctx: Ctx, cx: number, cy: number, r: number, t: number, photo: str
     ctx.setTransform(base);
     ctx.clip();
     const s = Math.max(w / img.width, h / img.height);
-    ctx.drawImage(img, -img.width * s / 2, -img.height * s / 2, img.width * s, img.height * s);
+    // Photo longue (portrait) : on garde le haut (visage) plutôt que le centre.
+    const surplus = Math.max(0, img.height * s - h);
+    const decalage = img.height > img.width * 1.1 ? surplus * 0.35 : 0;
+    ctx.drawImage(img, -img.width * s / 2, -img.height * s / 2 + decalage, img.width * s, img.height * s);
     ctx.restore();
   } else {
     ctx.save();
@@ -1224,6 +1230,8 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   canvas.width = Math.round(LARGEUR * echelle); canvas.height = Math.round(HAUTEUR * echelle);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas indisponible.');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high'; // photos réduites sans perte visible de qualité
   const statique = fondStatique();
 
   const resultats: PartieVideo[] = [];

@@ -89,7 +89,7 @@ type Post = {
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
   quarts_temps: { quart: string; score1: string; score2: string }[] | null;
-  parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string }[] } | null;
+  parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string; exterieur?: boolean }[] } | null;
   declaration: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
@@ -414,6 +414,7 @@ export default function PostPage() {
                       {a.label && <span style={{fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 7px',borderRadius:'999px',marginRight:'9px',flexShrink:0}}>{a.label}</span>}
                       <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'7px'}}>
                         <span style={{fontWeight:900,color:'#0a0a0a',fontSize:'16px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</span>
+                        {a.exterieur && <span style={{fontSize:'9px',fontWeight:900,color:'#c2410c',background:'#ffedd5',padding:'1px 6px',borderRadius:'999px',whiteSpace:'nowrap'}}>EXT.</span>}
                         {a.date && <span style={{fontSize:'10.5px',color:'#9ca3af',fontWeight:600,whiteSpace:'nowrap'}}>{a.date}</span>}
                       </div>
                       <div style={{fontWeight:900,fontSize:'15px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap',marginLeft:'8px'}}>
@@ -800,7 +801,7 @@ export default function PostPage() {
                   <p style={{textAlign:'center',fontSize:'12px',fontWeight:800,color:'#374151',margin:'0 0 12px'}}>{b.v} V · {b.n} N · {b.d} D  |  Buts {b.bp}-{b.bc}</p>
                   {ms.map((m, i) => {
                     const is = issueDernier(m);
-                    const af = affichageDernier(d.equipe, m);
+                    const af = affichageDernier(d.equipe, m, post.sport);
                     const gaucheGagne = Number(af.sa) > Number(af.sb), droiteGagne = Number(af.sb) > Number(af.sa);
                     const cg = gaucheGagne ? '#16a34a' : droiteGagne ? '#dc2626' : '#7c3aed';
                     const cd = droiteGagne ? '#16a34a' : gaucheGagne ? '#dc2626' : '#7c3aed';

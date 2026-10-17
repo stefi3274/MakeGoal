@@ -6,12 +6,14 @@ import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport
 import AdminAuth from '../../../components/AdminAuth';
 import { PromoDetails, PROMO_VIDE, LOT_VIDE, SPONSOR_VIDE, Lot, Sponsor, MAX_LOTS, MAX_SPONSORS, parserPromo, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { listePays } from '../../../lib/formations';
+import { redimensionnerImage } from '../../../lib/images';
+import { extraireLieu, adversaireAGauche } from '../../../lib/lieu';
 import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../../../lib/ecussons';
 import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, CATEGORIES_NOMINATION, parserNominations, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, JOURNEE_VIDE, MATCH_JOURNEE_VIDE, MatchJournee, MAX_JOURNEE, JOURNEES, parserJournee, matchsJourneePublies, issueJournee } from '../../../lib/journee';
 import { libelleDerniers } from '../../../lib/derniersMatchs';
 import { libelleConfrontations, PROCHAIN_VIDE, prochainRempli } from '../../../lib/confrontations';
-import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_DERNIERS, parserDerniers, derniersPublies, issueDernier } from '../../../lib/derniersMatchs';
+import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_DERNIERS, parserDerniers, derniersPublies, issueDernier, affichageDernier } from '../../../lib/derniersMatchs';
 import { ConfrontationsDetails, CONFRONTATIONS_VIDE, CONFRONTATION_VIDE, Confrontation, MAX_CONFRONTATIONS, parserConfrontations, matchsPublies, issueConf } from '../../../lib/confrontations';
 import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
 import { genererVideos, typeVideo } from '../../../lib/video';
@@ -46,7 +48,7 @@ type Match = {
   date_match: string; score_home: number | null; score_away: number | null;
 };
 
-type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string };
+type AdversaireParcours = { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string; exterieur?: boolean };
 type Parcours = { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] };
 type Declaration = { nom: string; fonction: string; citation: string; contexte: string; pays?: string };
 type MatchInvitation = { equipe1: string; equipe2: string };
@@ -423,7 +425,9 @@ export default function AdminMedia() {
   const retirerGagnant = (i: number) => setGGagnants(prev => prev.filter((_, idx) => idx !== i));
 
   const parserLigneAdversaire = (l: string): AdversaireParcours => {
-    const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
+    // Marqueur facultatif : (E) ou « extérieur » = l'équipe joue à l'extérieur, (D) ou « domicile » = à domicile.
+    const { lieu, texte } = extraireLieu(l);
+    const parts = texte.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
     const score = parts[3] || '';
     const scoreParts = score.split('-').map(p => p.trim());
     return {
@@ -431,7 +435,8 @@ export default function AdminMedia() {
       label: parts[1] || '',
       date: parts[2] || '',
       scoreEquipe: scoreParts.length === 2 ? scoreParts[0] : '',
-      scoreAdversaire: scoreParts.length === 2 ? scoreParts[1] : ''
+      scoreAdversaire: scoreParts.length === 2 ? scoreParts[1] : '',
+      exterieur: lieu === 'ext'
     };
   };
 
@@ -538,7 +543,7 @@ export default function AdminMedia() {
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteDer = () => {
-    const r = parserDerniers(texteDer);
+    const r = parserDerniers(texteDer, sportForm);
     if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « 12/03/2022 | Gold Cup | Haïti 2-1 Cuba ».'); return; }
     setDer(prev => ({ equipe: r.details.equipe || prev.equipe, matchs: r.details.matchs, ecussons: prev.ecussons }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
@@ -797,23 +802,6 @@ export default function AdminMedia() {
 
   // Réduit la photo (max 1200 px) avant l'envoi : téléversement rapide sur téléphone,
   // et largement assez net pour l'affichage et les vidéos.
-  const redimensionnerImage = (file: File, max = 1200, png = false): Promise<Blob> => new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const ratio = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * ratio);
-      c.height = Math.round(img.height * ratio);
-      const ctx = c.getContext('2d');
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('canvas indisponible')); return; }
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      c.toBlob(b => (b ? resolve(b) : reject(new Error('conversion impossible'))), png ? 'image/png' : 'image/jpeg', 0.92);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image illisible')); };
-    img.src = url;
-  });
 
   const uploadPhotoJoueur = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1486,7 +1474,7 @@ export default function AdminMedia() {
                 {lotParcoursOuvert && (
                   <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post "Parcours" par équipe, en une fois. Un bloc par équipe, séparé par une ligne vide.</p>
-                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>1ère ligne du bloc : "Équipe - Compétition - Poule (optionnel)". Puis une ligne par adversaire : "Adversaire - Étiquette (optionnel) - Date (optionnel) - Score (optionnel, ex: 3-1)".</p>
+                    <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>1ère ligne du bloc : "Équipe - Compétition - Poule (optionnel)". Puis une ligne par adversaire : "Adversaire - Étiquette (optionnel) - Date (optionnel) - Score (optionnel, ex: 3-1)". Ajoute (E) en fin de ligne si l'équipe joue à l'extérieur.</p>
                     <textarea value={texteLotParcours} onChange={e => setTexteLotParcours(e.target.value)} rows={12} placeholder={"Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct.\n\nBarcelone - Ligue des Champions - Phase ligue\nPSG - J1 - 17 sept.\nBayern Munich - J2 - 30 sept. - 2-2"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={creerParcoursEnLot} disabled={importLotParcours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotParcours ? '⏳ Création...' : '🚀 Créer tous les parcours'}</button>
                   </div>
@@ -1516,6 +1504,7 @@ export default function AdminMedia() {
                       <span style={{color:'#6b7280',alignSelf:'center'}}>-</span>
                       <input value={a.scoreAdversaire} onChange={e => modifierAdversaire(i,'scoreAdversaire',e.target.value)} placeholder="Score" style={{...inputStyle,width:'55px',padding:'8px',textAlign:'center'}}/>
                     </div>
+                    <button type="button" onClick={() => setPAdversaires(prev => prev.map((x, idx) => idx === i ? { ...x, exterieur: !x.exterieur } : x))} style={{marginTop:'8px',padding:'5px 12px',borderRadius:'999px',border:'1px solid ' + (a.exterieur ? '#ea580c' : '#16a34a'),background:'transparent',color:a.exterieur ? '#fb923c' : '#4ade80',cursor:'pointer',fontSize:'11px',fontWeight:800}}>{a.exterieur ? '✈️ À l\'extérieur' : '🏠 À domicile'} (toucher pour changer)</button>
                   </div>
                 ))}
                 <button type="button" onClick={ajouterAdversaire} style={{padding:'8px 16px',borderRadius:'999px',border:'1px dashed #555',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>+ Ajouter un adversaire</button>
@@ -2115,12 +2104,13 @@ export default function AdminMedia() {
                 <input list="liste-pays" value={der.equipe} onChange={e => setDer({...der, equipe: e.target.value})} placeholder="Équipe (ex: Haïti)" style={{...inputStyle,marginBottom:'12px'}}/>
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les matchs d'un coup</summary>
-                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : l'équipe. Puis une ligne par match, du plus récent au plus ancien : « date | compétition | Équipe 2-1 Adversaire ».</p>
-                  <textarea value={texteDer} onChange={e => setTexteDer(e.target.value)} rows={8} placeholder={'Haïti\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba\n05/09/2019 | Amical | Panama 0-0 Haïti'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : l'équipe. Puis une ligne par match, du plus récent au plus ancien : « date | compétition | Équipe 2-1 Adversaire ». Le score suit les noms. Football : l'équipe qui reçoit est écrite à gauche (équipe à droite = à l'extérieur). Basketball : c'est l'inverse, le visiteur est écrit à gauche. Tu peux aussi ajouter (D) domicile ou (E) extérieur en fin de ligne.</p>
+                  <textarea value={texteDer} onChange={e => setTexteDer(e.target.value)} rows={8} placeholder={'Haïti\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba (D)\n05/09/2019 | Amical | Panama 0-0 Haïti\n01/06/2019 | Amical | Haïti 1-1 Cuba (E)'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteDer} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 {der.matchs.map((m, i) => {
                   const is = issueDernier(m);
+                  const advGauche = adversaireAGauche(sportForm, m.exterieur);
                   return (
                     <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'12px',padding:'10px',marginBottom:'10px'}}>
                       <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'6px'}}>
@@ -2129,17 +2119,17 @@ export default function AdminMedia() {
                         {der.matchs.length > 1 && <button type="button" onClick={() => setDer(prev => ({...prev, matchs: prev.matchs.filter((_, idx) => idx !== i)}))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'16px'}}>🗑️</button>}
                       </div>
                       <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
-                        {m.exterieur
+                        {advGauche
                           ? <input list="liste-pays" value={m.adversaire} onChange={e => majDer(i,'adversaire',e.target.value)} placeholder="Adversaire" style={{...inputStyle,flex:1,padding:'8px'}}/>
                           : <span style={{flex:1,fontSize:'12px',fontWeight:800,color:'#e5e7eb',textAlign:'right'}}>{der.equipe || 'Équipe'}</span>}
-                        <input value={m.exterieur ? m.score2 : m.score1} onChange={e => majDer(i, m.exterieur ? 'score2' : 'score1', e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'52px',padding:'8px',textAlign:'center'}}/>
-                        <input value={m.exterieur ? m.score1 : m.score2} onChange={e => majDer(i, m.exterieur ? 'score1' : 'score2', e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'52px',padding:'8px',textAlign:'center'}}/>
-                        {m.exterieur
+                        <input value={advGauche ? m.score2 : m.score1} onChange={e => majDer(i, advGauche ? 'score2' : 'score1', e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'52px',padding:'8px',textAlign:'center'}}/>
+                        <input value={advGauche ? m.score1 : m.score2} onChange={e => majDer(i, advGauche ? 'score1' : 'score2', e.target.value)} inputMode="numeric" placeholder="-" style={{...inputStyle,width:'52px',padding:'8px',textAlign:'center'}}/>
+                        {advGauche
                           ? <span style={{flex:1,fontSize:'12px',fontWeight:800,color:'#e5e7eb'}}>{der.equipe || 'Équipe'}</span>
                           : <input list="liste-pays" value={m.adversaire} onChange={e => majDer(i,'adversaire',e.target.value)} placeholder="Adversaire" style={{...inputStyle,flex:1,padding:'8px'}}/>}
                       </div>
-                      <button type="button" onClick={() => setDer(prev => ({...prev, matchs: prev.matchs.map((x, idx) => idx === i ? { ...x, exterieur: !x.exterieur } : x)}))} style={{marginTop:'8px',padding:'5px 12px',borderRadius:'999px',border:'1px solid #555',background:'transparent',color:'#d1d5db',cursor:'pointer',fontSize:'11px',fontWeight:700}}>⇄ {m.exterieur ? 'À l\'extérieur' : 'À domicile'} (toucher pour inverser)</button>
-                      <p style={{fontSize:'10px',margin:'6px 0 0',fontWeight:700,color:is === 'G' ? '#10b981' : is === 'P' ? '#ef4444' : is === 'N' ? '#bf00ff' : '#9ca3af'}}>{is === 'G' ? 'Victoire' : is === 'P' ? 'Défaite' : is === 'N' ? 'Match nul' : 'Score à compléter'}</p>
+                      <button type="button" onClick={() => setDer(prev => ({...prev, matchs: prev.matchs.map((x, idx) => idx === i ? { ...x, exterieur: !x.exterieur } : x)}))} style={{marginTop:'8px',padding:'6px 14px',borderRadius:'999px',border:'1px solid ' + (m.exterieur ? '#ea580c' : '#16a34a'),background:'transparent',color:m.exterieur ? '#fb923c' : '#4ade80',cursor:'pointer',fontSize:'12px',fontWeight:800}}>{m.exterieur ? '✈️ ' + (der.equipe || 'Équipe') + ' joue à l\'extérieur' : '🏠 ' + (der.equipe || 'Équipe') + ' joue à domicile'} (toucher pour changer)</button>
+                      <p style={{fontSize:'10px',margin:'6px 0 0',fontWeight:700,color:is === 'G' ? '#10b981' : is === 'P' ? '#ef4444' : is === 'N' ? '#bf00ff' : '#9ca3af'}}>{is === 'G' ? 'Victoire' : is === 'P' ? 'Défaite' : is === 'N' ? 'Match nul' : 'Score à compléter'}{m.adversaire.trim() && is ? ' · Affichage : ' + (() => { const af = affichageDernier(der.equipe, m, sportForm); return af.a + ' ' + af.sa + ' - ' + af.sb + ' ' + af.b; })() : ''}</p>
                     </div>
                   );
                 })}
@@ -2197,7 +2187,7 @@ export default function AdminMedia() {
                   </div>
                   <div style={{display:'flex',gap:'14px',alignItems:'center',flexWrap:'wrap'}}>
                     <label style={{fontSize:'12px',color:'#d1d5db',display:'flex',gap:'6px',alignItems:'center',cursor:'pointer'}}>
-                      <input type="checkbox" checked={!!conf.prochain?.inverse} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), inverse: e.target.checked }}))}/> ⇄ {conf.equipe2 || 'Équipe 2'} reçoit
+                      <input type="checkbox" checked={!!conf.prochain?.inverse} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), inverse: e.target.checked }}))}/> ⇄ {conf.equipe2 || 'Équipe 2'} s'affiche à gauche
                     </label>
                     <label style={{fontSize:'12px',color:'#d1d5db',display:'flex',gap:'6px',alignItems:'center',cursor:'pointer'}}>
                       <input type="checkbox" checked={!!conf.prochain?.sansCadeaux} onChange={e => setConf(prev => ({...prev, prochain: { ...PROCHAIN_VIDE, ...(prev.prochain || {}), sansCadeaux: e.target.checked }}))}/> Sans message cadeaux
