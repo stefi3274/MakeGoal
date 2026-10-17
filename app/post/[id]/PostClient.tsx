@@ -13,9 +13,10 @@ import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/forma
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
 import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
+import { visuelEquipe } from '../../../lib/ecussons';
 import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
-import { DerniersMatchsDetails, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
-import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
+import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
+import { ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
 
 const VIOLET = '#bf00ff';
 // Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
@@ -99,6 +100,14 @@ type Post = {
 type Commentaire = {
   id: string; user_id: string; contenu: string; created_at: string;
   username: string; likes: number; likedByMe: boolean;
+};
+
+// Écusson du club, ou drapeau si c'est une sélection nationale (rien si inconnu).
+const pastille = (nom: string, ecussons?: Record<string, string>) => {
+  const v = visuelEquipe(nom, ecussons);
+  if (v.url) return <img src={v.url} alt="" style={{width:'30px',height:'30px',objectFit:'contain',flexShrink:0}} />;
+  if (v.drapeau) return <span style={{fontSize:'24px',lineHeight:1,flexShrink:0}}>{v.drapeau}</span>;
+  return null;
 };
 
 export default function PostPage() {
@@ -722,9 +731,9 @@ export default function PostPage() {
                     const c2 = is === 'P' ? '#16a34a' : is === 'G' ? '#dc2626' : '#111';
                     return (
                       <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'12px 10px',marginBottom:'8px',background:'#fff'}}>
-                        <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:c1,lineHeight:1.2}}>{drapeau(m.equipe1) !== '🏳️' ? drapeau(m.equipe1) + ' ' : ''}{m.equipe1}</span>
+                        <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:c1,lineHeight:1.2}}>{m.equipe1}</span>{pastille(m.equipe1, j.ecussons)}
                         <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{m.score1.trim()} - {m.score2.trim()}</span>
-                        <span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:c2,lineHeight:1.2}}>{m.equipe2}{drapeau(m.equipe2) !== '🏳️' ? ' ' + drapeau(m.equipe2) : ''}</span>
+                        {pastille(m.equipe2, j.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:c2,lineHeight:1.2}}>{m.equipe2}</span>
                       </div>
                     );
                   })}
@@ -741,7 +750,7 @@ export default function PostPage() {
               return (
                 <div style={{margin:'8px 0 24px'}}>
                   <div style={{textAlign:'center',marginBottom:'12px'}}>
-                    <div style={{fontSize:'12px',fontWeight:900,color:'#0891b2',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Ses {ms.length} derniers matchs</div>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#0891b2',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>{libelleDerniers(ms.length)}</div>
                     <div style={{fontSize:'20px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{dr !== '🏳️' ? dr + ' ' : ''}{d.equipe}</div>
                   </div>
                   <div style={{display:'flex',justifyContent:'center',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}}>
@@ -750,14 +759,18 @@ export default function PostPage() {
                   <p style={{textAlign:'center',fontSize:'12px',fontWeight:800,color:'#374151',margin:'0 0 12px'}}>{b.v} V · {b.n} N · {b.d} D  |  Buts {b.bp}-{b.bc}</p>
                   {ms.map((m, i) => {
                     const is = issueDernier(m);
-                    const adr = drapeau(m.adversaire);
+                    const af = affichageDernier(d.equipe, m);
+                    const gaucheGagne = Number(af.sa) > Number(af.sb), droiteGagne = Number(af.sb) > Number(af.sa);
+                    const cg = gaucheGagne ? '#16a34a' : droiteGagne ? '#dc2626' : '#7c3aed';
+                    const cd = droiteGagne ? '#16a34a' : gaucheGagne ? '#dc2626' : '#7c3aed';
                     return (
-                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:'15px',fontWeight:900,color:'#111',lineHeight:1.2}}>{adr !== '🏳️' ? adr + ' ' : ''}{m.adversaire}</div>
-                          <div style={{fontSize:'11px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{[formaterDate(m.date), m.competition].filter(Boolean).join(' · ')}</div>
+                      <div key={i} style={{border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',textAlign:'center',lineHeight:1.3,marginBottom:'6px'}}>{[formaterDate(m.date), m.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:cg,lineHeight:1.2}}>{af.a}</span>{pastille(af.a, d.ecussons)}
+                          <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{af.sa} - {af.sb}</span>
+                          {pastille(af.b, d.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:cd,lineHeight:1.2}}>{af.b}</span>
                         </div>
-                        <div style={{fontWeight:900,fontSize:'26px',color:'#000',whiteSpace:'nowrap',lineHeight:1}}>{m.score1.trim()}-{m.score2.trim()}</div>
                       </div>
                     );
                   })}
@@ -774,7 +787,7 @@ export default function PostPage() {
               return (
                 <div style={{margin:'8px 0 24px'}}>
                   <div style={{textAlign:'center',marginBottom:'14px'}}>
-                    <div style={{fontSize:'12px',fontWeight:900,color:'#7c3aed',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Confrontations dans le passé</div>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#7c3aed',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Confrontations dans le passé · {libelleConfrontations(ms.length).toLowerCase()}</div>
                     <div style={{fontSize:'18px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{d1 !== '🏳️' ? d1 + ' ' : ''}{c.equipe1} <span style={{color:'#bf00ff'}}>vs</span> {c.equipe2}{d2 !== '🏳️' ? ' ' + d2 : ''}</div>
                   </div>
                   <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
@@ -787,14 +800,19 @@ export default function PostPage() {
                   </div>
                   {ms.map((m, i) => {
                     const is = issueConf(m);
+                    const af = affichageConf(c, m);
+                    // vert = gagnant, rouge = perdant, violet = nul (équipe qui reçoit à gauche)
+                    const gaucheGagne = Number(af.sa) > Number(af.sb), droiteGagne = Number(af.sb) > Number(af.sa);
+                    const cg = gaucheGagne ? '#16a34a' : droiteGagne ? '#dc2626' : '#7c3aed';
+                    const cd = droiteGagne ? '#16a34a' : gaucheGagne ? '#dc2626' : '#7c3aed';
                     return (
-                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:'14px',fontWeight:900,color:'#111',lineHeight:1.2}}>{formaterDate(m.date) || 'Date inconnue'}</div>
-                          {m.competition && <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{m.competition}</div>}
-                          <div style={{fontSize:'11px',fontWeight:900,color:coul(is),marginTop:'2px'}}>{is === 'G' ? 'Victoire ' + c.equipe1 : is === 'P' ? 'Victoire ' + c.equipe2 : 'Match nul'}</div>
+                      <div key={i} style={{border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',textAlign:'center',lineHeight:1.3,marginBottom:'6px'}}>{[formaterDate(m.date) || 'Date inconnue', m.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:cg,lineHeight:1.2}}>{af.a}</span>{pastille(af.a, c.ecussons)}
+                          <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{af.sa} - {af.sb}</span>
+                          {pastille(af.b, c.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:cd,lineHeight:1.2}}>{af.b}</span>
                         </div>
-                        <div style={{fontWeight:900,fontSize:'26px',color:'#000',whiteSpace:'nowrap',lineHeight:1}}>{m.score1.trim()}-{m.score2.trim()}</div>
                       </div>
                     );
                   })}

@@ -10,8 +10,9 @@ import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
 import { NominationsDetails, nominesPublies } from './nominations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
-import { DerniersMatchsDetails, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
-import { ConfrontationsDetails, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
+import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
+import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
+import { ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
 // ---------- Données d'entrée (compatible avec le type Article de l'admin) ----------
 export type VideoPost = {
@@ -46,7 +47,7 @@ export type VideoPost = {
 
 // ---------- Scènes ----------
 type Issue = 'G' | 'P' | 'N';
-type MatchLigne = { a: string; b: string; sa?: string; sb?: string };
+type MatchLigne = { a: string; b: string; sa?: string; sb?: string; va?: VisuelEquipe; vb?: VisuelEquipe };
 type Ligne = { photo?: string; ecusson?: string; cols?: [string, string, string]; match?: MatchLigne; label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
 type Morceau = { t: string; c: string; o?: string };
 type Duo = { nom: string; sous?: string; photo?: string; initiale: string };
@@ -78,6 +79,8 @@ const ombreIssue = (i: Issue | undefined) => (i === 'G' ? '#052e16' : i === 'P' 
 const accentIssue = (i: Issue | undefined) => (i === 'G' ? '#22c55e' : i === 'P' ? '#ef4444' : VIOLET_NUL);
 const normNom = (x: string | null | undefined) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const minuteNum = (m: string) => { const r = (m || '').match(/(\d+)(?:\s*\+\s*(\d+))?/); return r ? Number(r[1]) + (r[2] ? Number(r[2]) / 100 : 0) : 999; };
+// Ajoute l'écusson (ou le drapeau d'une sélection) de chaque équipe d'un match.
+const avecVisuels = (m: MatchLigne, ec?: Ecussons | null): MatchLigne => ({ ...m, va: visuelEquipe(m.a, ec), vb: visuelEquipe(m.b, ec) });
 const avecDrapeau = (pays: string | undefined | null, texte: string) => {
   const d = pays ? drapeau(pays) : '';
   return d && d !== '🏳️' ? (texte ? d + '  ' + texte : d) : texte;
@@ -216,7 +219,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     const joue = (a: typeof pc.adversaires[number]) => a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe != null && a.scoreAdversaire != null;
     const lignesDe = (a: typeof pc.adversaires[number]): Ligne => {
       const sousTxt = [a.label, a.date].filter(Boolean).join('  •  ') || undefined;
-      const base = { match: { a: pc.equipe, b: a.nom, sa: joue(a) ? a.scoreEquipe : undefined, sb: joue(a) ? a.scoreAdversaire : undefined }, label: pc.equipe + ' vs ' + a.nom, valeur: '', sous: sousTxt, couleurSous: '#e9d5ff' };
+      const base = { match: avecVisuels({ a: pc.equipe, b: a.nom, sa: joue(a) ? a.scoreEquipe : undefined, sb: joue(a) ? a.scoreAdversaire : undefined }), label: pc.equipe + ' vs ' + a.nom, valeur: '', sous: sousTxt, couleurSous: '#e9d5ff' };
       if (!joue(a)) return { ...base, accent: '#9ca3af' };
       const x = parseInt(a.scoreEquipe, 10), y = parseInt(a.scoreAdversaire, 10);
       return { ...base, accent: accentIssue(x > y ? 'G' : x < y ? 'P' : 'N') };
@@ -250,21 +253,21 @@ export function construireScenes(p: VideoPost): Scene[] {
     const dateTxt = formaterDate(j.date);
     const badge = 'RÉSULTATS';
     scenes.push({ k: 'intro', badge, fond: 'FT', titre: j.competition || 'Résultats', sous: j.journee || undefined, pill: dateTxt ? '📅 ' + dateTxt : undefined, icone: '📋', duree: 3.4 });
-    const lignes: Ligne[] = matchs.map(m => ({ match: { a: m.equipe1, b: m.equipe2, sa: m.score1.trim(), sb: m.score2.trim() }, label: m.equipe1 + ' vs ' + m.equipe2, valeur: '', accent: '#ff7a00' }));
+    const lignes: Ligne[] = matchs.map(m => ({ match: avecVisuels({ a: m.equipe1, b: m.equipe2, sa: m.score1.trim(), sb: m.score2.trim() }, j.ecussons), label: m.equipe1 + ' vs ' + m.equipe2, valeur: '', accent: '#ff7a00' }));
     const sousT = [j.journee, dateTxt].filter(Boolean).join('  •  ') || undefined;
     pagesDeLignes(lignes, 6).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'FT', titre: j.competition || 'Résultats', soustitre: sousT, lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
   } else if (type === 'Derniers matchs') {
     const d = p.derniers_matchs!;
     const matchs = derniersPublies(d.matchs);
     const badge = 'DERNIERS MATCHS';
-    scenes.push({ k: 'intro', badge, fond: 'FORM', titre: d.equipe, sous: avecDrapeau(d.equipe, '') || undefined, pill: 'SES ' + matchs.length + (matchs.length > 1 ? ' DERNIERS MATCHS' : ' DERNIER MATCH'), initiale: ((d.equipe || '?').trim()[0] || '?').toUpperCase(), duree: 3.4 });
+    scenes.push({ k: 'intro', badge, fond: 'FORM', titre: d.equipe, sous: avecDrapeau(d.equipe, '') || undefined, photo: visuelEquipe(d.equipe, d.ecussons).url, pill: majuscule(libelleDerniers(matchs.length)), initiale: ((d.equipe || '?').trim()[0] || '?').toUpperCase(), duree: 3.4 });
     const lignes: Ligne[] = matchs.map(m => ({
-      match: { a: d.equipe, b: m.adversaire, sa: m.score1.trim(), sb: m.score2.trim() },
+      match: avecVisuels(affichageDernier(d.equipe, m), d.ecussons),
       label: d.equipe + ' vs ' + m.adversaire,
       sous: [formaterDate(m.date), m.competition].filter(Boolean).join('  •  ') || undefined,
       valeur: '', accent: accentIssue(issueDernier(m) as Issue), couleurSous: '#e9d5ff',
     }));
-    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'FORM', titre: d.equipe, soustitre: 'Ses derniers matchs', lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'FORM', titre: d.equipe, soustitre: libelleDerniers(matchs.length), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     const b = bilanDerniers(matchs);
     const bil: Ligne[] = [
       { label: 'Victoires', valeur: String(b.v), accent: accentIssue('G') },
@@ -279,18 +282,18 @@ export function construireScenes(p: VideoPost): Scene[] {
     const initiale = (n: string) => ((n || '?').trim()[0] || '?').toUpperCase();
     const badge = 'CONFRONTATIONS';
     const duo: [Duo, Duo] = [
-      { nom: c.equipe1, sous: avecDrapeau(c.equipe1, '') || undefined, initiale: initiale(c.equipe1) },
-      { nom: c.equipe2, sous: avecDrapeau(c.equipe2, '') || undefined, initiale: initiale(c.equipe2) },
+      { nom: c.equipe1, sous: avecDrapeau(c.equipe1, '') || undefined, photo: visuelEquipe(c.equipe1, c.ecussons).url, initiale: initiale(c.equipe1) },
+      { nom: c.equipe2, sous: avecDrapeau(c.equipe2, '') || undefined, photo: visuelEquipe(c.equipe2, c.ecussons).url, initiale: initiale(c.equipe2) },
     ];
-    scenes.push({ k: 'intro', badge, fond: 'VS', titre: '', pill: 'DANS LE PASSÉ  •  ' + matchs.length + (matchs.length > 1 ? ' MATCHS' : ' MATCH'), duo, duree: 3.4 });
+    scenes.push({ k: 'intro', badge, fond: 'VS', titre: '', pill: majuscule(libelleConfrontations(matchs.length)), duo, duree: 3.4 });
     const lignes: Ligne[] = matchs.map(m => ({
-      match: { a: c.equipe1, b: c.equipe2, sa: m.score1.trim(), sb: m.score2.trim() },
+      match: avecVisuels(affichageConf(c, m), c.ecussons),
       label: c.equipe1 + ' vs ' + c.equipe2,
       sous: [formaterDate(m.date) || 'Date inconnue', m.competition].filter(Boolean).join('  •  '),
-      valeur: '', accent: accentIssue(issueConf(m) as Issue), couleurSous: '#e9d5ff',
+      valeur: '', accent: '#ff7a00', couleurSous: '#e9d5ff',
     }));
     const titreC = c.equipe1 + ' vs ' + c.equipe2;
-    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'VS', titre: titreC, soustitre: 'Confrontations dans le passé', lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'VS', titre: titreC, soustitre: libelleConfrontations(matchs.length), lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     const b = bilanConf({ ...c, matchs });
     const bil: Ligne[] = [
       { label: 'Victoires ' + c.equipe1, valeur: String(b.v1), accent: accentIssue('G') },
@@ -758,8 +761,18 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
         const na = aScore ? parseInt(m.sa as string, 10) : null, nb = aScore ? parseInt(m.sb as string, 10) : null;
         const is = issuesMatch(na, nb);
         const ya = l.sous ? cy - 20 : cy;
-        texteIncline(ctx, majuscule(m.a), 405, ya, 44, is ? texteIssue(is[0]) : '#fff', 'right', '#0b0b2a', 310);
-        texteIncline(ctx, majuscule(m.b), 675, ya, 44, is ? texteIssue(is[1]) : '#fff', 'left', '#0b0b2a', 310);
+        const avecV = !!(m.va?.url || m.va?.drapeau || m.vb?.url || m.vb?.drapeau);
+        const largNom = avecV ? 250 : 310, tailleNom = avecV ? 40 : 44;
+        texteIncline(ctx, majuscule(m.a), 405, ya, tailleNom, is ? texteIssue(is[0]) : '#fff', 'right', '#0b0b2a', largNom);
+        texteIncline(ctx, majuscule(m.b), 675, ya, tailleNom, is ? texteIssue(is[1]) : '#fff', 'left', '#0b0b2a', largNom);
+        // Plage écusson / drapeau : à gauche pour l'équipe A, à droite pour l'équipe B.
+        const dessinerVisuel = (v: VisuelEquipe | undefined, x: number) => {
+          if (!v) return;
+          if (v.url) imageCarree(ctx, images.get(v.url) || null, x, ya - 40, 80, false, '');
+          else if (v.drapeau) { ctx.save(); ctx.font = `64px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(v.drapeau, x + 40, ya + 4); ctx.restore(); }
+        };
+        dessinerVisuel(m.va, 60);
+        dessinerVisuel(m.vb, 940);
         const pr = (tr - 0.1) / 0.6;
         if (aScore) {
           texteIncline(ctx, valeurAnimee(m.sa as string, pr), 508, ya, 84, '#fff', 'right', '#bf00ff', 80);
@@ -1166,7 +1179,7 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   const urls = new Set<string>();
   scenes.forEach(s => {
     if (s.k === 'intro') { if (s.photo) urls.add(s.photo); s.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
-    if (s.k === 'lignes') s.lignes.forEach(l => { if (l.photo && l.photo !== PHOTO_ABSENTE) urls.add(l.photo); if (l.ecusson) urls.add(l.ecusson); });
+    if (s.k === 'lignes') s.lignes.forEach(l => { if (l.photo && l.photo !== PHOTO_ABSENTE) urls.add(l.photo); if (l.ecusson) urls.add(l.ecusson); if (l.match?.va?.url) urls.add(l.match.va.url); if (l.match?.vb?.url) urls.add(l.match.vb.url); });
     if (s.k === 'lignes' && s.entete) { if (s.entete.photo) urls.add(s.entete.photo); s.entete.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
   });
   const images: Images = new Map();

@@ -4,7 +4,7 @@
 import { normaliserDate } from './confrontations';
 
 export type MatchJournee = { equipe1: string; equipe2: string; score1: string; score2: string };
-export type JourneeDetails = { competition: string; journee: string; date: string; matchs: MatchJournee[] };
+export type JourneeDetails = { competition: string; journee: string; date: string; matchs: MatchJournee[]; ecussons?: Record<string, string> };
 
 export const MAX_JOURNEE = 20;
 export const MATCH_JOURNEE_VIDE: MatchJournee = { equipe1: '', equipe2: '', score1: '', score2: '' };
