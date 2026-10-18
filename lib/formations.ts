@@ -8,9 +8,15 @@ export const FORMATIONS: Record<string, { x: number; y: number }[]> = {
   '3-5-2': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:12,y:50},{x:34,y:50},{x:50,y:52},{x:66,y:50},{x:88,y:50},{x:38,y:22},{x:62,y:22}],
   '3-4-3': [{x:50,y:92},{x:28,y:74},{x:50,y:76},{x:72,y:74},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:22,y:22},{x:50,y:18},{x:78,y:22}],
   '5-3-2': [{x:50,y:92},{x:12,y:70},{x:31,y:74},{x:50,y:76},{x:69,y:74},{x:88,y:70},{x:30,y:48},{x:50,y:50},{x:70,y:48},{x:38,y:22},{x:62,y:22}],
-  '4-4-1-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:50,y:30},{x:50,y:12}]
+  '4-4-1-1': [{x:50,y:92},{x:16,y:72},{x:38,y:74},{x:62,y:74},{x:84,y:72},{x:16,y:50},{x:38,y:50},{x:62,y:50},{x:84,y:50},{x:50,y:30},{x:50,y:12}],
+  // Basket : 5 joueurs (meneur, arrière, ailier, ailier fort, pivot).
+  '5 majeur': [{x:50,y:82},{x:20,y:60},{x:80,y:60},{x:32,y:32},{x:68,y:24}]
 };
-export const FORMATIONS_LISTE = Object.keys(FORMATIONS);
+export const CINQ_MAJEUR = '5 majeur';
+export const POSTES_5_MAJEUR = ['Meneur', 'Arrière', 'Ailier', 'Ailier fort', 'Pivot'];
+export const FORMATIONS_LISTE = Object.keys(FORMATIONS).filter(f => f !== CINQ_MAJEUR);
+export const estCinqMajeur = (f: string | null | undefined) => f === CINQ_MAJEUR;
+export const nbJoueursEquipe = (sport: string | null | undefined) => (sport === 'basketball' ? 5 : 11);
 
 export const DRAPEAUX: Record<string, string> = {
   'france': '🇫🇷', 'haiti': '🇭🇹', 'haïti': '🇭🇹', 'bresil': '🇧🇷', 'brésil': '🇧🇷',
@@ -100,23 +106,29 @@ export type OnzeJoueur = { nom: string; equipe: string; photo?: string; pays?: s
 export type OnzeDetails = { categorie: string; competition: string; periode: string };
 export const ONZE_DETAILS_VIDES: OnzeDetails = { categorie: '', competition: '', periode: '' };
 export const CATEGORIES_ONZE = ['Équipe de la journée', 'Équipe de la semaine', 'Équipe du mois', 'Équipe du trimestre', 'Équipe de la saison', 'Équipe du tournoi'];
+export const CATEGORIES_5_MAJEUR = ['5 majeur de la journée', '5 majeur de la semaine', '5 majeur du mois', '5 majeur de la saison', '5 majeur du tournoi', '5 majeur des séries', 'Deuxième 5 majeur de la saison'];
+export const categoriesEquipeType = (sport: string | null | undefined) => (sport === 'basketball' ? CATEGORIES_5_MAJEUR : CATEGORIES_ONZE);
 
 // Format :
 //   Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026
 //   4-3-3
 //   puis 11 lignes "Nom - Équipe" (gardien, défenseurs, milieux, attaquants, de gauche à droite)
-export function parserOnze(texte: string): { details: OnzeDetails; formation: string; joueurs: OnzeJoueur[]; erreurs: string[] } {
+// Basket : la ligne « 5 majeur » est facultative, puis 5 lignes : meneur, arrière, ailier, ailier fort, pivot.
+export function parserOnze(texte: string, sport?: string | null): { details: OnzeDetails; formation: string; joueurs: OnzeJoueur[]; erreurs: string[] } {
   const lignes = (texte || '').split('\n').map(l => l.trim()).filter(Boolean);
   const erreurs: string[] = [];
   const entete = (lignes[0] || '').split(/\s+[-–—]\s+|\s*\|\s*/).map(c => c.trim());
   const details: OnzeDetails = { categorie: entete[0] || '', competition: entete[1] || '', periode: entete[2] || '' };
   const brut = (lignes[1] || '').replace(/\s+/g, '').replace(/[–—−]/g, '-');
-  const formation = Object.keys(FORMATIONS).find(f => f === brut) || '';
-  if (!formation) erreurs.push('Formation non reconnue (ligne 2). Choix : ' + Object.keys(FORMATIONS).join(', '));
-  const joueurs: OnzeJoueur[] = lignes.slice(2).map(l => {
+  const basket = sport === 'basketball';
+  const formation = basket ? CINQ_MAJEUR : (FORMATIONS_LISTE.find(f => f === brut) || '');
+  if (!formation) erreurs.push('Formation non reconnue (ligne 2). Choix : ' + FORMATIONS_LISTE.join(', '));
+  const debut = basket && brut.toLowerCase() !== '5majeur' ? 1 : 2;
+  const joueurs: OnzeJoueur[] = lignes.slice(debut).map(l => {
     const p = parserLigneJoueur(l);
     return { nom: p.nom, equipe: p.equipe, pays: p.pays };
   }).filter(j => j.nom);
-  if (joueurs.length !== 11) erreurs.push('Il faut 11 joueurs : ' + joueurs.length + ' trouvé(s).');
+  const attendu = nbJoueursEquipe(sport);
+  if (joueurs.length !== attendu) erreurs.push('Il faut ' + attendu + ' joueurs : ' + joueurs.length + ' trouvé(s).');
   return { details, formation, joueurs, erreurs };
 }

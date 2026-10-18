@@ -9,9 +9,10 @@ import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
 import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
-import { FORMATIONS, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
+import { FORMATIONS, POSTES_5_MAJEUR, estCinqMajeur, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
 import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
+import { MiniQuizzDetails, questionsPubliees as miniQuestionsPubliees, optionsPubliees as miniOptionsPubliees } from '../../../lib/miniQuizz';
 import { PromoDetails, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
 import { visuelEquipe } from '../../../lib/ecussons';
@@ -83,7 +84,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null; mini_quizz?: MiniQuizzDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -263,6 +264,7 @@ export default function PostPage() {
     if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
     if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
     if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.mini_quizz && miniQuestionsPubliees(post.mini_quizz.questions).length) return { label: 'MINI QUIZZ', couleur: '#bf00ff' };
     if (post.promo && lotsPublies(post.promo.lots || []).length) return { label: 'PROMO', couleur: '#e11d48' };
     if (post.nominations && nominesPublies(post.nominations.nomines || []).length) return { label: 'NOMINATIONS', couleur: '#d97706' };
     if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
@@ -642,10 +644,13 @@ export default function PostPage() {
                     const dr = drapeau(j.pays || j.equipe || '');
                     const clubTxt = j.equipe && drapeau(j.equipe) === '🏳️' ? j.equipe : '';
                     const estPays = dr !== '🏳️';
+                    const g5 = estCinqMajeur(post.formation);
+                    const dia = g5 ? 76 : 52;
                     return (
-                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:(pos.y*0.9+3)+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'76px'}}>
-                        <div style={{position:'relative',width:'52px',height:'52px',margin:'0 auto 3px'}}>
-                          <div style={{width:'52px',height:'52px',borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',background:'#3b2a7a',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:900,fontSize:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
+                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:(pos.y*0.9+3)+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:g5 ? '110px' : '76px'}}>
+                        {g5 && <div style={{color:'#fdba74',fontSize:'9.5px',fontWeight:900,letterSpacing:'1px',textTransform:'uppercase',marginBottom:'3px'}}>{POSTES_5_MAJEUR[i]}</div>}
+                        <div style={{position:'relative',width:dia+'px',height:dia+'px',margin:'0 auto 3px'}}>
+                          <div style={{width:dia+'px',height:dia+'px',borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',background:'#3b2a7a',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:900,fontSize:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
                             {j.photo ? <img src={j.photo} crossOrigin="anonymous" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (j.nom.trim()[0] || '').toUpperCase()}
                           </div>
                           {estPays && <div style={{position:'absolute',right:'-8px',bottom:'-4px',fontSize:'16px',lineHeight:1}}>{dr}</div>}
@@ -662,9 +667,9 @@ export default function PostPage() {
             {post.formation && post.onze && FORMATIONS[post.formation] && !post.onze_details?.categorie && (
               <div style={{margin:'8px 0 24px'}}>
                 <div style={{textAlign:'center',marginBottom:'10px'}}>
-                  <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>Formation {post.formation}</span>
+                  <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>{estCinqMajeur(post.formation) ? '5 majeur' : 'Formation ' + post.formation}</span>
                 </div>
-                <div style={{position:'relative',width:'100%',paddingBottom:'125%',background:'linear-gradient(#2d7a3e,#1e5c2e)',borderRadius:'16px',overflow:'hidden'}}>
+                <div style={{position:'relative',width:'100%',paddingBottom:'125%',background:estCinqMajeur(post.formation) ? 'linear-gradient(#c2410c,#9a3412)' : 'linear-gradient(#2d7a3e,#1e5c2e)',borderRadius:'16px',overflow:'hidden'}}>
                   <div style={{position:'absolute',top:'50%',left:0,right:0,height:'2px',background:'rgba(255,255,255,0.3)'}}/>
                   <div style={{position:'absolute',top:'50%',left:'50%',width:'80px',height:'80px',border:'2px solid rgba(255,255,255,0.3)',borderRadius:'50%',transform:'translate(-50%,-50%)'}}/>
                   <div style={{position:'absolute',bottom:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.3)',borderBottom:'none'}}/>
@@ -687,6 +692,31 @@ export default function PostPage() {
                 </div>
               </div>
             )}
+
+            {post.mini_quizz && miniQuestionsPubliees(post.mini_quizz.questions).length > 0 && (() => {
+              const mq = post.mini_quizz!;
+              const qs = miniQuestionsPubliees(mq.questions);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  {mq.titre && <div style={{fontSize:'20px',fontWeight:900,marginBottom:'14px'}}>{mq.titre}</div>}
+                  {qs.map((q, i) => (
+                    <div key={i} style={{border:'2px solid #e9d5ff',borderRadius:'14px',padding:'14px',marginBottom:'12px',background:'#faf5ff'}}>
+                      <div style={{fontSize:'11px',fontWeight:900,color:'#bf00ff',marginBottom:'6px'}}>QUESTION {i + 1} / {qs.length}</div>
+                      <div style={{fontSize:'16px',fontWeight:800,marginBottom:'10px',color:'#111'}}>{q.question}</div>
+                      {miniOptionsPubliees(q).map(o => (
+                        <div key={o.cle} style={{display:'flex',gap:'10px',alignItems:'center',background:'#fff',border:'1px solid #ddd6fe',borderRadius:'10px',padding:'8px 10px',marginBottom:'6px',color:'#111',fontSize:'14px'}}>
+                          <span style={{width:'26px',height:'26px',borderRadius:'7px',background:post.sport === 'basketball' ? '#ff7a00' : '#bf00ff',color:'#fff',fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{o.cle}</span>{o.texte}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{background:'#bf00ff',color:'#fff',borderRadius:'14px',padding:'14px',fontWeight:900,textAlign:'center',fontSize:'15px'}}>
+                    🎁 Cadeaux à gagner parmi les bonnes réponses{mq.cadeau ? ' : ' + mq.cadeau : ''}<br/>
+                    <span style={{fontWeight:700,fontSize:'13px'}}>Commente tes 3 réponses et partage !</span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {post.promo && lotsPublies(post.promo.lots || []).length > 0 && (() => {
               const pr = post.promo!;

@@ -11,6 +11,8 @@ export const NOMINE_VIDE: Nomine = { nom: '', equipe: '', pays: '', note: '', ph
 export const NOMINATIONS_VIDE: NominationsDetails = { categorie: '', edition: '', nomines: [{ ...NOMINE_VIDE }] };
 
 export const CATEGORIES_NOMINATION = ['Ballon d\'or', 'Meilleur entraîneur', 'Meilleur gardien', 'Meilleure équipe'];
+export const CATEGORIES_NOMINATION_BASKET = ['MVP', 'Meilleur marqueur', 'Meilleur défenseur', 'Meilleur sixième homme', 'Rookie de l\'année', 'Meilleur entraîneur', 'Meilleure équipe'];
+export const categoriesNomination = (sport: string | null | undefined) => (sport === 'basketball' ? CATEGORIES_NOMINATION_BASKET : CATEGORIES_NOMINATION);
 
 export const nomineValide = (n: Nomine) => n.nom.trim() !== '';
 export const nominesPublies = (l: Nomine[]) => l.filter(nomineValide).slice(0, MAX_NOMINES);
@@ -27,7 +29,7 @@ export function parserNominations(texte: string): { details: NominationsDetails;
   let categorie = '', edition = '';
   const estEntete = (l: string) => {
     const n = l.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    return /ballon|entraineur|gardien|equipe|meilleur|nomin|trophee|soulier|joueur de l/.test(n) && !/\s[-–—]\s/.test(l);
+    return /ballon|entraineur|gardien|equipe|meilleur|nomin|trophee|soulier|joueur de l|mvp|rookie|marqueur|defenseur|sixieme|majeur/.test(n) && !/\s[-–—]\s/.test(l);
   };
   lignes.forEach((brut, idx) => {
     if (idx === 0 && (estEntete(brut) || /\|/.test(brut))) {

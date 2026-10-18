@@ -27,7 +27,29 @@ export const GROUPES_DISTINCTIONS: GroupeDistinction[] = [
   },
 ];
 
-export const DISTINCTIONS: string[] = [...GROUPES_DISTINCTIONS.flatMap(g => g.items), 'Autre'];
+// Basket : mêmes familles, avec les catégories propres au basket (MVP, marqueur, défenseur, rookie...).
+export const GROUPES_DISTINCTIONS_BASKET: GroupeDistinction[] = [
+  {
+    titre: '🏀 Joueur',
+    items: [
+      'Joueur de la journée', 'Joueur de la semaine', 'Joueur du mois', 'Joueur de la saison', 'Homme du match',
+      'MVP de la saison', 'MVP des finales', 'MVP du tournoi',
+      'Meilleur marqueur', 'Meilleur passeur', 'Meilleur rebondeur', 'Meilleur intercepteur', 'Meilleur contreur',
+      'Meilleur défenseur', 'Meilleur sixième homme', 'Meilleur progrès', 'Rookie de l\'année', 'Meilleur jeune / Révélation',
+    ],
+  },
+  {
+    titre: '🧢 Entraîneur',
+    items: ['Entraîneur du mois', 'Entraîneur de la saison', 'Meilleur entraîneur'],
+  },
+  {
+    titre: '🛡️ Équipe',
+    items: ['Équipe de la semaine', 'Équipe du mois', 'Équipe de la saison', 'Équipe du tournoi', 'Meilleure équipe', 'Meilleure attaque', 'Meilleure défense'],
+  },
+];
+export const groupesDistinctions = (sport: string | null | undefined): GroupeDistinction[] => (sport === 'basketball' ? GROUPES_DISTINCTIONS_BASKET : GROUPES_DISTINCTIONS);
+
+export const DISTINCTIONS: string[] = [...Array.from(new Set([...GROUPES_DISTINCTIONS, ...GROUPES_DISTINCTIONS_BASKET].flatMap(g => g.items))), 'Autre'];
 
 export type DistinctionDetails = { equipe: string; championnat: string; periode: string; photo: string; pays?: string };
 export const DETAILS_VIDES: DistinctionDetails = { equipe: '', championnat: '', periode: '', photo: '', pays: '' };
@@ -37,7 +59,7 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 // La distinction récompense une équipe : le lauréat EST l'équipe.
 export function estDistinctionEquipe(categorie: string): boolean {
   const n = norm(categorie);
-  return n.startsWith('equipe') || n.startsWith('meilleureattaque') || n.startsWith('meilleuredefense');
+  return n.startsWith('equipe') || n.startsWith('meilleureequipe') || n.startsWith('meilleureattaque') || n.startsWith('meilleuredefense');
 }
 
 // Retrouve la catégorie officielle d'après un texte saisi (accents, majuscules,

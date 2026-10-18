@@ -4,12 +4,13 @@ import { supabase } from '../../../lib/supabase';
 import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport';
 
 import AdminAuth from '../../../components/AdminAuth';
+import { MiniQuizzDetails, MINI_VIDE, parserMiniQuizz, questionsPubliees as miniQuestionsPubliees, optionsPubliees as miniOptionsPubliees } from '../../../lib/miniQuizz';
 import { PromoDetails, PROMO_VIDE, LOT_VIDE, SPONSOR_VIDE, Lot, Sponsor, MAX_LOTS, MAX_SPONSORS, parserPromo, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { listePays } from '../../../lib/formations';
 import { redimensionnerImage } from '../../../lib/images';
 import { extraireLieu, adversaireAGauche } from '../../../lib/lieu';
 import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../../../lib/ecussons';
-import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, CATEGORIES_NOMINATION, parserNominations, nominesPublies } from '../../../lib/nominations';
+import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, categoriesNomination, parserNominations, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, JOURNEE_VIDE, MATCH_JOURNEE_VIDE, MatchJournee, MAX_JOURNEE, JOURNEES, parserJournee, matchsJourneePublies, issueJournee } from '../../../lib/journee';
 import { libelleDerniers } from '../../../lib/derniersMatchs';
 import { libelleConfrontations, PROCHAIN_VIDE, prochainRempli } from '../../../lib/confrontations';
@@ -17,8 +18,8 @@ import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_D
 import { ConfrontationsDetails, CONFRONTATIONS_VIDE, CONFRONTATION_VIDE, Confrontation, MAX_CONFRONTATIONS, parserConfrontations, matchsPublies, issueConf } from '../../../lib/confrontations';
 import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
 import { genererVideos, typeVideo } from '../../../lib/video';
-import { FORMATIONS_LISTE, CATEGORIES_ONZE, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
-import { GROUPES_DISTINCTIONS, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
+import { FORMATIONS_LISTE, categoriesEquipeType, nbJoueursEquipe, CINQ_MAJEUR, POSTES_5_MAJEUR, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
+import { groupesDistinctions, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
 import { CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, groupesPourPeriode, champsPourPeriode, periodeAvecAdversaire, periodeAvecNbMatchs, estCarriere, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
 
 const VIOLET = '#bf00ff';
@@ -65,7 +66,7 @@ type Article = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: DistinctionDetails | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null; mini_quizz?: MiniQuizzDetails | null;
   relance_at: string | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
@@ -215,6 +216,13 @@ export default function AdminMedia() {
   const [sportForm, setSportForm] = useState<Sport>('football');
 
   useEffect(() => { setSportForm(getSport()); }, []);
+  // Équipe type : 11 joueurs en football, 5 majeur en basket (la taille et la formation suivent le sport).
+  useEffect(() => {
+    if (modePost !== 'onze') return;
+    const n = nbJoueursEquipe(sportForm);
+    setOnze(prev => prev.length === n ? prev : Array.from({ length: n }, (_, i) => prev[i] || { nom: '', equipe: '', photo: '' }));
+    setFormation(prev => sportForm === 'basketball' ? CINQ_MAJEUR : (prev === CINQ_MAJEUR ? '' : prev));
+  }, [modePost, sportForm]);
   // Si la page a planté pendant une vidéo, on le signale (et à quel moment) au rechargement.
   useEffect(() => {
     if (!connecte) return;
@@ -524,7 +532,7 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations', 'promo'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations', 'promo', 'mini_quizz'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
@@ -619,6 +627,18 @@ export default function AdminMedia() {
     </div>
   );
 
+  // Mini quizz sans réponse : 3 questions, choix A à D, aucune bonne réponse.
+  const [mini, setMini] = useState<MiniQuizzDetails>(MINI_VIDE());
+  const [texteMini, setTexteMini] = useState('');
+  const appliquerTexteMini = () => {
+    const r = parserMiniQuizz(texteMini);
+    if (!miniQuestionsPubliees(r.details.questions).length) { setMessage('❌ Aucune question reconnue. Format : « Q1. Question ? » puis « A) ... » à « D) ... ».'); return; }
+    setMini(prev => ({ titre: r.details.titre || prev.titre, cadeau: r.details.cadeau || prev.cadeau, questions: r.details.questions }));
+    setMessage('✅ ' + miniQuestionsPubliees(r.details.questions).length + ' question(s) importée(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
+  };
+  const majMiniQ = (i: number, champ: 'question' | 'cadeau', val: string) => setMini(prev => ({ ...prev, questions: prev.questions.map((q, idx) => idx === i ? { ...q, [champ]: val } : q) }));
+  const majMiniO = (i: number, j: number, val: string) => setMini(prev => ({ ...prev, questions: prev.questions.map((q, idx) => idx === i ? { ...q, options: q.options.map((o, k) => k === j ? { ...o, texte: val } : o) } : q) }));
+
   // Promo : lots à gagner + sponsors (nom, logo).
   const [promo, setPromo] = useState<PromoDetails>({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] });
   const [textePromo, setTextePromo] = useState('');
@@ -712,7 +732,7 @@ export default function AdminMedia() {
   };
 
   const appliquerTexteOnze = () => {
-    const r = parserOnze(texteOnze);
+    const r = parserOnze(texteOnze, sportForm);
     if (r.erreurs.length) { setMessage('❌ ' + r.erreurs.join(' · ')); return; }
     setOnzeDetails(r.details);
     setFormation(r.formation);
@@ -873,7 +893,7 @@ export default function AdminMedia() {
     setDer({ ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] }); setTexteDer('');
     setJour({ ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] }); setTexteJour('');
     setNomi({ ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] }); setTexteNomi('');
-    setPromo({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] }); setTextePromo('');
+    setPromo({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] }); setTextePromo(''); setMini(MINI_VIDE()); setTexteMini('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
     setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
@@ -916,7 +936,8 @@ export default function AdminMedia() {
     const dd = { ...DETAILS_VIDES, ...(a.distinction_details || {}) };
     setDistEquipe(dd.equipe || ''); setDistChampionnat(dd.championnat || ''); setDistPeriode(dd.periode || ''); setDistPhoto(dd.photo || ''); setDistPays(dd.pays || '');
     setPubActif(a.pub_actif || false); setPubNom(a.pub_nom || ''); setPubLogo(a.pub_logo || ''); setPubLien(a.pub_lien || '');
-    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !(a.nominations && a.nominations.nomines?.length) && !(a.promo && a.promo.lots?.length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    if (a.pub_actif && !(a.elimination && a.elimination.rencontres?.length) && !(a.confrontations && a.confrontations.matchs?.length) && !(a.derniers_matchs && a.derniers_matchs.matchs?.length) && !(a.journee_resultats && a.journee_resultats.matchs?.length) && !(a.nominations && a.nominations.nomines?.length) && !(a.promo && a.promo.lots?.length) && !(a.mini_quizz && miniQuestionsPubliees(a.mini_quizz.questions).length) && !a.formation && !a.classement_type && !a.distinction_type && !a.pays1 && !a.equipe1 && !a.ligue && !(a.matchs_jour && a.matchs_jour.length) && !a.resultat_details && !(a.quarts_temps && a.quarts_temps.length) && !(a.stats_joueur && a.stats_joueur.joueurs?.length) && !(a.parcours && a.parcours.adversaires?.length) && !(a.declaration && a.declaration.citation) && !(a.gagnants && a.gagnants.gagnants?.length)) setModePost('sponsorise');
+    else if (a.mini_quizz && miniQuestionsPubliees(a.mini_quizz.questions).length) setModePost('miniquizz');
     else if (a.promo && a.promo.lots?.length) setModePost('promo');
     else if (a.nominations && a.nominations.nomines?.length) setModePost('nominations');
     else if (a.journee_resultats && a.journee_resultats.matchs?.length) setModePost('journee');
@@ -940,13 +961,14 @@ export default function AdminMedia() {
     setFormation(a.formation || '');
     setElim(a.elimination && a.elimination.rencontres?.length ? { competition: a.elimination.competition || '', tour: a.elimination.tour || '', rencontres: a.elimination.rencontres.map(r => ({ ...RENCONTRE_VIDE, ...r })) } : { ...ELIMINATION_VIDE, rencontres: [{ ...RENCONTRE_VIDE }] });
     setPromo(a.promo && a.promo.lots?.length ? { accroche: a.promo.accroche || '', quizz: a.promo.quizz || '', fin: a.promo.fin || '', conditions: a.promo.conditions || '', lots: a.promo.lots.map(l => ({ ...LOT_VIDE, ...l })), sponsors: a.promo.sponsors?.length ? a.promo.sponsors.map(s => ({ ...SPONSOR_VIDE, ...s })) : [{ ...SPONSOR_VIDE }] } : { ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] });
+    setMini(a.mini_quizz && miniQuestionsPubliees(a.mini_quizz.questions).length ? { titre: a.mini_quizz.titre || '', cadeau: a.mini_quizz.cadeau || '', questions: Array.from({ length: 3 }, (_, i) => { const q = a.mini_quizz!.questions[i]; return { question: q?.question || '', options: ['A', 'B', 'C', 'D'].map(cle => ({ cle, texte: q?.options?.find(o => o.cle === cle)?.texte || '' })) }; }) } : MINI_VIDE());
     setNomi(a.nominations && a.nominations.nomines?.length ? { categorie: a.nominations.categorie || '', edition: a.nominations.edition || '', nomines: a.nominations.nomines.map(n => ({ ...NOMINE_VIDE, ...n })) } : { ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] });
     setJour(a.journee_resultats && a.journee_resultats.matchs?.length ? { competition: a.journee_resultats.competition || '', journee: a.journee_resultats.journee || '', date: a.journee_resultats.date || '', matchs: a.journee_resultats.matchs.map(m => ({ ...MATCH_JOURNEE_VIDE, ...m })), ecussons: a.journee_resultats.ecussons || {} } : { ...JOURNEE_VIDE, matchs: [{ ...MATCH_JOURNEE_VIDE }] });
     setDer(a.derniers_matchs && a.derniers_matchs.matchs?.length ? { equipe: a.derniers_matchs.equipe || '', matchs: a.derniers_matchs.matchs.map(m => ({ ...DERNIER_VIDE, ...m })), ecussons: a.derniers_matchs.ecussons || {} } : { ...DERNIERS_VIDE, matchs: [{ ...DERNIER_VIDE }] });
     setConf(a.confrontations && a.confrontations.matchs?.length ? { equipe1: a.confrontations.equipe1 || '', equipe2: a.confrontations.equipe2 || '', matchs: a.confrontations.matchs.map(m => ({ ...CONFRONTATION_VIDE, ...m })), ecussons: a.confrontations.ecussons || {}, prochain: a.confrontations.prochain || null } : { ...CONFRONTATIONS_VIDE, matchs: [{ ...CONFRONTATION_VIDE }] });
     setOnzeDetails(a.onze_details ? { ...ONZE_DETAILS_VIDES, ...a.onze_details } : ONZE_DETAILS_VIDES);
-    if (a.onze && Array.isArray(a.onze) && a.onze.length === 11) setOnze(a.onze.map(j => ({ photo: '', ...j })));
-    else setOnze(Array.from({length:11},()=>({nom:'',equipe:''})));
+    if (a.onze && Array.isArray(a.onze) && (a.onze.length === 11 || a.onze.length === 5)) setOnze(a.onze.map(j => ({ photo: '', ...j })));
+    else setOnze(Array.from({length:nbJoueursEquipe((a.sport as string) || 'football')},()=>({nom:'',equipe:''})));
     setMatchsJourSelection(a.matchs_jour && Array.isArray(a.matchs_jour) ? a.matchs_jour : []);
     setResButs(a.resultat_details?.buts || []); setResRouges(a.resultat_details?.rouges || []); setResJaunes(a.resultat_details?.jaunes || []);
     setResQuarts(a.quarts_temps || []);
@@ -1129,6 +1151,7 @@ export default function AdminMedia() {
         titreFinal = noms + faceA + ' — ' + (statsMode === 'comparaison' ? 'Comparaison' : 'Stats') + per;
       }
       else if (modePost === 'distinction' && laureat) titreFinal = (distinctionType === 'Autre' ? (distinctionAutre || 'Distinction') : (distinctionType || 'Distinction')) + ' — ' + laureat + (distPeriode ? ' (' + distPeriode + ')' : '');
+      else if (modePost === 'miniquizz' && miniQuestionsPubliees(mini.questions).length) titreFinal = 'Mini quizz — ' + (mini.titre.trim() || miniQuestionsPubliees(mini.questions)[0].question.trim());
       else if (modePost === 'promo' && (promo.accroche.trim() || lotsPublies(promo.lots).length)) titreFinal = 'Promo — ' + (promo.accroche.trim() || lotsPublies(promo.lots)[0].nom);
       else if (modePost === 'nominations' && nomi.categorie.trim()) titreFinal = 'Nominations — ' + nomi.categorie.trim() + (nomi.edition.trim() ? ' ' + nomi.edition.trim() : '');
       else if (modePost === 'journee' && jour.competition.trim()) titreFinal = 'Résultats — ' + jour.competition.trim() + (jour.journee.trim() ? ' (' + jour.journee.trim() + ')' : '');
@@ -1206,6 +1229,7 @@ export default function AdminMedia() {
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
+      ...(modePost === 'miniquizz' ? { mini_quizz: { titre: mini.titre.trim(), cadeau: mini.cadeau.trim(), questions: miniQuestionsPubliees(mini.questions).map(q => ({ question: q.question.trim(), options: miniOptionsPubliees(q).map(o => ({ cle: o.cle, texte: o.texte.trim() })) })) } } : {}),
       ...(modePost === 'promo' ? { promo: { accroche: promo.accroche.trim(), quizz: promo.quizz.trim(), fin: promo.fin.trim(), conditions: promo.conditions.trim(), lots: lotsPublies(promo.lots).map(l => ({ nom: l.nom.trim(), detail: (l.detail || '').trim(), photo: l.photo || '' })), sponsors: sponsorsPublies(promo.sponsors).map(s => ({ nom: s.nom.trim(), logo: s.logo || '' })) } } : {}),
       ...(modePost === 'nominations' ? { nominations: { categorie: nomi.categorie.trim(), edition: nomi.edition.trim(), nomines: nominesPublies(nomi.nomines).map(n => ({ nom: n.nom.trim(), equipe: n.equipe.trim(), pays: n.pays.trim(), note: n.note.trim(), photo: n.photo || '', ecusson: n.ecusson || '' })) } } : {}),
       ...(modePost === 'journee' ? { journee_resultats: { competition: jour.competition.trim(), journee: jour.journee.trim(), date: jour.date.trim(), matchs: matchsJourneePublies(jour.matchs).map(m => ({ equipe1: m.equipe1.trim(), equipe2: m.equipe2.trim(), score1: m.score1.trim(), score2: m.score2.trim() })), ecussons: ecussonsUtiles(jour.ecussons, equipesJour) } } : {}),
@@ -1319,6 +1343,7 @@ export default function AdminMedia() {
                       <option value="stats">📈 Stats joueur</option>
                       <option value="classement">📊 Classement</option>
                       <option value="promo">🎁 Promo quizz (lots)</option>
+                      <option value="miniquizz">❓ Mini quizz sans réponse (3 questions)</option>
                       <option value="nominations">🏅 Nominations</option>
                     </optgroup>
                     <optgroup label="Distinctions & citations">
@@ -1328,7 +1353,7 @@ export default function AdminMedia() {
                       <option value="gagnants">🎉 Gagnants &amp; primes</option>
                     </optgroup>
                     <optgroup label="Composition">
-                      <option value="onze">👥 Onze type</option>
+                      <option value="onze">{sportForm === 'basketball' ? '👥 5 majeur' : '👥 Onze type'}</option>
                     </optgroup>
                   </select>
                 </>
@@ -1799,7 +1824,7 @@ export default function AdminMedia() {
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Type de distinction</p>
                 <select value={distinctionType} onChange={e => setDistinctionType(e.target.value)} style={{...inputStyle,marginBottom:'12px'}}>
                   <option value="">— Aucune —</option>
-                  {GROUPES_DISTINCTIONS.map(g => (
+                  {groupesDistinctions(sportForm).map(g => (
                     <optgroup key={g.titre} label={g.titre}>
                       {g.items.map(d => <option key={d} value={d}>{d}</option>)}
                     </optgroup>
@@ -1959,6 +1984,33 @@ export default function AdminMedia() {
               </div>
             )}
 
+            {type === 'post' && modePost === 'miniquizz' && (
+              <div style={sectionStyle}>
+                <label style={labelStyle}>❓ Mini quizz sans réponse (3 questions)</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Vidéo : chaque question 3 secondes, puis les choix A à D pendant 5 secondes. Aucune bonne réponse n'est saisie ni montrée : les gens commentent, partagent, et les cadeaux sont tirés parmi les bonnes réponses.</p>
+                <input value={mini.titre} onChange={e => setMini({...mini, titre: e.target.value})} placeholder="Titre (ex: Mini quizz Ligue des champions)" style={{...inputStyle,marginBottom:'8px'}}/>
+                <input value={mini.cadeau} onChange={e => setMini({...mini, cadeau: e.target.value})} placeholder="Cadeau (facultatif, ex: Un maillot dédicacé)" style={{...inputStyle,marginBottom:'12px'}}/>
+                <details style={{marginBottom:'12px'}}>
+                  <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller les 3 questions d'un coup</summary>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>« Titre : ... » et « Cadeau : ... » (facultatifs), puis pour chaque question une ligne « Q1. ... » suivie de « A) ... », « B) ... », « C) ... », « D) ... ».</p>
+                  <textarea value={texteMini} onChange={e => setTexteMini(e.target.value)} rows={10} placeholder={"Titre : Mini quizz Ligue des champions\nCadeau : Un maillot dédicacé\nQ1. Quel club a le plus de Ligues des champions ?\nA) Real Madrid\nB) AC Milan\nC) Liverpool\nD) Bayern\nQ2. ...\nQ3. ..."} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
+                  <button type="button" onClick={appliquerTexteMini} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer',marginTop:'8px'}}>Appliquer</button>
+                </details>
+                {mini.questions.map((q, i) => (
+                  <div key={i} style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'12px',padding:'12px',marginBottom:'10px'}}>
+                    <div style={{fontSize:'12px',fontWeight:800,color:'#fbbf24',marginBottom:'8px'}}>Question {i + 1}</div>
+                    <input value={q.question} onChange={e => majMiniQ(i, 'question', e.target.value)} placeholder="La question" style={{...inputStyle,marginBottom:'8px'}}/>
+                    {q.options.map((o, j) => (
+                      <div key={o.cle} style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'6px'}}>
+                        <span style={{width:'28px',height:'28px',borderRadius:'8px',background:sportForm === 'basketball' ? '#ff7a00' : VIOLET,color:'#fff',fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{o.cle}</span>
+                        <input value={o.texte} onChange={e => majMiniO(i, j, e.target.value)} placeholder={'Choix ' + o.cle} style={inputStyle}/>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {type === 'post' && modePost === 'promo' && (
               <div style={sectionStyle}>
                 <label style={labelStyle}>🎁 Promo quizz (lots à gagner)</label>
@@ -2013,9 +2065,9 @@ export default function AdminMedia() {
               <div style={sectionStyle}>
                 <label style={labelStyle}>🏅 Nominations</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Les nominés d'un prix : Ballon d'or, Meilleur entraîneur, Meilleur gardien, Meilleure équipe... Seul le nom est obligatoire ({MAX_NOMINES} nominés au maximum). Le drapeau vient du pays, ou de l'équipe si c'est une sélection.</p>
-                <select value={CATEGORIES_NOMINATION.includes(nomi.categorie) ? nomi.categorie : ''} onChange={e => setNomi({...nomi, categorie: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
+                <select value={categoriesNomination(sportForm).includes(nomi.categorie) ? nomi.categorie : ''} onChange={e => setNomi({...nomi, categorie: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
                   <option value="">Catégorie (choisir ou écrire ci-dessous)</option>
-                  {CATEGORIES_NOMINATION.map(t => <option key={t} value={t}>{t}</option>)}
+                  {categoriesNomination(sportForm).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <input value={nomi.categorie} onChange={e => setNomi({...nomi, categorie: e.target.value})} placeholder="Catégorie (ex: Ballon d'or)" style={{...inputStyle,marginBottom:'8px'}}/>
                 <input value={nomi.edition} onChange={e => setNomi({...nomi, edition: e.target.value})} placeholder="Édition (ex: 2026, ou Ligue 1 2025-26)" style={{...inputStyle,marginBottom:'12px'}}/>
@@ -2250,37 +2302,37 @@ export default function AdminMedia() {
 
             {type === 'post' && modePost === 'onze' && (
               <div style={sectionStyle}>
-                <label style={labelStyle}>👥 Équipe type (onze)</label>
-                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Équipe de la journée / du mois / de la saison : joueurs de plusieurs équipes. Remplissez l'en-tête, la formation, puis les 11 joueurs (photo facultative).</p>
+                <label style={labelStyle}>{sportForm === 'basketball' ? '👥 5 majeur' : '👥 Équipe type (onze)'}</label>
+                <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>{sportForm === 'basketball' ? '5 majeur de la journée / du mois / de la saison : joueurs de plusieurs équipes. Remplissez l\'en-tête, puis les 5 joueurs : meneur, arrière, ailier, ailier fort, pivot (photo facultative).' : "Équipe de la journée / du mois / de la saison : joueurs de plusieurs équipes. Remplissez l'en-tête, la formation, puis les 11 joueurs (photo facultative)."}</p>
 
                 <select value={onzeDetails.categorie} onChange={e => setOnzeDetails({...onzeDetails, categorie: e.target.value})} style={{...inputStyle,marginBottom:'8px'}}>
-                  <option value="">Sans titre (onze simple)</option>
-                  {CATEGORIES_ONZE.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="">{sportForm === 'basketball' ? 'Sans titre (5 majeur simple)' : 'Sans titre (onze simple)'}</option>
+                  {categoriesEquipeType(sportForm).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input value={onzeDetails.competition} onChange={e => setOnzeDetails({...onzeDetails, competition: e.target.value})} placeholder="Compétition (ex: Concacaf Nations League A)" style={{...inputStyle,marginBottom:'8px'}}/>
                 <input value={onzeDetails.periode} onChange={e => setOnzeDetails({...onzeDetails, periode: e.target.value})} placeholder="Période (ex: Septembre-Octobre 2026)" style={{...inputStyle,marginBottom:'12px'}}/>
 
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute l'équipe d'un coup</summary>
-                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : gardien, défenseurs, milieux, attaquants (de gauche à droite).</p>
-                  <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>{sportForm === 'basketball' ? 'Ligne 1 : Catégorie - Compétition - Période. Puis 5 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : meneur, arrière, ailier, ailier fort, pivot.' : 'Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : gardien, défenseurs, milieux, attaquants (de gauche à droite).'}</p>
+                  <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={sportForm === 'basketball' ? '5 majeur du mois - Championnat national - Octobre 2026\nMeneur - Équipe\nArrière - Équipe\n...' : 'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteOnze} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Formation</p>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
                   <button type="button" onClick={() => setFormation('')} style={{padding:'8px 14px',borderRadius:'999px',cursor:'pointer',fontSize:'12px',fontWeight:700,border:formation===''?'2px solid '+VIOLET:'1px solid #333',background:formation===''?VIOLET:'#1e1e1e',color:formation===''?'#fff':'#9ca3af'}}>Aucune</button>
-                  {FORMATIONS_LISTE.map(f => (
+                  {(sportForm === 'basketball' ? [CINQ_MAJEUR] : FORMATIONS_LISTE).map(f => (
                     <button key={f} type="button" onClick={() => setFormation(f)} style={{padding:'8px 14px',borderRadius:'999px',cursor:'pointer',fontSize:'12px',fontWeight:700,border:formation===f?'2px solid '+VIOLET:'1px solid #333',background:formation===f?VIOLET:'#1e1e1e',color:formation===f?'#fff':'#9ca3af'}}>{f}</button>
                   ))}
                 </div>
 
                 {formation && (
                   <div>
-                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>Les 11 joueurs (n°1 = gardien)</p>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 8px',fontWeight:700}}>{sportForm === 'basketball' ? 'Les 5 joueurs (meneur, arrière, ailier, ailier fort, pivot)' : 'Les 11 joueurs (n°1 = gardien)'}</p>
                     {onze.map((j, i) => (
                       <div key={i} style={{display:'flex',gap:'6px',marginBottom:'6px',alignItems:'center'}}>
-                        <span style={{color:VIOLET,fontWeight:900,fontSize:'13px',width:'22px'}}>{i+1}</span>
+                        <span style={{color:VIOLET,fontWeight:900,fontSize:'13px',width:sportForm === 'basketball' ? '70px' : '22px'}}>{sportForm === 'basketball' ? POSTES_5_MAJEUR[i] : i+1}</span>
                         <input value={j.nom} onChange={e => setJoueur(i,'nom',e.target.value)} placeholder="Joueur" style={{...inputStyle,flex:2}}/>
                         <input value={j.equipe} onChange={e => setJoueur(i,'equipe',e.target.value)} placeholder="Équipe / Club" style={{...inputStyle,flex:2}}/>
                         <input list="liste-pays" value={j.pays || ''} onChange={e => setJoueur(i,'pays',e.target.value)} placeholder="Pays" style={{...inputStyle,flex:1.4}}/>

@@ -6,9 +6,10 @@
 
 import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from './statsJoueur';
 import { ligneContexte, DistinctionDetails } from './distinctions';
-import { drapeau, OnzeJoueur, OnzeDetails } from './formations';
+import { drapeau, CINQ_MAJEUR, POSTES_5_MAJEUR, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
 import { NominationsDetails, nominesPublies } from './nominations';
+import { MiniQuizzDetails, questionsPubliees, optionsPubliees } from './miniQuizz';
 import { PromoDetails, Sponsor, lotsPublies, sponsorsPublies } from './promo';
 import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
@@ -45,6 +46,7 @@ export type VideoPost = {
   journee_resultats?: JourneeDetails | null;
   nominations?: NominationsDetails | null;
   promo?: PromoDetails | null;
+  mini_quizz?: MiniQuizzDetails | null;
   quizz?: { titre: string; sport?: string | null; duree_heures?: number | null; sponsors?: Sponsor[] | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
 };
@@ -62,7 +64,8 @@ type Scene =
   | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
   | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
-  | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; duree: number }
+  | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; lettre?: string; duree: number }
+  | { k: 'mq'; badge: string; fond: string; mode: 'splash' | 'q' | 'fin'; lettre?: string; titre?: string; sous?: string; cadeau?: string; numero?: number; total?: number; question?: string; options?: { cle: string; texte: string }[]; duree: number }
   | { k: 'quiztitre'; badge: string; fond: string; titre: string; sous?: string; pill?: string; icone?: string; duree: number }
   | { k: 'texte'; badge: string; fond: string; texte: string; auteur?: string; sous?: string; duree: number };
 
@@ -115,6 +118,7 @@ export function typeVideo(p: VideoPost): string {
   if (p.gagnants?.gagnants?.length) return 'Gagnants';
   if (p.declaration?.citation) return 'Déclaration';
   if (p.parcours?.adversaires?.length) return 'Parcours';
+  if (p.mini_quizz && questionsPubliees(p.mini_quizz.questions).length) return 'Mini quizz';
   if (p.promo && lotsPublies(p.promo.lots || []).length) return 'Promo';
   if (p.nominations && nominesPublies(p.nominations.nomines || []).length) return 'Nominations';
   if (p.journee_resultats && matchsJourneePublies(p.journee_resultats.matchs || []).length) return 'Résultats de la journée';
@@ -148,7 +152,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     qz.questions.forEach((q, i) => {
       const options = q.options.filter(o => (o.texte || '').trim());
       const bonne = q.bonne_reponse && options.some(o => o.cle === q.bonne_reponse) ? q.bonne_reponse : undefined;
-      scenes.push({ k: 'quiz', badge, fond: 'QUIZ', numero: i + 1, total: tot, question: q.question, options, bonne, duree: LECTURE_Q + REPONSE_Q + (bonne ? REVEAL_Q : 0) + 0.3 });
+      scenes.push({ k: 'quiz', badge, fond: 'QUIZ', lettre: basket ? '#ff7a00' : '#bf00ff', numero: i + 1, total: tot, question: q.question, options, bonne, duree: LECTURE_Q + REPONSE_Q + (bonne ? REVEAL_Q : 0) + 0.3 });
     });
     scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: 'À toi de jouer !', sous: 'makegoal.vercel.app', pill: 'Tirage au sort parmi les ≥ 80 %', icone: '⚡', duree: 3.2 });
   } else if (type === 'Stats joueur') {
@@ -195,9 +199,9 @@ export function construireScenes(p: VideoPost): Scene[] {
   } else if (type === 'Équipe type') {
     const d = p.onze_details;
     const joueurs = (p.onze || []).filter(j => j.nom);
-    const lignes: Ligne[] = joueurs.map((j, i) => ({ label: (i + 1) + '. ' + j.nom, valeur: drapeau(j.pays || j.equipe || '') !== '🏳️' ? drapeau(j.pays || j.equipe) : (j.equipe || '') }));
-    const badge = majuscule(d?.categorie || 'ÉQUIPE TYPE');
-    scenes.push({ k: 'intro', badge, fond: 'XI', titre: d?.competition || 'Équipe type', sous: p.formation || undefined, pill: d?.periode || undefined, icone: '⭐', duree: 3.2 });
+    const lignes: Ligne[] = joueurs.map((j, i) => ({ label: (i + 1) + '. ' + j.nom, sous: p.formation === CINQ_MAJEUR ? POSTES_5_MAJEUR[i] : undefined, valeur: drapeau(j.pays || j.equipe || '') !== '🏳️' ? drapeau(j.pays || j.equipe) : (j.equipe || '') }));
+    const badge = majuscule(d?.categorie || (p.formation === CINQ_MAJEUR ? '5 MAJEUR' : 'ÉQUIPE TYPE'));
+    scenes.push({ k: 'intro', badge, fond: 'XI', titre: d?.competition || (p.formation === CINQ_MAJEUR ? '5 majeur' : 'Équipe type'), sous: p.formation || undefined, pill: d?.periode || undefined, icone: p.formation === CINQ_MAJEUR ? '🏀' : '⭐', duree: 3.2 });
     pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'XI', titre: d?.competition || undefined, lignes: pg, duree: dureeLignes(pg.length) }));
   } else if (type === 'Classement') {
     const titre = p.classement_titre || p.titre;
@@ -258,6 +262,14 @@ export function construireScenes(p: VideoPost): Scene[] {
       const ls: Ligne[] = sp.map(s => ({ label: s.nom || 'Sponsor', valeur: '', accent: '#fbbf24', ecusson: s.logo || undefined }));
       pagesDeLignes(ls, 4).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'NOM', titre: 'Avec le soutien de', lignes: pg, duree: dureeLignes(pg.length) }));
     }
+  } else if (type === 'Mini quizz') {
+    const mq = p.mini_quizz!;
+    const qs = questionsPubliees(mq.questions);
+    const badge = 'MINI QUIZZ';
+    // Aucune bonne réponse n'existe ici : rien n'est jamais révélé, ni pendant ni à la fin.
+    scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'splash', titre: (mq.titre || '').trim() || undefined, sous: qs.length + ' questions · 8 secondes chacune', duree: 3.8 });
+    qs.forEach((q, i) => scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'q', lettre: (p.sport === 'basketball' ? '#ff7a00' : '#bf00ff'), numero: i + 1, total: qs.length, question: q.question.trim(), options: optionsPubliees(q).map(o => ({ cle: o.cle, texte: o.texte.trim() })), duree: LECTURE_Q + REPONSE_Q + 0.5 }));
+    scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'fin', cadeau: (mq.cadeau || '').trim() || undefined, duree: 4.8 });
   } else if (type === 'Nominations') {
     const nm = p.nominations!;
     const nomines = nominesPublies(nm.nomines);
@@ -617,6 +629,242 @@ function dessinerEntete(ctx: Ctx, badge: string, a: number, clair = false) {
 
 type Images = Map<string, HTMLImageElement | null>;
 
+// ---------- Mini quizz sans réponse : splash, questions, final « cadeaux » ----------
+const MQ_Q = 3, MQ_R = 5;
+const VIOLET = '#bf00ff', ORANGE = '#ff7a00';
+
+// Transition de marque : un bandeau violet + orange traverse l'écran avec le ballon.
+function transitionMarque(ctx: Ctx, t: number) {
+  const d = 0.6;
+  if (t >= d) return;
+  const p = t / d;
+  const cx = -700 + easeOut(p) * (LARGEUR + 1400);
+  const sk = 220;
+  const bande = (c: number, demi: number, couleur: string) => {
+    ctx.fillStyle = couleur;
+    ctx.beginPath();
+    ctx.moveTo(c - demi + sk, 0); ctx.lineTo(c + demi + sk, 0); ctx.lineTo(c + demi - sk, HAUTEUR); ctx.lineTo(c - demi - sk, HAUTEUR);
+    ctx.closePath(); ctx.fill();
+  };
+  ctx.save(); ctx.globalAlpha = 1;
+  bande(cx - 470, 90, ORANGE);
+  bande(cx, 330, VIOLET);
+  bande(cx + 400, 50, '#ffffff');
+  ctx.font = `200px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+  ctx.save(); ctx.translate(cx, HAUTEUR / 2); ctx.rotate(p * 9); ctx.fillText('⚽', 0, 10); ctx.restore();
+  texteIncline(ctx, 'MAKEGOAL', cx, HAUTEUR / 2 + 190, 64, '#fff', 'center', '#1e0a3c', 520);
+  ctx.restore();
+}
+
+// Bandeau de marque en bas des scènes de question.
+function pieddeMarque(ctx: Ctx, t: number, message: string) {
+  const g = ctx.createLinearGradient(0, 0, LARGEUR, 0);
+  g.addColorStop(0, VIOLET); g.addColorStop(0.7, VIOLET); g.addColorStop(0.7, ORANGE); g.addColorStop(1, ORANGE);
+  ctx.fillStyle = g; ctx.fillRect(0, HAUTEUR - 30, LARGEUR, 30);
+  const y = 1740;
+  ctx.fillStyle = 'rgba(20,5,60,0.82)'; ctx.fillRect(0, y - 110, LARGEUR, 190);
+  ctx.fillStyle = ORANGE; ctx.fillRect(0, y - 110, LARGEUR, 6);
+  ctx.save(); ctx.translate(110, y); ctx.fillStyle = VIOLET; ctx.beginPath(); ctx.roundRect(-62, -62, 124, 124, 30); ctx.fill();
+  ctx.font = `76px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+  ctx.rotate(Math.sin(t * 3) * 0.12); ctx.fillText('⚽', 0, 6);
+  ctx.restore();
+  texteIncline(ctx, 'MAKEGOAL', 192, y - 14, 62, '#fff', 'left', VIOLET, 400);
+  texteIncline(ctx, 'makegoal.vercel.app', 194, y + 42, 28, '#e9d5ff', 'left', undefined, 400);
+  const pulse = 1 + Math.sin(t * 6) * 0.03;
+  ctx.save(); ctx.translate(800, y); ctx.scale(pulse, pulse);
+  pill(ctx, message, 0, 0, 34, ORANGE, '#fff', 460);
+  ctx.restore();
+}
+
+function pointsProgression(ctx: Ctx, courant: number, total: number, y: number) {
+  const pas = 70, x0 = 540 - ((total - 1) * pas) / 2;
+  for (let i = 0; i < total; i++) {
+    ctx.beginPath(); ctx.arc(x0 + i * pas, y, i + 1 === courant ? 17 : 12, 0, Math.PI * 2);
+    ctx.fillStyle = i + 1 <= courant ? ORANGE : 'rgba(255,255,255,0.3)'; ctx.fill();
+  }
+}
+
+function carteQuestion(ctx: Ctx, lg: string[], taille: number, cy: number, larg: number, hCarte: number) {
+  ctx.save();
+  ctx.translate(540, cy); ctx.transform(1, 0, -0.06, 1, 0, 0);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-larg / 2 + 14, -hCarte / 2 + 16, larg, hCarte);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(-larg / 2, -hCarte / 2, larg, hCarte);
+  ctx.fillStyle = VIOLET; ctx.fillRect(-larg / 2, -hCarte / 2, 18, hCarte);
+  ctx.fillStyle = ORANGE; ctx.fillRect(-larg / 2 + 18, -hCarte / 2, 8, hCarte);
+  ctx.restore();
+  lg.forEach((l, i) => texteIncline(ctx, l, 540, cy - hCarte / 2 + 40 + taille * 0.61 + i * taille * 1.22, taille, '#111', 'center', undefined, larg - 100));
+}
+
+function dessinerMini(ctx: Ctx, s: Extract<Scene, { k: 'mq' }>, t: number, alpha: number) {
+  if (s.mode === 'splash') {
+    // rayons qui tournent derrière le logo
+    ctx.save(); ctx.globalAlpha = alpha * 0.35; ctx.translate(540, 560); ctx.rotate(t * 0.35);
+    for (let i = 0; i < 16; i++) {
+      ctx.rotate((Math.PI * 2) / 16);
+      ctx.fillStyle = i % 2 ? ORANGE : VIOLET;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-90, -1500); ctx.lineTo(90, -1500); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    const pop = easeBack((t - 0.15) / 0.6);
+    const onde = (t * 1.1) % 1;
+    ctx.save(); ctx.globalAlpha = alpha * (1 - onde) * 0.7; ctx.strokeStyle = '#fff'; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(540, 560, 230 + onde * 260, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(540, 560); ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop)); ctx.rotate((1 - Math.min(1, pop)) * -1.2);
+    const lueur = ctx.createRadialGradient(0, 0, 40, 0, 0, 340);
+    lueur.addColorStop(0, 'rgba(255,122,0,0.6)'); lueur.addColorStop(1, 'rgba(255,122,0,0)');
+    ctx.fillStyle = lueur; ctx.fillRect(-340, -340, 680, 680);
+    ctx.fillStyle = VIOLET; ctx.beginPath(); ctx.roundRect(-200, -200, 400, 400, 96); ctx.fill();
+    ctx.lineWidth = 12; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.roundRect(-200, -200, 400, 400, 96); ctx.stroke();
+    ctx.font = `230px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+    ctx.rotate(Math.sin(t * 4) * 0.08); ctx.fillText('⚽', 0, 12);
+    ctx.restore();
+    const ap = (t0: number) => easeOut((t - t0) / 0.45);
+    const m = ap(0.8);
+    if (m > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(m); ctx.translate(0, (1 - m) * 80); texteIncline(ctx, 'MAKEGOAL', 540, 1000, 160, '#fff', 'center', VIOLET, 980); ctx.restore(); }
+    const q = ap(1.2);
+    if (q > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(q); ctx.translate(0, (1 - q) * 70); pill(ctx, 'MINI QUIZZ', 540, 1170, 74, ORANGE, '#fff', 800); ctx.restore(); }
+    const ti = ap(1.6);
+    if (ti > 0 && s.titre) {
+      ctx.save(); ctx.globalAlpha = alpha * clamp(ti); ctx.translate(0, (1 - ti) * 60);
+      ctx.font = `italic 900 56px ${POLICE}`;
+      coupeLignes(ctx, majuscule(s.titre), 900).slice(0, 2).forEach((l, i) => texteIncline(ctx, l, 540, 1310 + i * 66, 56, '#fff', 'center', '#1e0a3c', 940));
+      ctx.restore();
+    }
+    const su = ap(2.0);
+    if (su > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(su); ctx.translate(0, (1 - su) * 50); texteOr(ctx, s.sous || '', 540, 1480, 40, 'center', 940); ctx.restore(); }
+    const cd = ap(2.4);
+    if (cd > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(cd); ctx.translate(540, 1620); const pu = 1 + Math.sin(t * 7) * 0.03; ctx.scale(pu, pu); pill(ctx, '🎁 CADEAUX À GAGNER', 0, 0, 46, '#fff', '#111', 900); ctx.restore(); }
+  }
+
+  else if (s.mode === 'q') {
+    const total = s.total || 3, n = s.numero || 1;
+    const opts = s.options || [];
+    const tp2 = t - MQ_Q;
+    const ap = (t0: number) => easeOut((t - t0) / 0.45);
+    // numéro + progression
+    const pp = ap(0.05);
+    ctx.save(); ctx.globalAlpha = alpha * clamp(pp); ctx.translate(0, (1 - pp) * -60);
+    pill(ctx, 'QUESTION ' + n + ' / ' + total, 540, 300, 60, VIOLET, '#fff');
+    pointsProgression(ctx, n, total, 392);
+    ctx.restore();
+
+    // phase 1 : la question en grand
+    const q = s.question || '';
+    ctx.font = `italic 900 76px ${POLICE}`;
+    let T1 = 76, L1 = coupeLignes(ctx, q, 800);
+    while ((L1.length > 6 || L1.length * T1 * 1.22 > 640) && T1 > 40) { T1 -= 4; ctx.font = `italic 900 ${T1}px ${POLICE}`; L1 = coupeLignes(ctx, q, 800); }
+    L1 = L1.slice(0, 6);
+    const H1 = L1.length * T1 * 1.22 + 90;
+    // phase 2 : la question compacte en haut
+    ctx.font = `italic 900 50px ${POLICE}`;
+    let T2 = 50, L2 = coupeLignes(ctx, q, 820);
+    while ((L2.length > 4 || L2.length * T2 * 1.2 > 250) && T2 > 30) { T2 -= 4; ctx.font = `italic 900 ${T2}px ${POLICE}`; L2 = coupeLignes(ctx, q, 820); }
+    L2 = L2.slice(0, 4);
+    const H2 = L2.length * T2 * 1.2 + 64;
+    const CY2 = 470 + H2 / 2;
+
+    if (tp2 < 0.35) {
+      const a1 = 1 - clamp(tp2 / 0.3);
+      const e = easeBack((t - 0.2) / 0.55);
+      ctx.save(); ctx.globalAlpha = alpha * clamp((t - 0.2) / 0.3) * a1;
+      ctx.translate(540, 900); ctx.scale(Math.max(0.01, e) * (1 + clamp(tp2 / 0.35) * 0.06), Math.max(0.01, e) * (1 + clamp(tp2 / 0.35) * 0.06)); ctx.translate(-540, -900);
+      carteQuestion(ctx, L1, T1, 900, 940, H1);
+      ctx.restore();
+      // compte à rebours 3, 2, 1
+      if (t < MQ_Q) {
+        const reste = MQ_Q - t, sec = Math.ceil(reste), fr = 1 - (reste - Math.floor(reste));
+        const pulse = 1 + 0.18 * Math.max(0, 1 - fr * 4);
+        ctx.save(); ctx.globalAlpha = alpha * clamp((t - 0.4) / 0.3); ctx.translate(540, 1420); ctx.scale(pulse, pulse);
+        ctx.lineWidth = 18; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = ORANGE; ctx.beginPath(); ctx.arc(0, 0, 120, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (reste / MQ_Q)); ctx.stroke();
+        texteIncline(ctx, String(sec), 0, 6, 150, '#fff', 'center', VIOLET, 160);
+        ctx.restore();
+        texteIncline(ctx, 'LIS BIEN LA QUESTION', 540, 1600, 40, '#e9d5ff', 'center', undefined, 900);
+      }
+    }
+    if (tp2 >= 0) {
+      const sl = easeOut(tp2 / 0.5);
+      ctx.save(); ctx.globalAlpha = alpha * clamp(tp2 / 0.3); ctx.translate(0, (1 - sl) * -120);
+      carteQuestion(ctx, L2, T2, CY2, 940, H2);
+      ctx.restore();
+      // les 4 choix, un par un, en alternant gauche / droite
+      const yOpt = 470 + H2 + 40;
+      const pas = Math.min(210, (1480 - yOpt) / Math.max(1, opts.length));
+      const hO = pas - 22;
+      opts.forEach((o, i) => {
+        const tr = tp2 - 0.25 - i * 0.16;
+        if (tr < 0) return;
+        const p = easeBack(tr / 0.4);
+        const cy = yOpt + i * pas + hO / 2;
+        ctx.save();
+        ctx.globalAlpha = alpha * clamp(tr / 0.2);
+        ctx.translate((1 - Math.min(1, p)) * (i % 2 ? 900 : -900), 0);
+        ctx.save(); ctx.translate(540, cy); ctx.transform(1, 0, -0.08, 1, 0, 0);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-490 + 10, -hO / 2 + 12, 980, hO);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(-490, -hO / 2, 980, hO);
+        ctx.fillStyle = s.lettre || VIOLET; ctx.fillRect(-490, -hO / 2, hO, hO);
+        ctx.restore();
+        texteIncline(ctx, o.cle, 540 - 490 + hO / 2 - 6, cy, hO * 0.64, '#fff', 'center', undefined, hO - 20);
+        ctx.font = `italic 900 60px ${POLICE}`;
+        const lo = coupeLignes(ctx, o.texte, 700).slice(0, 2);
+        const to = lo.length > 1 ? 46 : 60;
+        lo.forEach((l, k) => texteIncline(ctx, l, 540 - 490 + hO + 30, cy + (k - (lo.length - 1) / 2) * to * 1.15, to, '#111', 'left', undefined, 760 - hO + 80));
+        ctx.restore();
+      });
+      // 5 s pour répondre
+      if (tp2 < MQ_R) {
+        const prog = clamp(tp2 / MQ_R);
+        ctx.save(); ctx.globalAlpha = alpha;
+        const yb = 1540;
+        ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(110, yb - 16, 860, 32);
+        const gr = ctx.createLinearGradient(110, 0, 970, 0);
+        gr.addColorStop(0, VIOLET); gr.addColorStop(1, ORANGE);
+        ctx.fillStyle = prog > 0.7 ? '#ef4444' : gr; ctx.fillRect(110, yb - 16, 860 * (1 - prog), 32);
+        texteIncline(ctx, '⏱ ' + Math.max(0, Math.ceil(MQ_R * (1 - prog))) + ' s', 540, yb + 62, 46, '#fff', 'center', undefined, 400);
+        ctx.restore();
+      }
+    }
+    ctx.save(); ctx.globalAlpha = alpha; pieddeMarque(ctx, t, tp2 >= 0 ? 'RÉPONDS EN COMMENTAIRE' : 'À TOI DE JOUER'); ctx.restore();
+  }
+
+  else if (s.mode === 'fin') {
+    // confettis déterministes
+    ctx.save(); ctx.globalAlpha = alpha;
+    for (let i = 0; i < 46; i++) {
+      const gx = (i * 137) % LARGEUR, v = 160 + (i * 53) % 220, dec = ((i * 29) % 30) / 10;
+      const y = (((t + dec) * v) % (HAUTEUR + 200)) - 100;
+      ctx.save(); ctx.translate(gx + Math.sin(t * 2 + i) * 40, y); ctx.rotate(t * 3 + i);
+      ctx.fillStyle = [ORANGE, VIOLET, OR, '#ffffff'][i % 4]; ctx.fillRect(-12, -6, 24, 12); ctx.restore();
+    }
+    ctx.restore();
+    const pop = easeBack((t - 0.1) / 0.6);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(540, 520); ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop)); ctx.rotate(Math.sin(t * 5) * 0.05);
+    const lueur = ctx.createRadialGradient(0, 0, 30, 0, 0, 330);
+    lueur.addColorStop(0, 'rgba(252,211,77,0.65)'); lueur.addColorStop(1, 'rgba(252,211,77,0)');
+    ctx.fillStyle = lueur; ctx.fillRect(-330, -330, 660, 660);
+    ctx.fillStyle = VIOLET; ctx.beginPath(); ctx.roundRect(-190, -190, 380, 380, 90); ctx.fill();
+    ctx.lineWidth = 12; ctx.strokeStyle = OR; ctx.beginPath(); ctx.roundRect(-190, -190, 380, 380, 90); ctx.stroke();
+    ctx.font = `220px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('🎁', 0, 12);
+    ctx.restore();
+    const ap = (t0: number) => easeOut((t - t0) / 0.45);
+    const a = ap(0.6);
+    if (a > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(a); ctx.translate(0, (1 - a) * 70); texteOr(ctx, 'CADEAUX', 540, 900, 150, 'center', 960); texteOr(ctx, 'À GAGNER', 540, 1050, 150, 'center', 960); ctx.restore(); }
+    const b = ap(1.0);
+    if (b > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(b); ctx.translate(0, (1 - b) * 60); texteIncline(ctx, 'PARMI LES BONNES RÉPONSES', 540, 1170, 54, '#fff', 'center', VIOLET, 960); ctx.restore(); }
+    const c = ap(1.4);
+    if (c > 0 && s.cadeau) { ctx.save(); ctx.globalAlpha = alpha * clamp(c); ctx.translate(0, (1 - c) * 50); pill(ctx, s.cadeau, 540, 1290, 44, '#fff', '#111', 940); ctx.restore(); }
+    const d = ap(1.9);
+    if (d > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(d); ctx.translate(540, 1440); ctx.scale(1 + Math.sin(t * 7) * 0.03, 1 + Math.sin(t * 7) * 0.03); pill(ctx, 'COMMENTE TES 3 RÉPONSES 👇', 0, 0, 44, ORANGE, '#fff', 960); ctx.restore(); }
+    const e = ap(2.4);
+    if (e > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(e); ctx.translate(0, (1 - e) * 50); pill(ctx, 'ET PARTAGE ! 🔁', 540, 1580, 44, VIOLET, '#fff', 800); ctx.restore(); }
+    const f = ap(2.8);
+    if (f > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(f); texteIncline(ctx, 'MAKEGOAL  •  makegoal.vercel.app', 540, 1730, 40, '#e9d5ff', 'center', undefined, 960); ctx.restore(); }
+  }
+
+  transitionMarque(ctx, t);
+}
+
+
 // Photo (recadrée en carré arrondi) ou écusson (entier, sans recadrage) dans une ligne.
 function imageCarree(ctx: Ctx, img: HTMLImageElement | null, x: number, y: number, c: number, recadrer: boolean, initiale: string) {
   ctx.save();
@@ -974,6 +1222,8 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
     });
   }
 
+  else if (s.k === 'mq') { dessinerMini(ctx, s, t, alpha); }
+
   else if (s.k === 'quiztitre') {
     const pop = easeBack((t - 0.1) / 0.6);
     if (s.icone) {
@@ -1037,7 +1287,7 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       ctx.translate(540, cy); ctx.scale(pulse, pulse); ctx.transform(1, 0, -0.08, 1, 0, 0);
       ctx.fillStyle = bonne ? '#bf00ff' : '#f5f3ff'; ctx.fillRect(-490, -hOpt / 2, 980, hOpt);
       ctx.strokeStyle = bonne ? '#bf00ff' : '#ddd6fe'; ctx.lineWidth = 4; ctx.strokeRect(-490, -hOpt / 2, 980, hOpt);
-      ctx.fillStyle = bonne ? '#111' : '#ff7a00'; ctx.fillRect(-490, -hOpt / 2, hOpt, hOpt);
+      ctx.fillStyle = bonne ? '#111' : (s.lettre || '#ff7a00'); ctx.fillRect(-490, -hOpt / 2, hOpt, hOpt);
       ctx.restore();
       texteIncline(ctx, o.cle, 540 - 490 + hOpt / 2 - 6, cy, hOpt * 0.62, '#fff', 'center', undefined, hOpt - 20);
       ctx.font = `italic 900 54px ${POLICE}`;
