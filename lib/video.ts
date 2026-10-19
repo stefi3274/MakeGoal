@@ -267,7 +267,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     const qs = questionsPubliees(mq.questions);
     const badge = 'MINI QUIZZ';
     // Aucune bonne réponse n'existe ici : rien n'est jamais révélé, ni pendant ni à la fin.
-    scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'splash', titre: (mq.titre || '').trim() || undefined, sous: qs.length + ' questions · 8 secondes chacune', duree: 3.8 });
+    scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'splash', cadeau: (mq.cadeau || '').trim() || undefined, duree: 3.8 });
     qs.forEach((q, i) => scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'q', lettre: (p.sport === 'basketball' ? '#ff7a00' : '#bf00ff'), numero: i + 1, total: qs.length, question: q.question.trim(), options: optionsPubliees(q).map(o => ({ cle: o.cle, texte: o.texte.trim() })), duree: LECTURE_Q + REPONSE_Q + 0.5 }));
     scenes.push({ k: 'mq', badge, fond: 'GOAL', mode: 'fin', cadeau: (mq.cadeau || '').trim() || undefined, duree: 4.8 });
   } else if (type === 'Nominations') {
@@ -695,6 +695,16 @@ function carteQuestion(ctx: Ctx, lg: string[], taille: number, cy: number, larg:
   lg.forEach((l, i) => texteIncline(ctx, l, 540, cy - hCarte / 2 + 40 + taille * 0.61 + i * taille * 1.22, taille, '#111', 'center', undefined, larg - 100));
 }
 
+// Cadeau affiché en grand : « Un mois d'abonnement Netflix » + « À GAGNER » (sans doublon si déjà saisi).
+function lignesCadeau(ctx: Ctx, cadeau: string, larg: number, taille: number, maxLignes: number): { lg: string[]; t: number } {
+  const brut = majuscule((cadeau || '').replace(/\s+(?:[àa])\s+gagner\s*!?$/i, '').trim());
+  let t = taille;
+  ctx.font = `italic 900 ${t}px ${POLICE}`;
+  let lg = coupeLignes(ctx, brut, larg);
+  while (lg.length > maxLignes && t > 44) { t -= 4; ctx.font = `italic 900 ${t}px ${POLICE}`; lg = coupeLignes(ctx, brut, larg); }
+  return { lg: lg.slice(0, maxLignes), t };
+}
+
 function dessinerMini(ctx: Ctx, s: Extract<Scene, { k: 'mq' }>, t: number, alpha: number) {
   if (s.mode === 'splash') {
     // rayons qui tournent derrière le logo
@@ -719,21 +729,30 @@ function dessinerMini(ctx: Ctx, s: Extract<Scene, { k: 'mq' }>, t: number, alpha
     ctx.rotate(Math.sin(t * 4) * 0.08); ctx.fillText('⚽', 0, 12);
     ctx.restore();
     const ap = (t0: number) => easeOut((t - t0) / 0.45);
-    const m = ap(0.8);
-    if (m > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(m); ctx.translate(0, (1 - m) * 80); texteIncline(ctx, 'MAKEGOAL', 540, 1000, 160, '#fff', 'center', VIOLET, 980); ctx.restore(); }
-    const q = ap(1.2);
-    if (q > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(q); ctx.translate(0, (1 - q) * 70); pill(ctx, 'MINI QUIZZ', 540, 1170, 74, ORANGE, '#fff', 800); ctx.restore(); }
-    const ti = ap(1.6);
-    if (ti > 0 && s.titre) {
-      ctx.save(); ctx.globalAlpha = alpha * clamp(ti); ctx.translate(0, (1 - ti) * 60);
-      ctx.font = `italic 900 56px ${POLICE}`;
-      coupeLignes(ctx, majuscule(s.titre), 900).slice(0, 2).forEach((l, i) => texteIncline(ctx, l, 540, 1310 + i * 66, 56, '#fff', 'center', '#1e0a3c', 940));
+    const m = ap(0.7);
+    if (m > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(m); ctx.translate(0, (1 - m) * 80); texteIncline(ctx, 'MAKEGOAL', 540, 940, 160, '#fff', 'center', VIOLET, 980); ctx.restore(); }
+    const q = ap(1.0);
+    if (q > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(q); ctx.translate(0, (1 - q) * 70); pill(ctx, 'MINI QUIZZ', 540, 1080, 74, ORANGE, '#fff', 800); ctx.restore(); }
+    // le cadeau, en grand : c'est lui qui attire l'attention
+    const g = ap(1.5);
+    if (g > 0) {
+      ctx.save(); ctx.globalAlpha = alpha * clamp(g);
+      const sc = (0.85 + 0.15 * easeBack((t - 1.5) / 0.5)) * (1 + Math.sin(t * 5) * 0.015);
+      ctx.translate(540, 1440); ctx.scale(sc, sc);
+      ctx.fillStyle = 'rgba(20,5,60,0.82)'; ctx.beginPath(); ctx.roundRect(-480, -250, 960, 500, 44); ctx.fill();
+      ctx.lineWidth = 8; ctx.strokeStyle = OR; ctx.beginPath(); ctx.roundRect(-480, -250, 960, 500, 44); ctx.stroke();
+      ctx.font = `130px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('🎁', 0, -170);
+      if (s.cadeau) {
+        const { lg, t: tc } = lignesCadeau(ctx, s.cadeau, 880, 118, 2);
+        const y0 = -20 - ((lg.length - 1) * tc * 1.08) / 2;
+        lg.forEach((l, i) => texteOr(ctx, l, 0, y0 + i * tc * 1.08, tc, 'center', 880));
+        pill(ctx, 'À GAGNER', 0, 175, 50, ORANGE, '#fff', 500);
+      } else {
+        texteOr(ctx, 'CADEAUX', 0, -30, 100, 'center', 880);
+        texteOr(ctx, 'À GAGNER', 0, 90, 100, 'center', 880);
+      }
       ctx.restore();
     }
-    const su = ap(2.0);
-    if (su > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(su); ctx.translate(0, (1 - su) * 50); texteOr(ctx, s.sous || '', 540, 1480, 40, 'center', 940); ctx.restore(); }
-    const cd = ap(2.4);
-    if (cd > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(cd); ctx.translate(540, 1620); const pu = 1 + Math.sin(t * 7) * 0.03; ctx.scale(pu, pu); pill(ctx, '🎁 CADEAUX À GAGNER', 0, 0, 46, '#fff', '#111', 900); ctx.restore(); }
   }
 
   else if (s.mode === 'q') {
@@ -847,12 +866,22 @@ function dessinerMini(ctx: Ctx, s: Extract<Scene, { k: 'mq' }>, t: number, alpha
     ctx.font = `220px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('🎁', 0, 12);
     ctx.restore();
     const ap = (t0: number) => easeOut((t - t0) / 0.45);
+    const r0 = ap(0.0);
+    ctx.save(); ctx.globalAlpha = alpha * clamp(r0); texteIncline(ctx, 'MAKEGOAL MINI QUIZZ', 540, 250, 60, '#fff', 'center', VIOLET, 960); ctx.restore();
     const a = ap(0.6);
-    if (a > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(a); ctx.translate(0, (1 - a) * 70); texteOr(ctx, 'CADEAUX', 540, 900, 150, 'center', 960); texteOr(ctx, 'À GAGNER', 540, 1050, 150, 'center', 960); ctx.restore(); }
+    if (a > 0) {
+      ctx.save(); ctx.globalAlpha = alpha * clamp(a); ctx.translate(0, (1 - a) * 70);
+      if (s.cadeau) {
+        const { lg, t: tc } = lignesCadeau(ctx, s.cadeau, 900, 92, 2);
+        lg.forEach((l, i) => texteOr(ctx, l, 540, 870 + i * tc * 1.08, tc, 'center', 940));
+        texteIncline(ctx, 'À GAGNER', 540, 870 + lg.length * tc * 1.08 + 20, 104, '#fff', 'center', ORANGE, 940);
+      } else {
+        texteOr(ctx, 'CADEAUX', 540, 900, 150, 'center', 960); texteOr(ctx, 'À GAGNER', 540, 1050, 150, 'center', 960);
+      }
+      ctx.restore();
+    }
     const b = ap(1.0);
-    if (b > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(b); ctx.translate(0, (1 - b) * 60); texteIncline(ctx, 'PARMI LES BONNES RÉPONSES', 540, 1170, 54, '#fff', 'center', VIOLET, 960); ctx.restore(); }
-    const c = ap(1.4);
-    if (c > 0 && s.cadeau) { ctx.save(); ctx.globalAlpha = alpha * clamp(c); ctx.translate(0, (1 - c) * 50); pill(ctx, s.cadeau, 540, 1290, 44, '#fff', '#111', 940); ctx.restore(); }
+    if (b > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(b); ctx.translate(0, (1 - b) * 60); texteIncline(ctx, 'PARMI LES BONNES RÉPONSES', 540, 1250, 54, '#fff', 'center', VIOLET, 960); ctx.restore(); }
     const d = ap(1.9);
     if (d > 0) { ctx.save(); ctx.globalAlpha = alpha * clamp(d); ctx.translate(540, 1440); ctx.scale(1 + Math.sin(t * 7) * 0.03, 1 + Math.sin(t * 7) * 0.03); pill(ctx, 'COMMENTE TES 3 RÉPONSES 👇', 0, 0, 44, ORANGE, '#fff', 960); ctx.restore(); }
     const e = ap(2.4);

@@ -22,6 +22,8 @@ const ICONES: Record<string, string> = {
   buteur_joue: '🎮', buteur_gagne: '⚽', buteur_perdu: '❌',
   parrainage_invite: '📨', parrainage_inscription: '🤝', parrainage_bienvenue: '🎉',
   question_eclair_gagnant: '⚡',
+  fantasy_journee: '🏟️',
+  fantasy7_journee: '🏟️',
   conversion_gourdes: '💰'
 };
 

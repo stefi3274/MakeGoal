@@ -35,6 +35,7 @@ export default function AdminHub() {
     { titre: 'Articles & Média', desc: 'Posts, résultats, stats joueurs', emoji: '📰', href: '/admin/media', couleur: '#3b82f6', couleur2: '#60a5fa' },
     { titre: 'Questions Éclair', desc: 'Question foot, tirage parmi les bonnes réponses', emoji: '⚡', href: '/admin/questions-eclair', couleur: '#eab308', couleur2: '#fbbf24' },
     { titre: 'FootQuizz', desc: '10 questions, tirage parmi les ≥80%', emoji: '🧠', href: '/admin/quizz-foot', couleur: '#8b5cf6', couleur2: '#a78bfa' },
+    { titre: 'Fantasy', desc: 'Joueurs, journées, stats et points', emoji: '🏟️', href: '/admin/fantasy', couleur: '#10b981', couleur2: '#34d399' },
     { titre: 'À propos', desc: 'Votre photo et votre présentation', emoji: '👤', href: '/admin/apropos', couleur: '#ec4899', couleur2: '#f472b6' },
     { titre: 'Affiche Parye San Lajan', desc: 'Affiche telechargeable pour les reseaux', emoji: '🎲', href: '/admin/affiche-paris', couleur: VIOLET, couleur2: VIOLET_DEEP },
   ];

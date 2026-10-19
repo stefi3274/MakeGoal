@@ -62,6 +62,7 @@ export default function Footer() {
               <li><a href="/about" style={{color:'#e5e7eb',textDecoration:'none'}}>À propos</a></li>
               <li><a href="/matchs" style={{color:'#e5e7eb',textDecoration:'none'}}>Matchs</a></li>
               <li><a href="/concours" style={{color:'#e5e7eb',textDecoration:'none'}}>Concours</a></li>
+              <li><a href="/fantasy" style={{color:'#e5e7eb',textDecoration:'none'}}>🏟️ Fantasy</a></li>
               {questionEclairActive && <li><a href="/question-eclair" style={{color:'#e5e7eb',textDecoration:'none'}}>⚡ Question Éclair</a></li>}
               {footQuizzActif && <li><a href="/footquizz" style={{color:'#e5e7eb',textDecoration:'none'}}>🧠 FootQuizz</a></li>}
               <li><a href="/mentions" style={{color:'#e5e7eb',textDecoration:'none'}}>Mentions légales</a></li>

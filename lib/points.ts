@@ -18,6 +18,8 @@ export type RaisonPoints =
   | 'parrainage_invite' | 'parrainage_inscription' | 'parrainage_bienvenue'
   | 'question_eclair_gagnant'
   | 'quizz_foot_gagnant'
+  | 'fantasy_journee'
+  | 'fantasy7_journee'
   | 'conversion_gourdes';
 
 const LIBELLES: Record<RaisonPoints, string> = {
@@ -38,6 +40,8 @@ const LIBELLES: Record<RaisonPoints, string> = {
   parrainage_bienvenue: 'Bienvenue — inscrit via parrainage',
   question_eclair_gagnant: 'Gagnant du tirage Question Éclair',
   quizz_foot_gagnant: 'Gagnant du tirage FootQuizz',
+  fantasy_journee: 'MakeGoal Fantasy : points de la journée',
+  fantasy7_journee: 'MakeGoal Fantasy 7 : points de la journée',
   conversion_gourdes: 'Conversion en Gourdes'
 };
 
@@ -299,4 +303,18 @@ export async function tirerGagnantsQuizzFoot(quizzId: string, client: SupabaseCl
 
   await client.from('quizz_foot').update({ statut: 'tire', fermee_at: new Date().toISOString() }).eq('id', quizzId);
   return { ok: true, gagnants: gagnants.map(g => g.user_id) };
+}
+
+
+// ------------------------------------------------------------
+// MakeGoal Fantasy : points d'une journée ajoutés au classement général.
+// ⚠️ RÉSERVÉ AU SERVEUR (route API avec service_role). Le montant peut être
+// négatif (correction d'une journée déjà créditée).
+// ------------------------------------------------------------
+export async function crediterFantasy(userId: string, montant: number, journeeId: string, client: SupabaseClient = supabase) {
+  return enregistrerMouvement(userId, montant, 'fantasy_journee', 'fantasy_journee', journeeId, client);
+}
+
+export async function crediterFantasy7(userId: string, montant: number, journeeId: string, client: SupabaseClient = supabase) {
+  return enregistrerMouvement(userId, montant, 'fantasy7_journee', 'fantasy7_journee', journeeId, client);
 }

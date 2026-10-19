@@ -40,6 +40,7 @@ export default function Header() {
           <a href="/" style={{color:'#6b7280',textDecoration:'none'}}>Accueil</a>
           <a href="/matchs" style={{color:'#6b7280',textDecoration:'none'}}>Matchs</a>
           <a href="/paris" style={{color:'#6b7280',textDecoration:'none'}}>🎲 Paris</a>
+          <a href="/fantasy" style={{color:'#6b7280',textDecoration:'none'}}>🏟️ Fantasy</a>
           <a href="/about" style={{color:'#6b7280',textDecoration:'none'}}>À propos</a>
           {!loading && (
             user ? (
