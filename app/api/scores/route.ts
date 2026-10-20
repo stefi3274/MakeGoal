@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { adminDe, supabaseAdmin } from '../../../lib/fantasyServeur';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -10,12 +11,15 @@ export async function GET() {
   return Response.json({ scores: data || [] });
 }
 
+// Écriture des scores : réservée aux administrateurs (clé service côté serveur).
 export async function POST(request: Request) {
+  const a = await adminDe(request);
+  if (a instanceof Response) return a;
   const { match_id, home_score, away_score, statut } = await request.json();
   if (match_id === undefined || home_score === undefined || away_score === undefined) {
     return Response.json({ error: 'Données manquantes' }, { status: 400 });
   }
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('scores')
     .upsert({ match_id, home_score, away_score, statut: statut || 'final', updated_at: new Date().toISOString() },
     { onConflict: 'match_id' })
