@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import Turnstile from './Turnstile';
 
 const VIOLET = '#bf00ff';
 
@@ -22,6 +23,8 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
   const [secretManuel, setSecretManuel] = useState('');
   const [factorId, setFactorId] = useState('');
   const [enCours, setEnCours] = useState(false);
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaCle, setCaptchaCle] = useState(0);
 
   useEffect(() => { verifierSessionExistante(); }, []);
 
@@ -71,9 +74,11 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
   };
 
   const seConnecter = async () => {
+    if (!captcha) { setErreur('Confirme que tu n\'es pas un robot.'); return; }
     setErreur(''); setEnCours(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captcha } });
     setEnCours(false);
+    setCaptcha(null); setCaptchaCle(k => k + 1);
     if (error) { setErreur('Email ou mot de passe incorrect.'); return; }
     await verifierNiveauMfa();
   };
@@ -125,7 +130,8 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
             <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" style={{...inputStyle,paddingRight:'44px',marginBottom:'16px'}} onKeyDown={e => e.key === 'Enter' && seConnecter()}/>
             <button type="button" onClick={() => setVoirMdp(v => !v)} style={{position:'absolute',right:'8px',top:'18px',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px'}}>{voirMdp ? '🙈' : '👁️'}</button>
           </div>
-          <button onClick={seConnecter} disabled={enCours} style={{width:'100%',padding:'12px',background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'8px',border:'none',cursor:'pointer',fontSize:'15px'}}>{enCours ? '⏳...' : 'Se connecter'}</button>
+          <Turnstile key={captchaCle} onToken={setCaptcha} theme="dark" />
+          <button onClick={seConnecter} disabled={enCours || !captcha} style={{width:'100%',padding:'12px',opacity:(enCours || !captcha)?0.6:1,background:VIOLET,color:'#fff',fontWeight:700,borderRadius:'8px',border:'none',cursor:'pointer',fontSize:'15px'}}>{enCours ? '⏳...' : 'Se connecter'}</button>
         </div>
       </div>
     );

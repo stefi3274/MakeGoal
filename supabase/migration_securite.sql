@@ -31,9 +31,9 @@ end $$;
 drop policy if exists "scores public insert" on scores;
 drop policy if exists "scores public update" on scores;
 
--- 5. Profil : un utilisateur ne peut modifier que son pseudo.
+-- 5. Profil : un utilisateur ne peut modifier que son pseudo et son pays.
 revoke update on profiles from anon, authenticated;
-grant update (username) on profiles to authenticated;
+grant update (username, pays) on profiles to authenticated;
 
 -- 6. Parrainages : écriture réservée au serveur. Participations (ancienne table) : plus d'écriture directe.
 drop policy if exists "parrainages insert filleul" on parrainages;
@@ -46,6 +46,8 @@ language plpgsql as $$
 declare debut timestamptz;
 begin
   if coalesce(auth.role(), '') = 'service_role' then return new; end if;
+  -- La colonne points est calculée par le serveur : un joueur ne peut pas la choisir.
+  if tg_op = 'INSERT' then new.points := 0; else new.points := old.points; end if;
   select date_match into debut from concours_matchs where id = new.concours_match_id;
   if debut is not null and debut <= now() then
     raise exception 'Le match a commencé : les pronostics sont fermés.';

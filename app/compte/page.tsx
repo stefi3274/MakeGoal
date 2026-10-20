@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { initialiserSoldeParis } from '../../lib/paris';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import Turnstile from '../../components/Turnstile';
 
 const VIOLET = '#bf00ff';
 
@@ -19,6 +20,10 @@ function CompteContent() {
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaCle, setCaptchaCle] = useState(0);
+  // Le jeton anti-robot est à usage unique : après chaque tentative, on en redemande un.
+  const renouvelerCaptcha = () => { setCaptcha(null); setCaptchaCle(k => k + 1); };
 
   useEffect(() => {
     if (refParrain) {
@@ -47,9 +52,11 @@ function CompteContent() {
   };
 
   const seConnecter = async () => {
+    if (!captcha) { setMessage('❌ Confirme d\'abord que tu n\'es pas un robot.'); return; }
     setLoading(true); setMessage('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captcha } });
     setLoading(false);
+    renouvelerCaptcha();
     if (error) {
       setMessage('❌ ' + (error.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : error.message));
     } else {
@@ -61,13 +68,15 @@ function CompteContent() {
     if (!email || !password) { setMessage('❌ Email et mot de passe obligatoires.'); return; }
     if (password.length < 6) { setMessage('❌ Le mot de passe doit contenir au moins 6 caractères.'); return; }
     if (!majeur) { setMessage('❌ Vous devez confirmer avoir 18 ans ou plus pour créer un compte.'); return; }
+    if (!captcha) { setMessage('❌ Confirme d\'abord que tu n\'es pas un robot.'); return; }
     setLoading(true); setMessage('');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username: username || email.split('@')[0] } }
+      options: { data: { username: username || email.split('@')[0] }, captchaToken: captcha }
     });
     setLoading(false);
+    renouvelerCaptcha();
     if (error) {
       setMessage('❌ ' + error.message);
     } else {
@@ -161,12 +170,14 @@ function CompteContent() {
             </label>
           )}
 
+          <Turnstile key={captchaCle + mode} onToken={setCaptcha} />
+
           <button
             onClick={mode === 'connexion' ? seConnecter : sinscrire}
-            disabled={loading}
+            disabled={loading || !captcha}
             style={{
               width:'100%', padding:'16px', borderRadius:'12px', border:'none',
-              background: loading ? '#9ca3af' : VIOLET, color:'#fff',
+              background: (loading || !captcha) ? '#9ca3af' : VIOLET, color:'#fff',
               fontWeight:700, fontSize:'16px', cursor: loading ? 'not-allowed' : 'pointer',
               marginTop:'8px'
             }}

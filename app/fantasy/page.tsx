@@ -134,7 +134,7 @@ export default function FantasyPage() {
     return joueurs.filter(j => (!fPoste || j.poste === fPoste) && (!q || j.nom.toLowerCase().includes(q) || j.club.toLowerCase().includes(q)));
   }, [joueurs, fPoste, recherche]);
 
-  const badge = (prix: number) => { const k = categorieJoueur(prix); return <span style={{ background: k.fond, color: k.texte, border: '1px solid ' + k.bordure, borderRadius: '999px', fontSize: '9px', fontWeight: 900, padding: '1px 7px', marginLeft: '6px', verticalAlign: 'middle' }}>{k.court}</span>; };
+  const badge = (prix: number) => { const k = categorieJoueur(prix); return <span title={k.libelle} style={{ background: k.fond, color: k.texte, border: '1px solid ' + k.bordure, borderRadius: '999px', fontSize: '11px', fontWeight: 900, padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{k.court}</span>; };
   const fondCarte = (prix: number) => { const f = categorieJoueur(prix).fond; return f.startsWith('linear') ? '#fffbeb' : f; };
 
   const emplacements: { poste: Poste; id: string | null }[] = [];
@@ -167,15 +167,23 @@ export default function FantasyPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif' }}>
       <Header />
-      <div style={{ background: 'linear-gradient(135deg,' + SOMBRE + ',' + VIOLET + ')', padding: '38px 20px', textAlign: 'center' }}>
-        <div style={{ fontSize: '40px' }}>⚡</div>
-        <h1 style={{ color: '#fff', fontWeight: 900, fontSize: '28px', margin: '6px 0 6px' }}>MakeGoal Fantasy</h1>
-        <p style={{ color: '#e9d5ff', fontSize: '14px', margin: 0, fontWeight: 600 }}>Gratuit · 7 joueurs en 1-2-2-2 · {montant(BUDGET_DEPART)} virtuels · max {MAX_TOPS} Légendes Or Top</p>
-      </div>
+      <section aria-label="MakeGoal Fantasy" style={{ position: 'relative', overflow: 'hidden', background: SOMBRE }}>
+        <img src="/fantasy-hero.jpg" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 35%', opacity: 0.55 }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(26,0,51,0.35) 0%, rgba(26,0,51,0.9) 100%)' }} aria-hidden="true" />
+        <div style={{ position: 'relative', maxWidth: '760px', margin: '0 auto', padding: '40px 20px 28px', textAlign: 'center' }}>
+          <h1 style={{ color: '#fff', fontWeight: 900, fontSize: 'clamp(28px,7vw,38px)', lineHeight: 1.1, margin: '0 0 8px' }}>MakeGoal Fantasy</h1>
+          <p style={{ color: '#f3e8ff', fontSize: '15px', lineHeight: 1.5, margin: '0 0 16px', fontWeight: 600 }}>Compose ton équipe de 7 joueurs et grimpe au classement. 100 % gratuit.</p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {['⚡ 7 joueurs · 1-2-2-2', '💰 ' + montant(BUDGET_DEPART), '★ Max ' + MAX_TOPS + ' Légendes Top'].map(t => (
+              <span key={t} style={{ background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', borderRadius: '999px', padding: '6px 14px', fontSize: '13px', fontWeight: 800 }}>{t}</span>
+            ))}
+          </div>
+        </div>
+      </section>
 
-      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px 16px 60px' }}>
+      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px 16px 80px' }}>
         <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-          <button onClick={() => router.push('/fantasy/ligues')} style={{ background: '#dcfce7', color: '#14532d', border: 'none', borderRadius: '999px', padding: '9px 16px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}>👥 Ligues entre amis</button>
+          <button onClick={() => router.push('/fantasy/ligues')} style={{ background: '#dcfce7', color: '#14532d', border: 'none', borderRadius: '999px', padding: '12px 20px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', minHeight: '44px' }}>👥 Ligues entre amis</button>
         </div>
         {message && <div style={{ padding: '12px 16px', borderRadius: '12px', marginBottom: '14px', fontWeight: 700, fontSize: '13px', background: message.ok ? '#f0fdf4' : '#fef2f2', color: message.ok ? '#065f46' : '#b91c1c' }}>{message.texte}</div>}
 
@@ -203,13 +211,13 @@ export default function FantasyPage() {
         {user && !chargement && etat && etat.inscrit && (
           <>
             <BonusQuotidien onChange={rafraichirBudget} />
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', overflowX: 'auto' }}>
+            <div role="tablist" style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
               {([['equipe', '👕 Mon équipe'], ['marche', '🛒 Marché'], ['classement', '🏆 Classement'], ['regles', '📖 Règles']] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setOnglet(k)} style={{ padding: '10px 16px', borderRadius: '999px', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap', background: onglet === k ? VIOLET : '#f3f4f6', color: onglet === k ? '#fff' : '#374151' }}>{l}</button>
+                <button key={k} role="tab" aria-selected={onglet === k} onClick={() => setOnglet(k)} style={{ padding: '12px 18px', minHeight: '44px', borderRadius: '999px', border: 'none', fontWeight: 800, fontSize: '14px', cursor: 'pointer', whiteSpace: 'nowrap', background: onglet === k ? VIOLET : '#f3f4f6', color: onglet === k ? '#fff' : '#374151' }}>{l}</button>
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: '8px', marginBottom: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px', marginBottom: '14px' }}>
               {[
                 ['Budget restant', montant(restant), restant < 0 ? '#dc2626' : '#065f46'],
                 ['Joueurs', titulaires.length + ' / ' + NB_JOUEURS_7, '#111'],
@@ -232,6 +240,31 @@ export default function FantasyPage() {
                   <span style={{ flex: 1, fontWeight: 900, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{etat.nom_equipe}</span>
                   <a href="/profil" style={{ fontSize: '11px', fontWeight: 900, color: 'inherit', textDecoration: 'underline' }}>🎨 Personnaliser</a>
                 </div>
+                <div style={{ background: 'repeating-linear-gradient(180deg,#15803d 0px,#15803d 46px,#16a34a 46px,#16a34a 92px)', border: '3px solid rgba(255,255,255,0.85)', borderRadius: '18px', padding: '18px 8px 14px', marginBottom: '14px', position: 'relative' }}>
+                  {(['A', 'M', 'D', 'G'] as Poste[]).map(p => (
+                    <div key={p} style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
+                      {emplacements.filter(e => e.poste === p).map((e, k) => {
+                        const jj = e.id ? carte.get(e.id) : null;
+                        if (!jj) return (
+                          <button key={p + k} onClick={() => { setFPoste(e.poste); setOnglet('marche'); }} aria-label={'Ajouter un ' + LIBELLE_POSTE[e.poste].toLowerCase()} style={{ width: '92px', background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0 }}>
+                            <div style={{ width: '48px', height: '48px', margin: '0 auto', borderRadius: '50%', border: '2px dashed rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 900 }}>+</div>
+                            <div style={{ fontSize: '12px', fontWeight: 800, marginTop: '4px' }}>{LIBELLE_POSTE[e.poste]}</div>
+                          </button>
+                        );
+                        const nomCourt = jj.nom.split(' ').slice(-1)[0];
+                        return (
+                          <div key={jj.id} style={{ width: '92px', textAlign: 'center', color: '#fff', position: 'relative' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center' }}><Maillot c1={etat.profil?.couleur1} c2={etat.profil?.couleur2} lettre={jj.poste} taille={48} /></div>
+                            {capitaine === jj.id && <span style={{ position: 'absolute', top: -4, right: 14, background: '#fff', color: VIOLET, borderRadius: '999px', fontSize: '11px', fontWeight: 900, padding: '1px 6px' }}>C</span>}
+                            <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '4px', textShadow: '0 1px 2px rgba(0,0,0,0.5)', wordBreak: 'break-word', lineHeight: 1.15 }}>{nomCourt}</div>
+                            <div style={{ fontSize: '11px', fontWeight: 700, opacity: 0.95 }}>{montant(jj.prix)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <h3 style={{ fontSize: '16px', fontWeight: 900, margin: '0 0 10px' }}>Mes joueurs</h3>
                 {emplacements.map((e, i) => {
                   const j = e.id ? carte.get(e.id) : null;
                   if (!j) return (
@@ -239,16 +272,23 @@ export default function FantasyPage() {
                   );
                   const estCap = capitaine === j.id;
                   return (
-                    <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', border: '2px solid ' + (estCap ? VIOLET : categorieJoueur(j.prix).bordure), borderLeft: '6px solid ' + COULEUR_POSTE[j.poste], borderRadius: '12px', padding: '8px 10px', marginBottom: '8px', background: fondCarte(j.prix) }}>
-                      <Maillot c1={etat.profil?.couleur1} c2={etat.profil?.couleur2} lettre={j.poste} taille={34} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 900, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.nom}{badge(j.prix)}{estCap && <span style={{ marginLeft: '6px', background: VIOLET, color: '#fff', borderRadius: '999px', fontSize: '10px', padding: '1px 7px' }}>CAP ×2</span>}</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>{LIBELLE_POSTE[j.poste]}{j.club ? ' · ' + j.club : ''} · {montant(j.prix)}</div>
+                    <div key={j.id} style={{ border: '2px solid ' + (estCap ? VIOLET : categorieJoueur(j.prix).bordure), borderLeft: '6px solid ' + COULEUR_POSTE[j.poste], borderRadius: '14px', padding: '12px', marginBottom: '10px', background: fondCarte(j.prix) }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <Maillot c1={etat.profil?.couleur1} c2={etat.profil?.couleur2} lettre={j.poste} taille={40} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, fontSize: '16px', lineHeight: 1.2, wordBreak: 'break-word' }}>{j.nom}</div>
+                          <div style={{ fontSize: '13px', color: '#4b5563', marginTop: '2px' }}>{LIBELLE_POSTE[j.poste]}{j.club ? ' · ' + j.club : ''}</div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
+                            {badge(j.prix)}
+                            <span style={{ fontWeight: 900, fontSize: '15px', color: '#065f46' }}>{montant(j.prix)}</span>
+                            {estCap && <span style={{ background: VIOLET, color: '#fff', borderRadius: '999px', fontSize: '11px', fontWeight: 900, padding: '3px 10px', whiteSpace: 'nowrap' }}>CAPITAINE ×2</span>}
+                          </div>
+                        </div>
                       </div>
                       {ouverte && (
-                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                          {!estCap && <button onClick={() => setCapitaine(j.id)} title="Capitaine" style={btnPetit('#f3e8ff', VIOLET)}>C</button>}
-                          <button onClick={() => retirer(j.id)} title="Retirer" style={btnPetit('#fef2f2', '#dc2626')}>✕</button>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                          {!estCap && <button onClick={() => setCapitaine(j.id)} style={{ ...btnAction('#f3e8ff', VIOLET), flex: 1, minHeight: '44px' }}>Capitaine</button>}
+                          <button onClick={() => retirer(j.id)} style={{ ...btnAction('#fef2f2', '#dc2626'), flex: 1, minHeight: '44px' }}>Retirer</button>
                         </div>
                       )}
                     </div>
@@ -270,25 +310,31 @@ export default function FantasyPage() {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <button onClick={() => setFPoste('')} style={filtre(fPoste === '', VIOLET)}>Tous</button>
                   {POSTES.map(p => <button key={p} onClick={() => setFPoste(p)} style={filtre(fPoste === p, COULEUR_POSTE[p])}>{LIBELLE_POSTE[p]}</button>)}
-                  <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher" style={{ flex: 1, minWidth: '140px', padding: '9px', borderRadius: '10px', border: '2px solid #e5e7eb', fontSize: '13px' }} />
+                  <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher un joueur ou un club" aria-label="Rechercher" style={{ flex: '1 1 100%', minHeight: '44px', padding: '10px 12px', borderRadius: '12px', border: '2px solid #e5e7eb', fontSize: '15px', boxSizing: 'border-box' }} />
                 </div>
                 {joueurs.length === 0 && <p style={{ color: '#6b7280', textAlign: 'center', fontWeight: 700 }}>Les joueurs seront bientôt disponibles.</p>}
                 {marche.map(j => {
                   const dedans = titulaires.includes(j.id);
                   return (
-                    <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', border: '2px solid ' + categorieJoueur(j.prix).bordure, borderLeft: '6px solid ' + COULEUR_POSTE[j.poste], borderRadius: '12px', padding: '9px 12px', marginBottom: '8px', background: dedans ? '#faf5ff' : fondCarte(j.prix) }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 900, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.nom}{badge(j.prix)}</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>{LIBELLE_POSTE[j.poste]}{j.club ? ' · ' + j.club : ''}</div>
+                    <div key={j.id} style={{ border: '2px solid ' + categorieJoueur(j.prix).bordure, borderLeft: '6px solid ' + COULEUR_POSTE[j.poste], borderRadius: '14px', padding: '12px', marginBottom: '10px', background: dedans ? '#faf5ff' : fondCarte(j.prix) }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <Maillot c1={COULEUR_POSTE[j.poste]} c2="#ffffff" lettre={j.poste} taille={40} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, fontSize: '16px', lineHeight: 1.2, wordBreak: 'break-word' }}>{j.nom}</div>
+                          <div style={{ fontSize: '13px', color: '#4b5563', marginTop: '2px' }}>{LIBELLE_POSTE[j.poste]}{j.club ? ' · ' + j.club : ''}</div>
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
+                            {badge(j.prix)}
+                            <span style={{ fontWeight: 900, fontSize: '15px', color: '#065f46', whiteSpace: 'nowrap' }}>{montant(j.prix)}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 900, fontSize: '14px', color: '#065f46' }}>{montant(j.prix)}</div>
                       {dedans
-                        ? <button onClick={() => retirer(j.id)} disabled={!ouverte} style={{ ...btnAction('#fef2f2', '#dc2626'), opacity: ouverte ? 1 : 0.5 }}>Retirer</button>
-                        : <button onClick={() => ajouter(j.id)} disabled={!ouverte} style={{ ...btnAction(VIOLET, '#fff'), opacity: ouverte ? 1 : 0.5 }}>+ Ajouter</button>}
+                        ? <button onClick={() => retirer(j.id)} disabled={!ouverte} style={{ ...btnAction('#fef2f2', '#dc2626'), width: '100%', minHeight: '44px', marginTop: '10px', opacity: ouverte ? 1 : 0.5 }}>Retirer de mon équipe</button>
+                        : <button onClick={() => ajouter(j.id)} disabled={!ouverte} style={{ ...btnAction(VIOLET, '#fff'), width: '100%', minHeight: '44px', marginTop: '10px', opacity: ouverte ? 1 : 0.5 }}>+ Ajouter à mon équipe</button>}
                     </div>
                   );
                 })}
-                {titulaires.length > 0 && <div style={{ position: 'sticky', bottom: '12px', marginTop: '12px' }}><button onClick={() => setOnglet('equipe')} style={{ width: '100%', padding: '14px', background: SOMBRE, color: '#fff', border: 'none', borderRadius: '999px', fontWeight: 900, fontSize: '14px', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>Voir mon équipe et l'enregistrer →</button></div>}
+                {titulaires.length > 0 && <div style={{ position: 'sticky', bottom: '12px', marginTop: '12px' }}><button onClick={() => setOnglet('equipe')} style={{ width: '100%', minHeight: '52px', padding: '14px', background: SOMBRE, color: '#fff', border: 'none', borderRadius: '999px', fontWeight: 900, fontSize: '15px', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>Voir mon équipe ({titulaires.length}/{NB_JOUEURS_7}) et l'enregistrer →</button></div>}
               </div>
             )}
 
@@ -314,6 +360,5 @@ export default function FantasyPage() {
   );
 }
 
-const btnPetit = (fond: string, couleur: string) => ({ width: '30px', height: '30px', borderRadius: '8px', border: 'none', background: fond, color: couleur, fontWeight: 900, cursor: 'pointer', fontSize: '13px' } as const);
-const btnAction = (fond: string, couleur: string) => ({ padding: '8px 12px', borderRadius: '999px', border: 'none', background: fond, color: couleur, fontWeight: 900, fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' } as const);
-const filtre = (actif: boolean, c: string) => ({ padding: '8px 14px', borderRadius: '999px', border: '2px solid ' + c, background: actif ? c : '#fff', color: actif ? '#fff' : c, fontWeight: 800, fontSize: '12px', cursor: 'pointer' } as const);
+const btnAction = (fond: string, couleur: string) => ({ padding: '10px 14px', borderRadius: '999px', border: 'none', background: fond, color: couleur, fontWeight: 900, fontSize: '14px', cursor: 'pointer', whiteSpace: 'nowrap' } as const);
+const filtre = (actif: boolean, c: string) => ({ padding: '10px 16px', minHeight: '44px', borderRadius: '999px', border: '2px solid ' + c, background: actif ? c : '#fff', color: actif ? '#fff' : c, fontWeight: 800, fontSize: '12px', cursor: 'pointer' } as const);
