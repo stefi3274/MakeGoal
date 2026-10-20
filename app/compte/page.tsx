@@ -17,6 +17,7 @@ function CompteContent() {
   const [email, setEmail] = useState('');
   const [majeur, setMajeur] = useState(false);
   const [password, setPassword] = useState('');
+  const [voirMdp, setVoirMdp] = useState(false);
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -112,10 +113,10 @@ function CompteContent() {
   return (
     <div style={{minHeight:'100vh',background:'#ffffff',color:'#111',fontFamily:'sans-serif',display:'flex',flexDirection:'column'}}>
       <Header />
-      <main style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'48px 24px'}}>
+      <main style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px 16px'}}>
         <div style={{width:'100%',maxWidth:'420px'}}>
 
-          <div style={{textAlign:'center',marginBottom:'32px'}}>
+          <div style={{textAlign:'center',marginBottom:'20px'}}>
             <h1 style={{color:VIOLET,fontWeight:900,fontSize:'32px',margin:'0 0 8px'}}>
               {mode === 'connexion' ? 'Connexion' : 'Créer un compte'}
             </h1>
@@ -124,7 +125,7 @@ function CompteContent() {
             </p>
           </div>
 
-          <div style={{display:'flex',gap:'8px',marginBottom:'24px',background:'#f3f4f6',borderRadius:'12px',padding:'4px'}}>
+          <div style={{display:'flex',gap:'8px',marginBottom:'16px',background:'#f3f4f6',borderRadius:'12px',padding:'4px'}}>
             <button onClick={() => { setMode('connexion'); setMessage(''); }} style={{flex:1, padding:'12px', borderRadius:'8px', border:'none', cursor:'pointer',
               fontWeight:700, fontSize:'14px',
               background: mode === 'connexion' ? '#fff' : 'transparent',
@@ -158,15 +159,22 @@ function CompteContent() {
             <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Nom d'utilisateur (optionnel)" style={inputStyle}/>
           )}
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={inputStyle}/>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="Mot de passe" style={inputStyle}
-            onKeyDown={e => e.key === 'Enter' && (mode === 'connexion' ? seConnecter() : sinscrire())}
-          />
+          <div style={{position:'relative',marginBottom:'14px'}}>
+            <input type={voirMdp ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Mot de passe" autoComplete={mode === 'connexion' ? 'current-password' : 'new-password'}
+              style={{...inputStyle,marginBottom:0,paddingRight:'52px'}}
+              onKeyDown={e => e.key === 'Enter' && (mode === 'connexion' ? seConnecter() : sinscrire())}
+            />
+            <button type="button" onClick={() => setVoirMdp(v => !v)} aria-label={voirMdp ? 'Masquer le mot de passe' : 'Afficher le mot de passe'} aria-pressed={voirMdp}
+              style={{position:'absolute',right:'4px',top:'50%',transform:'translateY(-50%)',width:'44px',height:'44px',background:'none',border:'none',cursor:'pointer',fontSize:'20px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {voirMdp ? '🙈' : '👁️'}
+            </button>
+          </div>
 
           {mode === 'inscription' && (
             <label style={{display:'flex',alignItems:'flex-start',gap:'8px',fontSize:'13px',color:'#374151',cursor:'pointer'}}>
               <input type="checkbox" checked={majeur} onChange={e => setMajeur(e.target.checked)} style={{marginTop:'2px'}}/>
-              <span>Je confirme avoir <strong>18 ans ou plus</strong>. Ce site propose du vote communautaire et des paris avec Gourdes virtuelles.</span>
+              <span>Je confirme avoir <strong>18 ans ou plus</strong> et j'accepte les <a href="/mentions" target="_blank" rel="noreferrer" style={{color:VIOLET,fontWeight:700}}>mentions légales</a> et la <a href="/confidentialite" target="_blank" rel="noreferrer" style={{color:VIOLET,fontWeight:700}}>politique de confidentialité</a>.</span>
             </label>
           )}
 
@@ -185,7 +193,7 @@ function CompteContent() {
             {loading ? '...' : (mode === 'connexion' ? 'Se connecter' : 'Créer mon compte')}
           </button>
 
-          <p style={{textAlign:'center',color:'#9ca3af',fontSize:'13px',marginTop:'24px'}}>
+          <p style={{textAlign:'center',color:'#9ca3af',fontSize:'13px',marginTop:'16px'}}>
             {mode === 'connexion' ? "Pas encore de compte ? " : 'Déjà inscrit ? '}
             <button onClick={() => { setMode(mode === 'connexion' ? 'inscription' : 'connexion'); setMessage(''); }} style={{background:'none',border:'none',color:VIOLET,fontWeight:700,cursor:'pointer',fontSize:'13px'}}>
               {mode === 'connexion' ? "S'inscrire" : 'Se connecter'}

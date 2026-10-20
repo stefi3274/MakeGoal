@@ -44,5 +44,5 @@ export default function Turnstile({ onToken, theme = 'light' }: { onToken: (toke
     return () => { arrete = true; const t = api(); if (t && id) { try { t.remove(id); } catch { /* ignore */ } } };
   }, [theme]);
 
-  return <div ref={boite} style={{ display: 'flex', justifyContent: 'center', margin: '8px 0', minHeight: '65px' }} />;
+  return <div ref={boite} style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }} />;
 }
