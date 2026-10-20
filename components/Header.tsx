@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { PARIS_ACTIF } from '../lib/features';
 import { getSport, setSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../lib/sport';
 
 const VIOLET = '#bf00ff';
@@ -39,9 +40,9 @@ export default function Header() {
         <div style={{display:'flex',gap:'12px',alignItems:'center',fontSize:'13px',fontWeight:600}}>
           <a href="/" style={{color:'#6b7280',textDecoration:'none'}}>Accueil</a>
           <a href="/matchs" style={{color:'#6b7280',textDecoration:'none'}}>Matchs</a>
-          <a href="/paris" style={{color:'#6b7280',textDecoration:'none'}}>🎲 Paris</a>
+          {PARIS_ACTIF && <a href="/paris" style={{color:'#6b7280',textDecoration:'none'}}>🎲 Paris</a>}
           <a href="/fantasy" style={{color:'#6b7280',textDecoration:'none'}}>🏟️ Fantasy</a>
-          <a href="/about" style={{color:'#6b7280',textDecoration:'none'}}>À propos</a>
+          <a href="/chat" style={{color:'#6b7280',textDecoration:'none'}}>💬 Chat</a>
           {!loading && (
             user ? (
               <a href="/profil" style={{background:couleur,color:'#fff',textDecoration:'none',padding:'6px 16px',borderRadius:'999px',fontWeight:700}}>👤 Profil</a>

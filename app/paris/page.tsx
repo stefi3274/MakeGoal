@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { PARIS_ACTIF } from '../../lib/features';
 import { getSport, Sport } from '../../lib/sport';
 import { soldeParis, initialiserSoldeParis, palierPourCoteMin, descriptionPaliers, coteDoubleChance, PARIS_CONSTANTES, Pronostic } from '../../lib/paris';
 
@@ -27,7 +28,7 @@ const LABELS_PRONOSTIC: Record<Pronostic, string> = {
   'plus2.5': '+2.5 buts', 'moins2.5': '-2.5 buts'
 };
 
-export default function ParisPage() {
+function ParisContenu() {
   const router = useRouter();
   const { user } = useAuth();
   const [sport, setSportLocal] = useState<Sport>('football');
@@ -303,6 +304,22 @@ export default function ParisPage() {
           <a href="/paris/termes" style={{color:COULEUR,fontSize:'14px',fontWeight:600}}>📜 Termes et conditions des paris</a>
         </p>
 
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+export default function ParisPage() {
+  if (PARIS_ACTIF) return <ParisContenu />;
+  return (
+    <div style={{minHeight:'100vh',background:'#f9fafb',fontFamily:'sans-serif'}}>
+      <Header />
+      <main style={{maxWidth:'560px',margin:'0 auto',padding:'64px 20px',textAlign:'center'}}>
+        <div style={{fontSize:'56px'}}>😴</div>
+        <h1 style={{fontSize:'26px',fontWeight:900,margin:'12px 0 8px'}}>Paris en pause</h1>
+        <p style={{color:'#6b7280',fontSize:'15px',lineHeight:1.6,margin:'0 0 24px'}}>Cette section est en veille pour le moment. En attendant, joue gratuitement à MakeGoal Fantasy.</p>
+        <a href="/fantasy" style={{display:'inline-block',background:COULEUR,color:'#fff',textDecoration:'none',borderRadius:'999px',padding:'14px 28px',fontWeight:900}}>🏟️ Aller au Fantasy</a>
       </main>
       <Footer />
     </div>

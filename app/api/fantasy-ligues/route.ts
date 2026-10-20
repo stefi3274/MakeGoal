@@ -1,4 +1,4 @@
-import { supabaseAdmin, utilisateurDe } from '../../../lib/fantasyServeur';
+import { supabaseAdmin, utilisateurDe, profilsDe } from '../../../lib/fantasyServeur';
 import { MAX_LIGUES_PAR_JOUEUR, MAX_MEMBRES_LIGUE, genererCode, normaliserCode } from '../../../lib/fantasyLigues';
 
 async function inscrit(userId: string) {
@@ -28,17 +28,16 @@ export async function GET(request: Request) {
 
   const { data: moi } = await supabaseAdmin.from('fantasy_ligues_membres').select('user_id').eq('ligue_id', ligueId).eq('user_id', u.userId).maybeSingle();
   if (!moi) return Response.json({ error: 'Tu ne fais pas partie de cette ligue.' }, { status: 403 });
-  const mode = url.searchParams.get('mode') === '7' ? '7' : '11';
+  const mode = url.searchParams.get('mode') === '11' ? '11' : '7';
   const { data: membres } = await supabaseAdmin.from('fantasy_ligues_membres').select('user_id').eq('ligue_id', ligueId).limit(MAX_MEMBRES_LIGUE + 10);
   const ids = (membres || []).map(x => x.user_id);
-  const [{ data: equipes }, { data: scores }] = await Promise.all([
-    supabaseAdmin.from('fantasy_equipes').select('user_id, nom_equipe').in('user_id', ids),
+  const [profils, { data: scores }] = await Promise.all([
+    profilsDe(ids),
     supabaseAdmin.from(mode === '7' ? 'fantasy7_scores' : 'fantasy_scores').select('user_id, points').in('user_id', ids).limit(50000),
   ]);
-  const noms = new Map((equipes || []).map(e => [e.user_id, e.nom_equipe as string]));
   const total = new Map<string, number>(ids.map(id => [id, 0]));
   (scores || []).forEach(s => total.set(s.user_id, (total.get(s.user_id) || 0) + (s.points as number)));
-  const lignes = [...total.entries()].sort((a, b) => b[1] - a[1]).map(([id, points], i) => ({ rang: i + 1, nom: noms.get(id) || 'Équipe', points, moi: id === u.userId }));
+  const lignes = [...total.entries()].sort((a, b) => b[1] - a[1]).map(([id, points], i) => ({ rang: i + 1, nom: profils.get(id)?.nom || 'Équipe', embleme: profils.get(id)?.embleme, couleur: profils.get(id)?.couleur1, points, moi: id === u.userId }));
   return Response.json({ mode, classement: lignes });
 }
 

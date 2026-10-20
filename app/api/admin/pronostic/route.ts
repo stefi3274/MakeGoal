@@ -1,3 +1,4 @@
+import { adminDe } from '../../../../lib/fantasyServeur';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,6 +7,8 @@ const supabase = createClient(
 );
 
 export async function POST(request: Request) {
+  const a = await adminDe(request);
+  if (a instanceof Response) return a;
   const body = await request.json();
   const { match, competition, date_match, lieu, contexte, confiance_globale, paris } = body;
 
@@ -49,6 +52,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const a = await adminDe(request);
+  if (a instanceof Response) return a;
   const body = await request.json();
   const { id, publie } = body;
 

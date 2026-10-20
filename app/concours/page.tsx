@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { PARIS_ACTIF } from '../../lib/features';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { getSport, Sport } from '../../lib/sport';
@@ -232,10 +233,10 @@ export default function ConcoursPage() {
           </a>
         )}
 
-        <a href="/paris" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'20px',textDecoration:'none'}}>
+        {PARIS_ACTIF && <a href="/paris" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#faf5ff',border:'1px solid '+couleur+'40',borderRadius:'14px',padding:'14px 18px',marginBottom:'20px',textDecoration:'none'}}>
           <span style={{fontWeight:700,fontSize:'14px',color:'#111'}}>🎲 Tenter les paris combinés (1 000 Gourdes offertes)</span>
           <span style={{color:couleur,fontWeight:900,fontSize:'18px'}}>→</span>
-        </a>
+        </a>}
 
         {message && <div style={{padding:'12px 16px',borderRadius:'12px',marginBottom:'16px',fontWeight:600,fontSize:'14px',background:message.includes('❌')?'#fef2f2':'#f0fdf4',color:message.includes('❌')?'#ef4444':'#10b981'}}>{message}</div>}
 

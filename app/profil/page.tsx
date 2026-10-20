@@ -6,6 +6,8 @@ import { useAuth } from '../../lib/auth';
 import { MATCHES } from '../../data/matches';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { PARIS_ACTIF } from '../../lib/features';
+import ProfilFantasy from '../../components/ProfilFantasy';
 import { soldePoints } from '../../lib/points';
 import { soldeParis, initialiserSoldeParis } from '../../lib/paris';
 
@@ -126,11 +128,13 @@ export default function Profil() {
             <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',fontWeight:700,textTransform:'uppercase',margin:'0 0 6px'}}>🎯 Points</p>
             <p style={{color:'#fff',fontWeight:900,fontSize:'32px',margin:0}}>{pointsSolde.toLocaleString('fr-FR')}</p>
           </a>
-          <a href="/paris" style={{textDecoration:'none',background:'linear-gradient(135deg,#0e7490,#06b6d4)',borderRadius:'18px',padding:'20px',display:'block'}}>
+          {PARIS_ACTIF && <a href="/paris" style={{textDecoration:'none',background:'linear-gradient(135deg,#0e7490,#06b6d4)',borderRadius:'18px',padding:'20px',display:'block'}}>
             <p style={{color:'rgba(255,255,255,0.8)',fontSize:'12px',fontWeight:700,textTransform:'uppercase',margin:'0 0 6px'}}>🎲 Paris (Gourdes)</p>
             <p style={{color:'#fff',fontWeight:900,fontSize:'32px',margin:0}}>{parisSolde === null ? '…' : parisSolde.toLocaleString('fr-FR')}</p>
-          </a>
+          </a>}
         </div>
+
+        <ProfilFantasy />
 
         <section style={{marginBottom:'40px'}}>
           <h2 style={{fontWeight:900,fontSize:'22px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'8px'}}>⭐ Mes équipes favorites</h2>

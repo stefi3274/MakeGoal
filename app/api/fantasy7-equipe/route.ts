@@ -1,4 +1,4 @@
-import { supabaseAdmin, utilisateurDe, tousLesJoueurs, journeeCourante, estOuverte, budgetDe } from '../../../lib/fantasyServeur';
+import { supabaseAdmin, utilisateurDe, tousLesJoueurs, journeeCourante, estOuverte, budgetDe, profilsDe } from '../../../lib/fantasyServeur';
 import { validerEquipe7, Equipe7 } from '../../../lib/fantasy7';
 
 // Mon équipe de 7 : nécessite d'avoir rejoint MakeGoal Fantasy (le nom d'équipe est partagé).
@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     journeeCourante(),
     supabaseAdmin.from('fantasy7_scores').select('journee_id, points, created_at').eq('user_id', u.userId).order('created_at', { ascending: false }).limit(40),
   ]);
+  const profil = (await profilsDe([u.userId])).get(u.userId) || null;
   const titres: Record<string, string> = {};
   const ids = (scores || []).map(s => s.journee_id);
   if (ids.length) {
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
   }
   const points = (scores || []).map(s => ({ journee: titres[s.journee_id] || 'Journée', points: s.points }));
   return Response.json({
-    inscrit: !!base, nom_equipe: base?.nom_equipe || null,
+    inscrit: !!base, nom_equipe: base?.nom_equipe || null, profil,
     equipe: ligne ? { titulaires: Array.isArray(ligne.titulaires) ? ligne.titulaires : [], capitaine: ligne.capitaine || null } : null,
     budget: await budgetDe(u.userId),
     journee: journee ? { id: journee.id, titre: journee.titre, statut: journee.statut } : null,

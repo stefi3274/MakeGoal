@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+import { PARIS_ACTIF } from '../../lib/features';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { soldePoints, historiquePoints } from '../../lib/points';
@@ -122,7 +123,7 @@ export default function MesPoints() {
 
       <div style={{display:'flex',gap:'8px',maxWidth:'700px',margin:'16px auto 0',padding:'0 16px'}}>
         <a href="/mes-points" style={{flex:1,textAlign:'center',padding:'10px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',background:VIOLET,color:'#fff'}}>🎯 Points</a>
-        <a href="/paris" style={{flex:1,textAlign:'center',padding:'10px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',background:'#f3f4f6',color:'#6b7280'}}>🎲 Paris</a>
+        {PARIS_ACTIF && <a href="/paris" style={{flex:1,textAlign:'center',padding:'10px',borderRadius:'999px',fontWeight:700,fontSize:'13px',textDecoration:'none',background:'#f3f4f6',color:'#6b7280'}}>🎲 Paris</a>}
       </div>
 
       <div style={{background:'linear-gradient(135deg,#1a0033,'+VIOLET+')',padding:'40px 24px',textAlign:'center'}}>

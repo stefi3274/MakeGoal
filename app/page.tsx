@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import SplashAccueil from '../components/SplashAccueil';
 import Footer from '../components/Footer';
 import { postVisible, matchVisible } from '../lib/postVisible';
+import { PARIS_ACTIF } from '../lib/features';
 import { getSport, SPORT_COULEURS, Sport } from '../lib/sport';
 
 const VIOLET = '#bf00ff';
@@ -244,7 +245,7 @@ export default function Home() {
       </a>
     )}
 
-    {matchsAvecCotes.length > 0 && (
+    {PARIS_ACTIF && matchsAvecCotes.length > 0 && (
       <a href="/paris" style={{display:'block',textDecoration:'none',marginTop:'12px',background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'16px',padding:'18px 20px',overflow:'hidden',position:'relative'}}>
         <style>{`
           @keyframes defileBadgeParis { 0%,85%,100% { transform:translateX(0); opacity:1; } 92% { transform:translateX(6px); opacity:0.7; } }
@@ -270,7 +271,7 @@ export default function Home() {
   const DefileMatchsVote = () => {
     if (matchs.length === 0) return null;
     const m = matchs[indexDefile % matchs.length];
-    const aCotes = !!(m.cote_1 && m.cote_2);
+    const aCotes = PARIS_ACTIF && !!(m.cote_1 && m.cote_2);
     return (
       <div style={{background:'linear-gradient(135deg,#1a0033,#bf00ff)',padding:'32px 0',overflow:'hidden',position:'relative'}}>
         <style>{`
@@ -318,6 +319,31 @@ export default function Home() {
       <Header />
 
       <DefileMatchsVote />
+
+      <section aria-label="MakeGoal Fantasy" style={{maxWidth:'1100px',margin:'24px auto 0',padding:'0 16px'}}>
+        <style>{`
+          .fh { position:relative; overflow:hidden; border-radius:22px; background:#2a0a4a; min-height:300px; display:flex; align-items:center; box-shadow:0 10px 30px rgba(59,7,100,0.25); }
+          .fh img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 40%; }
+          .fh-voile { position:absolute; inset:0; background:linear-gradient(90deg, rgba(26,0,51,0.94) 0%, rgba(26,0,51,0.78) 45%, rgba(26,0,51,0.15) 100%); }
+          .fh-texte { position:relative; padding:36px 32px; max-width:540px; color:#fff; }
+          .fh-bouton { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:0 26px; border-radius:999px; font-weight:900; font-size:15px; text-decoration:none; }
+          .fh-bouton:focus-visible { outline:3px solid #fff; outline-offset:3px; }
+          @media (max-width:640px) { .fh { min-height:340px; } .fh-voile { background:linear-gradient(180deg, rgba(26,0,51,0.55) 0%, rgba(26,0,51,0.92) 70%); } .fh-texte { padding:28px 20px; align-self:flex-end; } }
+        `}</style>
+        <div className="fh">
+          <img src="/fantasy-hero.jpg" alt="Trophée MakeGoal Fantasy au-dessus d'un podium lumineux" loading="eager" />
+          <div className="fh-voile" aria-hidden="true" />
+          <div className="fh-texte">
+            <p style={{margin:'0 0 8px',fontSize:'12px',fontWeight:900,letterSpacing:'1.5px',textTransform:'uppercase',color:'#e9b8ff'}}>Gratuit · Sans mise d'argent</p>
+            <h2 style={{margin:'0 0 10px',fontSize:'clamp(28px,5vw,40px)',lineHeight:1.1,fontWeight:900}}>MakeGoal Fantasy</h2>
+            <p style={{margin:'0 0 22px',fontSize:'16px',lineHeight:1.5,color:'#f3e8ff'}}>Compose ton équipe de 7 joueurs avec 10 000 FanCoins, défie tes amis en ligue privée et grimpe au classement.</p>
+            <div style={{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'center'}}>
+              <a href="/fantasy" className="fh-bouton" style={{background:'#fff',color:'#3b0764'}}>Jouer maintenant</a>
+              <a href="/fantasy/ligues" className="fh-bouton" style={{background:'rgba(255,255,255,0.14)',color:'#fff',border:'2px solid rgba(255,255,255,0.7)'}}>Ligues entre amis</a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <main style={{maxWidth:'1100px',margin:'0 auto',padding:'32px 16px'}}>
 

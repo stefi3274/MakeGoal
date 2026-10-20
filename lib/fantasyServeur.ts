@@ -2,6 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { BUDGET_DEPART, type JoueurFantasy, type EquipeFantasy, type Poste } from './fantasy';
 import type { EtatBonus } from './bonusQuotidien';
+import { COULEUR1_DEFAUT, COULEUR2_DEFAUT, EMBLEME_DEFAUT, couleurValide, emblemeValide } from './fantasyProfil';
+import type { ProfilEquipe } from './fantasyProfil';
 
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -61,4 +63,27 @@ export async function bonusDe(userId: string): Promise<EtatBonus & { totalJours:
 }
 export async function budgetDe(userId: string): Promise<number> {
   return BUDGET_DEPART + (await bonusDe(userId)).solde;
+}
+
+// Nom, emblème et couleurs des équipes. Tolérant : si les colonnes de personnalisation n'existent pas encore
+// (SQL pas encore lancé), on renvoie le nom avec les valeurs par défaut.
+export async function profilsDe(ids: string[]): Promise<Map<string, ProfilEquipe>> {
+  const res = new Map<string, ProfilEquipe>();
+  if (!ids.length) return res;
+  const complet = await supabaseAdmin.from('fantasy_equipes').select('user_id, nom_equipe, couleur1, couleur2, embleme').in('user_id', ids);
+  let lignes: Record<string, unknown>[] = [];
+  if (!complet.error) lignes = (complet.data || []) as Record<string, unknown>[];
+  else {
+    const simple = await supabaseAdmin.from('fantasy_equipes').select('user_id, nom_equipe').in('user_id', ids);
+    lignes = (simple.data || []) as Record<string, unknown>[];
+  }
+  lignes.forEach(l => {
+    res.set(String(l.user_id), {
+      nom: String(l.nom_equipe || 'Équipe'),
+      couleur1: couleurValide(l.couleur1) ? l.couleur1 : COULEUR1_DEFAUT,
+      couleur2: couleurValide(l.couleur2) ? l.couleur2 : COULEUR2_DEFAUT,
+      embleme: emblemeValide(l.embleme) ? l.embleme : EMBLEME_DEFAUT,
+    });
+  });
+  return res;
 }

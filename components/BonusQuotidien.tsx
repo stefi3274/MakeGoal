@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { montant, MONNAIE } from '../lib/fantasy';
-import { BONUS_JOUR, BONUS_JOUR_7, JOURS_SERIE } from '../lib/bonusQuotidien';
+import { BONUS_JOUR, BONUS_JOUR_7, JOURS_SERIE, RECOMPENSES } from '../lib/bonusQuotidien';
 
 type Vue = { serie: number; dejaReclame: boolean; prochainJour: number; recompense: number; bonus: number; plafond: number };
 
@@ -42,7 +42,7 @@ export default function BonusQuotidien({ onChange }: { onChange?: () => void }) 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontWeight: 900, fontSize: '15px', color: '#78350f' }}>🎁 Bonus de connexion</div>
-          <div style={{ fontSize: '12px', color: '#92400e', fontWeight: 600 }}>+{BONUS_JOUR} {MONNAIE} par jour, +{BONUS_JOUR_7} {MONNAIE} le jour {JOURS_SERIE}. Bonus cumulé : {montant(v.bonus)} / {montant(v.plafond)}</div>
+          <div style={{ fontSize: '12px', color: '#92400e', fontWeight: 600 }}>À partir de {BONUS_JOUR} {MONNAIE} par jour, jusqu'à {BONUS_JOUR_7} {MONNAIE} le jour {JOURS_SERIE}. Bonus cumulé : {montant(v.bonus)} / {montant(v.plafond)}</div>
         </div>
         <button onClick={reclamer} disabled={envoi || v.dejaReclame} style={{ background: v.dejaReclame ? '#d1d5db' : '#f59e0b', color: v.dejaReclame ? '#6b7280' : '#451a03', border: 'none', borderRadius: '999px', padding: '10px 18px', fontWeight: 900, fontSize: '13px', cursor: v.dejaReclame ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
           {v.dejaReclame ? '✅ Récupéré, reviens demain' : 'Récupérer +' + montant(v.recompense)}
@@ -56,7 +56,7 @@ export default function BonusQuotidien({ onChange }: { onChange?: () => void }) 
           return (
             <div key={n} style={{ flex: 1, textAlign: 'center', borderRadius: '10px', padding: '6px 0', fontWeight: 900, fontSize: '11px', background: fait ? '#16a34a' : prochain ? '#fde047' : '#fff', color: fait ? '#fff' : '#78350f', border: '2px solid ' + (fait ? '#16a34a' : prochain ? '#f59e0b' : '#fde68a') }}>
               <div>J{n}</div>
-              <div style={{ fontSize: '10px' }}>{fait ? '✓' : n === JOURS_SERIE ? '+' + BONUS_JOUR_7 : '+' + BONUS_JOUR}</div>
+              <div style={{ fontSize: '10px' }}>{fait ? '✓' : '+' + RECOMPENSES[i]}</div>
             </div>
           );
         })}

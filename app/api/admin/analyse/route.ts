@@ -1,4 +1,7 @@
+import { adminDe } from '../../../../lib/fantasyServeur';
 export async function POST(request: Request) {
+  const a = await adminDe(request);
+  if (a instanceof Response) return a;
   const { match, competition, date_match } = await request.json();
   if (!match) {
     return Response.json({ error: 'Match requis' }, { status: 400 });

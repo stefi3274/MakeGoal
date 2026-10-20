@@ -9,6 +9,7 @@ import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
 import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
+import { Visuel, visuelsPublies } from '../../../lib/visuels';
 import { FORMATIONS, POSTES_5_MAJEUR, estCinqMajeur, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
 import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
 import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
@@ -97,7 +98,7 @@ type Post = {
   stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string } | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
-  image_couverture: string | null; auteur: string; created_at: string;
+  image_couverture: string | null; visuels?: Visuel[] | null; auteur: string; created_at: string;
 };
 type Commentaire = {
   id: string; user_id: string; contenu: string; created_at: string;
@@ -327,6 +328,21 @@ export default function PostPage() {
               <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
                 {post.tags.map(t => (
                   <span key={t} style={{fontSize:'12px',fontWeight:900,color:'#fff',background:couleurTag(t),padding:'4px 12px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{t}</span>
+                ))}
+              </div>
+            )}
+
+            {visuelsPublies(post.visuels).length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:'14px',margin:'4px 0 14px'}}>
+                {visuelsPublies(post.visuels).map((v, i) => (
+                  <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',maxWidth:'84px'}}>
+                    {v.type === 'drapeau' ? (
+                      <span style={{fontSize:'44px',lineHeight:'52px',height:'52px'}}>{drapeau(v.nom)}</span>
+                    ) : (
+                      <img src={v.url} alt={v.nom} crossOrigin="anonymous" style={{width:'52px',height:'52px',objectFit:v.type==='joueur'?'cover':'contain',borderRadius:v.type==='joueur'?'50%':'6px',border:v.type==='joueur'?'2px solid '+VIOLET:'none',background:v.type==='joueur'?'#f3f4f6':'transparent'}}/>
+                    )}
+                    {v.nom && <span style={{fontSize:'11px',fontWeight:800,color:'#374151',textAlign:'center',lineHeight:1.15}}>{v.nom}</span>}
+                  </div>
                 ))}
               </div>
             )}

@@ -1,8 +1,9 @@
-// Source UNIQUE du bonus de connexion quotidien de MakeGoal Fantasy : +100 $ par jour, série de 7 jours,
-// le 7e jour donne +500 $ puis la série repart à 1. Le bonus s'ajoute au budget des deux modes.
-export const BONUS_JOUR = 100;
-export const BONUS_JOUR_7 = 500;
-export const JOURS_SERIE = 7;
+// Source UNIQUE du bonus de connexion quotidien de MakeGoal Fantasy : série de 7 jours avec récompense en escalier
+// (50 au départ, le 7e jour 500), puis la série repart à 1. Le bonus s'ajoute au budget des deux modes.
+export const RECOMPENSES = [50, 50, 75, 75, 100, 100, 500];   // jour 1 à jour 7 (FanCoins)
+export const BONUS_JOUR = RECOMPENSES[0];
+export const BONUS_JOUR_7 = RECOMPENSES[RECOMPENSES.length - 1];
+export const JOURS_SERIE = RECOMPENSES.length;
 export const BONUS_MAX = 5000;               // plafond du bonus cumulé (évite un budget qui gonfle sans fin)
 export const FUSEAU_JEU = 'America/Port-au-Prince';
 
@@ -24,4 +25,4 @@ export function etatSerie(b: EtatBonus, aujourdhui: string = jourHaiti()): { dej
   if (b.dernierJour === jourPrecedent(aujourdhui)) return { dejaReclame: false, serieActive: b.serie, prochainJour: b.serie >= JOURS_SERIE ? 1 : b.serie + 1 };
   return { dejaReclame: false, serieActive: 0, prochainJour: 1 };
 }
-export const recompenseDuJour = (jourSerie: number) => (jourSerie >= JOURS_SERIE ? BONUS_JOUR_7 : BONUS_JOUR);
+export const recompenseDuJour = (jourSerie: number) => RECOMPENSES[Math.min(Math.max(jourSerie, 1), JOURS_SERIE) - 1];

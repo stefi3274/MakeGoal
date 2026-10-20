@@ -6,7 +6,8 @@ import { getSport, SPORT_COULEURS, SPORT_LABEL, Sport } from '../../../lib/sport
 import AdminAuth from '../../../components/AdminAuth';
 import { MiniQuizzDetails, MINI_VIDE, parserMiniQuizz, questionsPubliees as miniQuestionsPubliees, optionsPubliees as miniOptionsPubliees } from '../../../lib/miniQuizz';
 import { PromoDetails, PROMO_VIDE, LOT_VIDE, SPONSOR_VIDE, Lot, Sponsor, MAX_LOTS, MAX_SPONSORS, parserPromo, lotsPublies, sponsorsPublies } from '../../../lib/promo';
-import { listePays } from '../../../lib/formations';
+import { listePays, drapeau as drapeauPays } from '../../../lib/formations';
+import { Visuel, TypeVisuel, MAX_VISUELS, LIBELLE_VISUEL, visuelsPublies } from '../../../lib/visuels';
 import { redimensionnerImage } from '../../../lib/images';
 import { extraireLieu, adversaireAGauche } from '../../../lib/lieu';
 import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../../../lib/ecussons';
@@ -80,6 +81,7 @@ type Article = {
   stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; joueurs: StatJoueur[] } | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
+  visuels?: Visuel[] | null;
   publie: boolean; created_at: string; sport: string | null;
 };
 
@@ -99,6 +101,9 @@ export default function AdminMedia() {
   const [sourceNom, setSourceNom] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [imageCouverture, setImageCouverture] = useState('');
+  const [visuels, setVisuels] = useState<Visuel[]>([]);
+  const [avaitVisuels, setAvaitVisuels] = useState(false);
+  const [uploadingVisuel, setUploadingVisuel] = useState<number | null>(null);
   const [extrait, setExtrait] = useState('');
   const [contenu, setContenu] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -532,7 +537,7 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations', 'promo', 'mini_quizz'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'journee_resultats', 'nominations', 'promo', 'mini_quizz', 'visuels'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
@@ -687,6 +692,25 @@ export default function AdminMedia() {
       setMessage('❌ Image : ' + (err instanceof Error ? err.message : 'erreur'));
     }
     setUploadingNomi(null);
+  };
+
+  const majVisuel = (i: number, champs: Partial<Visuel>) => setVisuels(prev => prev.map((v, k) => k === i ? { ...v, ...champs } : v));
+  const uploadVisuel = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const png = visuels[i]?.type === 'ecusson';
+    setUploadingVisuel(i); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file, png ? 400 : 700, png);
+      const nom = 'visuel-' + visuels[i].type + '-' + Date.now() + '-' + i + (png ? '.png' : '.jpg');
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: png ? 'image/png' : 'image/jpeg' });
+      if (error) { setMessage('❌ Image : ' + error.message); setUploadingVisuel(null); return; }
+      majVisuel(i, { url: supabase.storage.from('articles').getPublicUrl(nom).data.publicUrl });
+    } catch (err) {
+      setMessage('❌ Image : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingVisuel(null);
   };
 
   const uploadPhotoOnze = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -883,7 +907,7 @@ export default function AdminMedia() {
 
   const resetForm = () => {
     setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
-    setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu('');
+    setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu(''); setVisuels([]); setAvaitVisuels(false);
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
@@ -922,6 +946,7 @@ export default function AdminMedia() {
     setEditId(a.id); setTitre(a.titre); setType(a.type || 'article'); setLangue(a.langue || 'fr');
     setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
+    setVisuels(Array.isArray(a.visuels) ? a.visuels : []); setAvaitVisuels(Array.isArray(a.visuels) && a.visuels.length > 0);
     setTags(a.tags || []); setPays1(a.pays1 || ''); setPays2(a.pays2 || '');
     setLigue(a.ligue || ''); setLigueLogo(a.ligue_logo || '');
     setEquipe1(a.equipe1 || ''); setEquipe2(a.equipe2 || '');
@@ -1226,6 +1251,8 @@ export default function AdminMedia() {
       pub_lien: pubLien || null,
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
+      // Envoyé seulement s'il y a des visuels (ou s'il fallait les retirer) : sans eux, la colonne n'est pas requise.
+      ...(visuelsPublies(visuels).length || avaitVisuels ? { visuels: visuelsPublies(visuels).length ? visuelsPublies(visuels) : null } : {}),
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
       // Envoyé seulement pour une distinction : les autres posts ne dépendent pas de cette colonne.
@@ -2423,6 +2450,35 @@ export default function AdminMedia() {
               <input type="file" accept="image/*" onChange={uploadImage} style={{...inputStyle,padding:'8px'}}/>
               {uploading && <p style={{color:'#f59e0b',fontSize:'12px',margin:'8px 0 0'}}>⏳ Upload...</p>}
               {imageCouverture && <img src={imageCouverture} alt="" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'10px',marginTop:'12px'}}/>}
+            </div>
+
+            <div style={sectionStyle}>
+              <label style={labelStyle}>🛡️ Visuels du post : écusson, drapeau, photo joueur (optionnel)</label>
+              <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 10px'}}>Valable pour tous les types de post. Jusqu'à {MAX_VISUELS} visuels, affichés en bandeau sur le post.</p>
+              {visuels.map((v, i) => (
+                <div key={i} style={{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px',flexWrap:'wrap'}}>
+                  <div style={{width:'46px',height:'46px',borderRadius:v.type==='joueur'?'50%':'10px',background:'#1e1e1e',border:'1px solid #333',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',fontSize:'26px',flexShrink:0}}>
+                    {v.type === 'drapeau' ? (drapeauPays(v.nom) !== '🏳️' ? drapeauPays(v.nom) : '?') : v.url ? <img src={v.url} alt="" style={{width:'100%',height:'100%',objectFit:v.type==='joueur'?'cover':'contain'}}/> : (uploadingVisuel === i ? '…' : '📷')}
+                  </div>
+                  <span style={{fontSize:'12px',color:'#9ca3af',fontWeight:700,minWidth:'96px'}}>{LIBELLE_VISUEL[v.type]}</span>
+                  <input value={v.nom} onChange={e => majVisuel(i, { nom: e.target.value })} placeholder={v.type==='drapeau'?'Pays (ex : Haïti)':v.type==='ecusson'?'Club (ex : PSG)':'Joueur (ex : Mbappé)'} list={v.type==='drapeau'?'liste-pays-visuels':undefined} style={{...inputStyle,flex:1,minWidth:'140px'}}/>
+                  {v.type !== 'drapeau' && (
+                    <label style={{background:'#2a2a2a',color:'#fff',borderRadius:'8px',padding:'9px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}>
+                      {v.url ? 'Changer' : 'Téléverser'}
+                      <input type="file" accept="image/*" onChange={e => uploadVisuel(i, e)} style={{display:'none'}}/>
+                    </label>
+                  )}
+                  <button type="button" onClick={() => setVisuels(prev => prev.filter((_, k) => k !== i))} aria-label="Retirer ce visuel" style={{background:'#3f1d1d',color:'#fca5a5',border:'none',borderRadius:'8px',padding:'9px 12px',cursor:'pointer',fontWeight:800}}>✕</button>
+                </div>
+              ))}
+              <datalist id="liste-pays-visuels">{listePays().map((p: string) => <option key={p} value={p}/>)}</datalist>
+              {visuels.length < MAX_VISUELS && (
+                <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'4px'}}>
+                  {(['ecusson','drapeau','joueur'] as TypeVisuel[]).map(t => (
+                    <button key={t} type="button" onClick={() => setVisuels(prev => [...prev, { type: t, nom: '' }])} style={{background:'#2a2a2a',color:'#fff',border:'1px dashed #555',borderRadius:'999px',padding:'8px 14px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}>+ {LIBELLE_VISUEL[t]}</button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {type === 'article' && (

@@ -1,4 +1,6 @@
-import { supabaseAdmin, utilisateurDe, tousLesJoueurs, equipeDeLigne, journeeCourante, estOuverte, budgetDe } from '../../../lib/fantasyServeur';
+import { FANTASY_11_ACTIF } from '../../../lib/features';
+import { supabaseAdmin, utilisateurDe, tousLesJoueurs, equipeDeLigne, journeeCourante, estOuverte, budgetDe, profilsDe } from '../../../lib/fantasyServeur';
+import { couleurValide, emblemeValide } from '../../../lib/fantasyProfil';
 import { TRANSFERTS_PAR_JOURNEE, validerEquipe, nbTransferts, EquipeFantasy } from '../../../lib/fantasy';
 
 async function derniereEquipeVerrouillee(userId: string): Promise<EquipeFantasy | null> {
@@ -24,7 +26,8 @@ export async function GET(request: Request) {
     (js || []).forEach(j => { titres[j.id] = j.titre; });
   }
   const points = (scores || []).map(s => ({ journee: titres[s.journee_id] || 'Journée', points: s.points }));
-  const equipe = ligne ? { nom_equipe: ligne.nom_equipe, ...equipeDeLigne(ligne as { titulaires: unknown; reservistes: unknown; capitaine: string | null }) } : null;
+  const profil = (await profilsDe([u.userId])).get(u.userId);
+  const equipe = ligne ? { nom_equipe: ligne.nom_equipe, couleur1: profil?.couleur1, couleur2: profil?.couleur2, embleme: profil?.embleme, ...equipeDeLigne(ligne as { titulaires: unknown; reservistes: unknown; capitaine: string | null }) } : null;
   const utilises = equipe && precedente ? nbTransferts(equipe, precedente) : 0;
   return Response.json({
     equipe, budget: await budgetDe(u.userId),
@@ -52,7 +55,26 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
+  if (action === 'profil') {
+    const champs: Record<string, unknown> = {};
+    if (body.nom_equipe !== undefined) {
+      const nom = String(body.nom_equipe || '').trim().slice(0, 30);
+      if (nom.length < 2) return Response.json({ error: 'Le nom de l\'équipe doit avoir 2 lettres minimum.' }, { status: 400 });
+      champs.nom_equipe = nom;
+    }
+    if (body.couleur1 !== undefined) { if (!couleurValide(body.couleur1)) return Response.json({ error: 'Couleur invalide.' }, { status: 400 }); champs.couleur1 = body.couleur1; }
+    if (body.couleur2 !== undefined) { if (!couleurValide(body.couleur2)) return Response.json({ error: 'Couleur invalide.' }, { status: 400 }); champs.couleur2 = body.couleur2; }
+    if (body.embleme !== undefined) { if (!emblemeValide(body.embleme)) return Response.json({ error: 'Emblème invalide.' }, { status: 400 }); champs.embleme = body.embleme; }
+    if (!Object.keys(champs).length) return Response.json({ error: 'Rien à modifier.' }, { status: 400 });
+    const { data: existe } = await supabaseAdmin.from('fantasy_equipes').select('user_id').eq('user_id', u.userId).maybeSingle();
+    if (!existe) return Response.json({ error: 'Rejoins d\'abord MakeGoal Fantasy.' }, { status: 400 });
+    const { error } = await supabaseAdmin.from('fantasy_equipes').update(champs as never).eq('user_id', u.userId);
+    if (error) return Response.json({ error: /column/i.test(error.message) ? 'Personnalisation pas encore activée : lance le SQL sql-fantasy-profil.sql dans Supabase.' : error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
   if (action === 'sauver') {
+    if (!FANTASY_11_ACTIF) return Response.json({ error: 'Le format 11 joueurs n\'existe plus : MakeGoal Fantasy se joue à 7 joueurs.' }, { status: 410 });
     const journee = await journeeCourante();
     if (!estOuverte(journee)) return Response.json({ error: 'Les changements sont fermés jusqu\'à la prochaine journée.' }, { status: 403 });
     const { data: ligne } = await supabaseAdmin.from('fantasy_equipes').select('user_id').eq('user_id', u.userId).maybeSingle();

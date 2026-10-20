@@ -1,3 +1,4 @@
+import { PARIS_ACTIF } from '../../../lib/features';
 import { createClient } from '@supabase/supabase-js';
 import { octroyerBonusAdmin, initialiserSoldeParis } from '../../../lib/paris';
 
@@ -7,6 +8,7 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
+  if (!PARIS_ACTIF) return Response.json({ error: 'Les paris sont en pause pour le moment.' }, { status: 503 });
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return Response.json({ error: 'Non autorisé' }, { status: 401 });

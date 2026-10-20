@@ -11,7 +11,7 @@ const VIOLET = '#bf00ff';
 const SOMBRE = '#3b0764';
 
 type Ligue = { id: string; nom: string; code: string; createur: boolean; membres: number };
-type Ligne = { rang: number; nom: string; points: number; moi: boolean };
+type Ligne = { rang: number; nom: string; points: number; moi: boolean; embleme?: string; couleur?: string };
 
 export default function LiguesPage() {
   const router = useRouter();
@@ -23,7 +23,7 @@ export default function LiguesPage() {
   const [message, setMessage] = useState<{ texte: string; ok: boolean } | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [ouverte, setOuverte] = useState<Ligue | null>(null);
-  const [mode, setMode] = useState<'11' | '7'>('11');
+  const mode = '7' as const;
   const [classement, setClassement] = useState<Ligne[] | null>(null);
 
   const jeton = async () => (await supabase.auth.getSession()).data.session?.access_token;
@@ -92,8 +92,7 @@ export default function LiguesPage() {
 
       <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px 16px 60px' }}>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '14px', flexWrap: 'wrap' }}>
-          <button onClick={() => router.push('/fantasy')} style={lien}>← Fantasy 11</button>
-          <button onClick={() => router.push('/fantasy/express')} style={lien}>⚡ Fantasy 7</button>
+          <button onClick={() => router.push('/fantasy')} style={lien}>← Mon équipe</button>
         </div>
         {message && <div style={{ padding: '12px 16px', borderRadius: '12px', marginBottom: '14px', fontWeight: 700, fontSize: '13px', background: message.ok ? '#f0fdf4' : '#fef2f2', color: message.ok ? '#065f46' : '#b91c1c' }}>{message.texte}</div>}
 
@@ -137,14 +136,10 @@ export default function LiguesPage() {
                 </div>
                 {ouverte?.id === l.id && (
                   <div style={{ marginTop: '12px' }}>
-                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                      <button onClick={() => setMode('11')} style={petit(mode === '11' ? VIOLET : '#f3f4f6', mode === '11' ? '#fff' : '#374151')}>Fantasy 11</button>
-                      <button onClick={() => setMode('7')} style={petit(mode === '7' ? VIOLET : '#f3f4f6', mode === '7' ? '#fff' : '#374151')}>Fantasy 7</button>
-                    </div>
                     {!classement && <p style={{ color: '#6b7280', fontWeight: 700, fontSize: '13px' }}>Chargement…</p>}
                     {classement && classement.map(x => (
                       <div key={x.rang + x.nom} style={{ display: 'flex', gap: '10px', padding: '9px 12px', background: x.moi ? '#faf5ff' : x.rang <= 3 ? '#fffbeb' : '#f9fafb', border: x.moi ? '2px solid ' + VIOLET : '2px solid transparent', borderRadius: '10px', marginBottom: '4px', fontWeight: 800, fontSize: '13px' }}>
-                        <span style={{ width: '28px' }}>{x.rang === 1 ? '🥇' : x.rang === 2 ? '🥈' : x.rang === 3 ? '🥉' : x.rang}</span><span style={{ flex: 1 }}>{x.nom}{x.moi ? ' (toi)' : ''}</span><span style={{ color: VIOLET }}>{x.points} pts</span>
+                        <span style={{ width: '28px' }}>{x.rang === 1 ? '🥇' : x.rang === 2 ? '🥈' : x.rang === 3 ? '🥉' : x.rang}</span><span style={{ flex: 1 }}><span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: x.couleur || VIOLET, marginRight: '6px' }} />{x.embleme || '⚽'} {x.nom}{x.moi ? ' (toi)' : ''}</span><span style={{ color: VIOLET }}>{x.points} pts</span>
                       </div>
                     ))}
                   </div>
