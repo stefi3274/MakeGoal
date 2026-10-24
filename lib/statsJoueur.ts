@@ -148,7 +148,22 @@ export function champsAffichage(sport: string | null | undefined, poste: StatsPo
 
 // ---- Période couverte par les stats ----
 export type PeriodeType = 'match' | 'journee' | 'ldc' | 'mois' | 'trimestre' | 'saison' | 'carriere';
-export type Periode = { type: PeriodeType; libelle: string };
+export type Periode = { type: PeriodeType; libelle: string; competition?: string };
+
+// Compétition d'une période (mois, trimestre, saison) : '' = toutes compétitions confondues.
+export const COMPETITIONS: string[] = ['Championnat', 'Coupe', 'Ligue des champions', 'Europa League', 'Toutes compétitions'];
+// Détail par compétition : un seul post, un joueur, jusqu'à 3 colonnes (Championnat | Coupe | Ligue des champions).
+// Les valeurs d'une colonne k sont rangées sous la clé « cle@k » dans `valeurs`.
+export const COLONNES_PAR_DEFAUT: string[] = ['Championnat', 'Coupe', 'Ligue des champions'];
+export const MAX_COLONNES = 3;
+export const cleColonne = (cle: string, k: number): string => cle + '@' + k;
+export const cleDeBase = (cle: string): string => cle.split('@')[0];
+export const valeurColonne = (valeurs: Record<string, string> | null | undefined, cle: string, k: number): string => String(valeurs?.[cleColonne(cle, k)] ?? '').trim();
+export const aValeurColonne = (valeurs: Record<string, string> | null | undefined, cle: string): boolean => [0, 1, 2].some(k => valeurColonne(valeurs, cle, k) !== '');
+// Noms des colonnes (toujours 3 emplacements ; un nom vide = colonne absente). Retourne les index actifs.
+export const nomsColonnes = (noms: unknown): string[] => Array.from({ length: MAX_COLONNES }, (_, k) => (Array.isArray(noms) ? String(noms[k] ?? '') : '').trim().slice(0, 30));
+export const colonnesActives = (noms: unknown): number[] => nomsColonnes(noms).map((n, k) => (n ? k : -1)).filter(k => k >= 0);
+export const periodeAvecCompetition = (type: string | null | undefined): boolean => type === 'mois' || type === 'trimestre' || type === 'saison';
 
 export const PERIODES: { type: PeriodeType; label: string; placeholder: string }[] = [
   { type: 'match', label: '🎯 Un match', placeholder: 'Précision (optionnel, ex: Match amical)' },
@@ -172,8 +187,9 @@ export function libellePeriode(periode: Periode | null | undefined, nbMatchs?: s
   else if (periode.type === 'trimestre') texte = 'Trimestre' + (lib ? ' ' + lib : '');
   else if (periode.type === 'carriere') texte = 'Carrière' + (lib ? ' ' + lib : '');
   else texte = 'Saison' + (lib ? ' ' + lib : '');
+  const comp = periodeAvecCompetition(periode.type) ? (periode.competition || '').trim().slice(0, 40) : '';
   const nb = periode.type !== 'match' && nbMatchs ? nbMatchs + ' matchs' : '';
-  return [texte, nb].filter(Boolean).join(' · ');
+  return [texte, comp, nb].filter(Boolean).join(' · ');
 }
 
 export const normaliserLabel = (s: string) =>

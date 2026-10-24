@@ -1,0 +1,1093 @@
+'use client';
+import { useEffect, useState, useRef } from 'react';
+import { useParams } from 'next/navigation';
+import html2canvas from 'html2canvas';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../lib/auth';
+import Header from '../../../components/Header';
+import Footer from '../../../components/Footer';
+import { SPORT_COULEURS, Sport } from '../../../lib/sport';
+import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from '../../../lib/statsJoueur';
+import { ligneContexte } from '../../../lib/distinctions';
+import { Visuel, visuelsPublies } from '../../../lib/visuels';
+import { FORMATIONS, POSTES_5_MAJEUR, estCinqMajeur, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
+import { EliminationDetails, qualifie, aScore, detailScore } from '../../../lib/elimination';
+import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
+import { MiniQuizzDetails, questionsPubliees as miniQuestionsPubliees, optionsPubliees as miniOptionsPubliees } from '../../../lib/miniQuizz';
+import { PromoDetails, lotsPublies, sponsorsPublies } from '../../../lib/promo';
+import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
+import { visuelEquipe } from '../../../lib/ecussons';
+import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
+import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
+import { prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
+
+const VIOLET = '#bf00ff';
+// Remplacez cette URL par celle de votre logo (Supabase Storage bucket images)
+const LOGO_URL = 'https://giflxfycfqanyfaeoedz.supabase.co/storage/v1/object/public/images/logo%20makegoal.jpg';
+
+const couleurTag = (t: string) => {
+  if (t === 'Officiel') return '#10b981';
+  if (t === 'En attente') return '#f59e0b';
+  if (t === 'Transfert') return '#3b82f6';
+  if (t === 'Match terminé') return '#111111';
+  if (t === 'Mi-temps') return '#ef4444';
+  if (t === 'Statistiques') return '#8b5cf6';
+  return '#bf00ff';
+};
+
+
+const IconCrampon = () => (
+  <span style={{
+    display:'inline-flex', alignItems:'center', justifyContent:'center',
+    width:'19px', height:'19px', borderRadius:'50%',
+    background:'linear-gradient(135deg,'+VIOLET+',#7c1fd9)',
+    boxShadow:'0 2px 6px rgba(191,0,255,0.35)', flexShrink:0
+  }}>
+    <svg width="12" height="12" viewBox="0 0 24 24">
+      <path fill="#fff" d="M2.2 16.8c0-1.7 1.1-3 2.8-3.5l6.6-2.1c1.1-.35 1.9-1.25 2.15-2.35l.5-2.25c.35-1.55 1.85-2.55 3.4-2.2l3 .68c1.25.28 2.05 1.5 1.85 2.75l-.4 2.5c-.17 1.05.28 2.1 1.15 2.7l1.05.72c.75.5.65 1.65-.2 2-1.05.42-2.3.7-3.75.7H5.3c-1.7 0-3.1-1.35-3.1-3.1z"/>
+      <circle cx="6.6" cy="18.9" r="1.15" fill="#fff"/>
+      <circle cx="10.5" cy="19.15" r="1.15" fill="#fff"/>
+      <circle cx="14.4" cy="19.15" r="1.15" fill="#fff"/>
+    </svg>
+  </span>
+);
+
+
+const couleurLigne = (c: string | undefined) => {
+  if (c === 'vert') return '#10b981';
+  if (c === 'orange') return '#f59e0b';
+  if (c === 'rouge') return '#ef4444';
+  return 'transparent';
+};
+
+const PALETTE_EQUIPES = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f43f5e','#84cc16','#0ea5e9'];
+const couleurEquipeParcours = (nom: string) => {
+  let h = 0;
+  for (let i = 0; i < nom.length; i++) h = (h * 31 + nom.charCodeAt(i)) % PALETTE_EQUIPES.length;
+  return PALETTE_EQUIPES[Math.abs(h) % PALETTE_EQUIPES.length];
+};
+
+const couleurStatut = (s: string) => {
+  if (s === 'Mi-temps') return '#ef4444';
+  if (s === 'Match terminé') return '#111111';
+  if (s === 'À venir') return '#3b82f6';
+  return '#bf00ff';
+};
+
+
+type Post = {
+  id: string; titre: string; contenu: string | null;
+  langue: string; source_nom: string | null; source_url: string | null;
+  tags: string[] | null;
+  pays1: string | null; pays2: string | null;
+  ligue: string | null; ligue_logo: string | null;
+  equipe1: string | null; equipe2: string | null;
+  score1: number | null; score2: number | null; statut_match: string | null;
+  heure_match: string | null; stade: string | null;
+  distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null; mini_quizz?: MiniQuizzDetails | null;
+  classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
+  classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
+  matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
+  resultat_details: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
+  quarts_temps: { quart: string; score1: string; score2: string }[] | null;
+  parcours: { equipe: string; competition: string; poule: string; adversaires: { nom: string; date: string; label: string; scoreEquipe: string; scoreAdversaire: string; exterieur?: boolean }[] } | null;
+  declaration: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
+  invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
+  gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
+  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string } | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
+  sport: string | null;
+  pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
+  image_couverture: string | null; visuels?: Visuel[] | null; auteur: string; created_at: string;
+};
+type Commentaire = {
+  id: string; user_id: string; contenu: string; created_at: string;
+  username: string; likes: number; likedByMe: boolean;
+};
+
+// Écusson du club, ou drapeau si c'est une sélection nationale (rien si inconnu).
+const pastille = (nom: string, ecussons?: Record<string, string>) => {
+  const v = visuelEquipe(nom, ecussons);
+  if (v.url) return <img src={v.url} alt="" style={{width:'30px',height:'30px',objectFit:'contain',flexShrink:0}} />;
+  if (v.drapeau) return <span style={{fontSize:'24px',lineHeight:1,flexShrink:0}}>{v.drapeau}</span>;
+  return null;
+};
+
+export default function PostPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  const { user } = useAuth();
+  const [post, setPost] = useState<Post | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [format, setFormat] = useState<'carre' | 'vertical'>('carre');
+  const [downloading, setDownloading] = useState(false);
+  const [lienCopie, setLienCopie] = useState(false);
+  const urlPost = typeof window !== 'undefined' ? window.location.href : '';
+
+  const copierLien = () => {
+    if (typeof navigator === 'undefined') return;
+    navigator.clipboard.writeText(urlPost);
+    setLienCopie(true);
+    setTimeout(() => setLienCopie(false), 2000);
+  };
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [likes, setLikes] = useState(0);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
+  const [nouveauComm, setNouveauComm] = useState('');
+  const [partageMsg, setPartageMsg] = useState('');
+
+  useEffect(() => { if (id) charger(); }, [id]);
+
+  const charger = async () => {
+    const { data } = await supabase.from('articles').select('*').eq('id', id).eq('publie', true).single();
+    if (data) { setPost(data); chargerLikes(); chargerCommentaires(); }
+    setLoading(false);
+  };
+
+  useEffect(() => { if (user) verifierAdmin(); }, [user]);
+
+  const verifierAdmin = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).single();
+    setIsAdmin(!!data);
+  };
+
+  const chargerLikes = async () => {
+    const { data } = await supabase.from('article_likes').select('user_id').eq('article_id', id);
+    if (data) { setLikes(data.length); if (user) setLikedByMe(data.some(l => l.user_id === user.id)); }
+  };
+
+  const chargerCommentaires = async () => {
+    const { data: comms } = await supabase.from('commentaires').select('*').eq('article_id', id).is('parent_id', null).order('created_at', { ascending: false });
+    if (!comms) return;
+    const userIds = [...new Set(comms.map(c => c.user_id))];
+    const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
+    const { data: allLikes } = await supabase.from('commentaire_likes').select('commentaire_id, user_id');
+    const enrichis: Commentaire[] = comms.map(c => {
+      const lk = (allLikes || []).filter(l => l.commentaire_id === c.id);
+      return { id: c.id, user_id: c.user_id, contenu: c.contenu, created_at: c.created_at,
+        username: profiles?.find(p => p.id === c.user_id)?.username || 'Anonyme',
+        likes: lk.length, likedByMe: user ? lk.some(l => l.user_id === user.id) : false };
+    });
+    setCommentaires(enrichis);
+  };
+
+  const toggleLike = async () => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (likedByMe) {
+      await supabase.from('article_likes').delete().eq('article_id', id).eq('user_id', user.id);
+      setLikes(l => l - 1); setLikedByMe(false);
+    } else {
+      await supabase.from('article_likes').insert({ article_id: id, user_id: user.id });
+      setLikes(l => l + 1); setLikedByMe(true);
+    }
+  };
+
+  const posterComm = async () => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (!nouveauComm.trim()) return;
+    await supabase.from('commentaires').insert({ article_id: id, user_id: user.id, contenu: nouveauComm.trim(), parent_id: null });
+    setNouveauComm(''); chargerCommentaires();
+  };
+
+  const toggleLikeComm = async (cm: Commentaire) => {
+    if (!user) { window.location.href = '/compte'; return; }
+    if (cm.likedByMe) await supabase.from('commentaire_likes').delete().eq('commentaire_id', cm.id).eq('user_id', user.id);
+    else await supabase.from('commentaire_likes').insert({ commentaire_id: cm.id, user_id: user.id });
+    chargerCommentaires();
+  };
+
+  const supprimerComm = async (cid: string) => {
+    if (!confirm('Supprimer ce commentaire ?')) return;
+    await supabase.from('commentaires').delete().eq('id', cid);
+    chargerCommentaires();
+  };
+
+  const partager = (reseau: string) => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const texte = post ? post.titre + ' — MakeGoal' : 'MakeGoal';
+    if (reseau === 'whatsapp') window.open('https://wa.me/?text=' + encodeURIComponent(texte + ' ' + url), '_blank');
+    else if (reseau === 'facebook') window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'twitter') window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(texte) + '&url=' + encodeURIComponent(url), '_blank');
+    else if (reseau === 'telegram') window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(texte), '_blank');
+    else if (reseau === 'copier') { navigator.clipboard.writeText(url); setPartageMsg('Lien copié ✓'); setTimeout(() => setPartageMsg(''), 2000); }
+  };
+
+  const formatComm = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+
+  const telecharger = async () => {
+    if (!cardRef.current) return;
+    setDownloading(true);
+    try {
+      // Qualité : l'image finale a TOUJOURS la même largeur, quel que soit l'écran.
+      // Vertical = 1080 px de large (standard Instagram/WhatsApp), carré = 1620 px.
+      try { await document.fonts.ready; } catch { /* sans importance */ }
+      const largeurCible = format === 'carre' ? 1620 : 1080;
+      const echelle = largeurCible / Math.max(1, cardRef.current.offsetWidth);
+      const canvas = await html2canvas(cardRef.current, { scale: echelle, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const blob: Blob | null = await new Promise(res => canvas.toBlob(b => res(b), 'image/png'));
+      if (!blob) throw new Error('image vide');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = 'makegoal-post-' + format + '.png';
+      link.href = url;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      alert('Erreur lors du téléchargement. Réessayez.');
+    }
+    setDownloading(false);
+  };
+
+  if (loading) return (
+    <div style={{minHeight:'100vh',background:'#fff',fontFamily:'sans-serif'}}><Header /><main style={{maxWidth:'700px',margin:'0 auto',padding:'48px 24px'}}><p style={{color:'#9ca3af'}}>Chargement…</p></main><Footer /></div>
+  );
+
+  if (!post) return (
+    <div style={{minHeight:'100vh',background:'#fff',fontFamily:'sans-serif'}}><Header /><main style={{maxWidth:'700px',margin:'0 auto',padding:'48px 24px',textAlign:'center'}}><h1 style={{fontWeight:900,fontSize:'24px'}}>Post introuvable</h1><a href="/" style={{color:VIOLET,fontWeight:600}}>← Accueil</a></main><Footer /></div>
+  );
+
+  const dims = format === 'carre' ? { width: 540, height: 540 } : { width: 400, minHeight: 640 };
+  const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
+  const estResultatMatch = !!(post.quarts_temps?.length || (post.resultat_details && (post.resultat_details.buts?.length || post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length)));
+  const VERT = '#16a34a', ROUGE = '#dc2626', VIOLET_EGALITE = '#8b5cf6';
+  const couleurEquipe1 = estResultatMatch && post.score1 !== null && post.score2 !== null
+    ? (post.score1 > post.score2 ? VERT : post.score1 < post.score2 ? ROUGE : VIOLET_EGALITE) : '#0a0a0a';
+  const couleurEquipe2 = estResultatMatch && post.score1 !== null && post.score2 !== null
+    ? (post.score2 > post.score1 ? VERT : post.score2 < post.score1 ? ROUGE : VIOLET_EGALITE) : '#0a0a0a';
+  const banniere = (() => {
+    if (estResultatMatch) return { label: 'RÉSULTAT DE MATCH', couleur: '#3b82f6' };
+    if (post.classement_type && !post.classement_titre) return { label: 'CLASSEMENT', couleur: '#f59e0b' };
+    if (post.distinction_type === 'Meilleur buteur') return { label: 'MEILLEUR BUTEUR', couleur: '#ef4444' };
+    if (post.distinction_type === 'Meilleur passeur') return { label: 'MEILLEUR PASSEUR', couleur: '#14b8a6' };
+    if (post.distinction_type) return { label: 'DISTINCTION', couleur: '#ec4899' };
+    if (post.stats_joueur?.joueurs?.length) return { label: post.stats_joueur.mode === 'comparaison' ? 'COMPARAISON JOUEURS' : 'STATS JOUEUR', couleur: '#8b5cf6' };
+    if (post.formation && post.onze_details?.categorie) return { label: post.onze_details.categorie.toUpperCase(), couleur: '#8b5cf6' };
+    if (post.mini_quizz && miniQuestionsPubliees(post.mini_quizz.questions).length) return { label: 'MINI QUIZZ', couleur: '#bf00ff' };
+    if (post.promo && lotsPublies(post.promo.lots || []).length) return { label: 'PROMO', couleur: '#e11d48' };
+    if (post.nominations && nominesPublies(post.nominations.nomines || []).length) return { label: 'NOMINATIONS', couleur: '#d97706' };
+    if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
+    if (post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length) return { label: 'DERNIERS MATCHS', couleur: '#0891b2' };
+    if (post.confrontations && matchsPublies(post.confrontations.matchs || []).length) return { label: 'CONFRONTATIONS DANS LE PASSÉ', couleur: '#7c3aed' };
+    if (post.elimination?.rencontres?.length) return { label: 'ÉLIMINATION DIRECTE', couleur: '#dc2626' };
+    if (post.matchs_jour?.length) return { label: 'MATCHS DU JOUR', couleur: couleurSport };
+    if (post.parcours?.adversaires?.length) return { label: 'PARCOURS', couleur: '#6366f1' };
+    if (post.declaration?.citation) return { label: 'DÉCLARATION', couleur: '#0ea5e9' };
+    if (post.gagnants?.gagnants?.length) return { label: 'GAGNANTS', couleur: '#eab308' };
+    return null;
+  })();
+
+  const limiteClassement = post.classement_type === 'equipes' ? 10 : 7;
+  const classementAffiche = post.classement ? post.classement.slice(0, limiteClassement) : [];
+  // Système adaptatif : moins de lignes = tout plus grand, pour bien remplir le cadre
+  const nbLignesClassement = classementAffiche.length;
+  const tailleClassement = nbLignesClassement <= 3 ? 'xl' : nbLignesClassement <= 6 ? 'lg' : 'md';
+  const CLASSEMENT_TAILLES = {
+    xl: { entete: 13, ligne: 19, nom: 19, extra: 14, val: 22, pos: 36, posFont: 15, padding: '19px 6px 19px 10px' },
+    lg: { entete: 12, ligne: 16, nom: 16, extra: 12, val: 19, pos: 32, posFont: 13, padding: '15px 5px 15px 9px' },
+    md: { entete: 11, ligne: 14, nom: 14, extra: 11, val: 16, pos: 28, posFont: 12, padding: '13px 4px 13px 8px' }
+  }[tailleClassement];
+
+  return (
+    <div style={{minHeight:'100vh',background:'#f9fafb',color:'#111',fontFamily:'sans-serif'}}>
+      <Header />
+      <main style={{maxWidth:'700px',margin:'0 auto',padding:'32px 16px'}}>
+
+        <a href="/" style={{color:VIOLET,fontSize:'14px',textDecoration:'none',fontWeight:600,display:'inline-block',marginBottom:'20px'}}>← Retour</a>
+
+        <div style={{display:'flex',gap:'8px',marginBottom:'20px',justifyContent:'center'}}>
+          <button onClick={() => setFormat('carre')} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:format==='carre'?VIOLET:'#e5e7eb',color:format==='carre'?'#fff':'#374151'}}>⬜ Carré</button>
+          <button onClick={() => setFormat('vertical')} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:format==='vertical'?VIOLET:'#e5e7eb',color:format==='vertical'?'#fff':'#374151'}}>📱 Vertical</button>
+        </div>
+
+        <div style={{display:'flex',justifyContent:'center',marginBottom:'24px'}}>
+          <div ref={cardRef} style={{
+            width: dims.width + 'px', height: format==='carre' ? dims.height + 'px' : undefined, minHeight: format==='vertical' ? dims.minHeight + 'px' : undefined,
+            background:'#ffffff', border:'1px solid #eee',
+            display:'flex', flexDirection:'column', justifyContent:'center', padding:'18px 32px', boxSizing:'border-box',
+            position:'relative', overflow: format==='carre' ? 'hidden' : 'visible'
+          }}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'0px'}}>
+              {LOGO_URL ? (
+                <img src={LOGO_URL} alt="MakeGoal" style={{height:'72px'}}/>
+              ) : (
+                <span style={{color:VIOLET,fontWeight:900,fontSize:'26px'}}>MakeGoal</span>
+              )}
+              <span style={{marginLeft:'auto',fontSize:'11px',fontWeight:700,color:'#fff',background:couleurSport,padding:'3px 10px',borderRadius:'999px'}}>
+                {new Date().toLocaleDateString('fr-FR', { timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+              </span>
+            </div>
+
+            {banniere && (
+              <div style={{background:banniere.couleur,color:'#fff',fontWeight:900,fontSize:'11px',textAlign:'center',padding:'7px',borderRadius:'9px',marginBottom:'2px',letterSpacing:'0.6px',textTransform:'uppercase'}}>{banniere.label}</div>
+            )}
+
+            {post.tags && post.tags.length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'16px'}}>
+                {post.tags.map(t => (
+                  <span key={t} style={{fontSize:'12px',fontWeight:900,color:'#fff',background:couleurTag(t),padding:'4px 12px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{t}</span>
+                ))}
+              </div>
+            )}
+
+            {visuelsPublies(post.visuels).length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:'14px',margin:'4px 0 14px'}}>
+                {visuelsPublies(post.visuels).map((v, i) => (
+                  <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',maxWidth:'84px'}}>
+                    {v.type === 'drapeau' ? (
+                      <span style={{fontSize:'44px',lineHeight:'52px',height:'52px'}}>{drapeau(v.nom)}</span>
+                    ) : (
+                      <img src={v.url} alt={v.nom} crossOrigin="anonymous" style={{width:'52px',height:'52px',objectFit:v.type==='joueur'?'cover':'contain',borderRadius:v.type==='joueur'?'50%':'6px',border:v.type==='joueur'?'2px solid '+VIOLET:'none',background:v.type==='joueur'?'#f3f4f6':'transparent'}}/>
+                    )}
+                    {v.nom && <span style={{fontSize:'11px',fontWeight:800,color:'#374151',textAlign:'center',lineHeight:1.15}}>{v.nom}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(post.pays1 && post.pays2) || (post.equipe1 && post.equipe2) ? (
+              <div style={{margin:'8px 0 24px',padding:'26px 22px',background:'linear-gradient(160deg,'+SPORT_COULEURS[(post.sport as Sport) || 'football'].clair+',#ffffff)',borderRadius:'20px',border:'1px solid '+couleurSport+'33'}}>
+                {(post.ligue || post.ligue_logo) && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'20px'}}>
+                    {post.ligue_logo && <img src={post.ligue_logo} alt="" style={{height:'22px'}}/>}
+                    {post.ligue && <span style={{fontSize:'12px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.6px',background:'#fff',padding:'5px 14px',borderRadius:'999px',border:'1px solid '+couleurSport+'33'}}>{post.ligue}</span>}
+                  </div>
+                )}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
+                  <div style={{textAlign:'center',flex:1}}>
+                    {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe1,marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
+                  </div>
+                  {post.score1 !== null && post.score2 !== null ? (
+                    <div style={{textAlign:'center',background:'#fff',borderRadius:'16px',padding:'10px 20px',boxShadow:'0 6px 18px '+couleurSport+'29',border:'1px solid '+couleurSport+'33'}}>
+                      <div style={{fontWeight:900,fontSize:'32px',color:couleurSport,lineHeight:1}}>{post.score1}-{post.score2}</div>
+                    </div>
+                  ) : (
+                    <div style={{color:'#fff',fontWeight:900,fontSize:'15px',background:'linear-gradient(135deg,'+couleurSport+','+SPORT_COULEURS[(post.sport as Sport) || 'football'].sombre+')',borderRadius:'50%',width:'46px',height:'46px',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 16px '+couleurSport+'59',flexShrink:0}}>VS</div>
+                  )}
+                  <div style={{textAlign:'center',flex:1}}>
+                    {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe2,marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
+                  </div>
+                </div>
+                {(post.heure_match || post.stade) && (
+                  <div style={{display:'flex',justifyContent:'center',gap:'20px',flexWrap:'wrap',marginTop:'20px',paddingTop:'16px',borderTop:'1px solid '+couleurSport+'33'}}>
+                    {post.heure_match && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>🕐 {post.heure_match}</span>}
+                    {post.stade && <span style={{fontSize:'12.5px',color:'#6b7280',fontWeight:700}}>📍 {post.stade}</span>}
+                  </div>
+                )}
+                {post.statut_match && (
+                  <div style={{textAlign:'center',marginTop:'16px'}}>
+                    <span style={{display:'inline-block',fontSize:'12px',fontWeight:900,color:'#fff',background:couleurStatut(post.statut_match),padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                      {post.statut_match === 'Mi-temps' && '⏸ '}
+                      {post.statut_match === 'Match terminé' && '✓ '}
+                      {post.statut_match === 'À venir' && '🔜 '}
+                      {post.statut_match}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {post.matchs_jour && post.matchs_jour.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                {post.pays1 && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginBottom:'14px'}}>
+                    <span style={{fontSize:'26px'}}>{drapeau(post.pays1)}</span>
+                    <span style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{post.pays1}</span>
+                  </div>
+                )}
+                {post.matchs_jour.map((m, i) => (
+                  <div key={m.id || i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'14px',borderRadius:'12px',background:i%2===0?SPORT_COULEURS[(post.sport as Sport) || 'football'].clair:'#fff',border:'1px solid #f3f4f6',marginBottom:'8px'}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      {m.competition && <div style={{fontSize:'10px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'2px'}}>{m.competition}</div>}
+                      <div style={{fontWeight:900,fontSize:'14px',color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1} vs {m.equipe2}</div>
+                      <div style={{fontSize:'11px',color:'#6b7280'}}>{new Date(m.date_match).toLocaleString('fr-FR', {timeZone:'America/Port-au-Prince', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</div>
+                    </div>
+                    <div style={{fontWeight:900,fontSize:'18px',color:couleurSport,whiteSpace:'nowrap'}}>
+                      {m.score1 !== null && m.score2 !== null ? m.score1 + ' - ' + m.score2 : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {post.parcours && post.parcours.adversaires && post.parcours.adversaires.length > 0 && (
+              <div style={{margin:'0px 0 12px'}}>
+                <div style={{textAlign:'center',marginBottom:'8px'}}>
+                  <p style={{fontWeight:900,fontSize:'19px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.parcours.equipe}</p>
+                  <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:0}}>{post.parcours.competition}{post.parcours.poule ? ' · ' + post.parcours.poule : ''}</p>
+                </div>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'16px',overflow:'hidden',boxShadow:'0 6px 20px rgba(0,0,0,0.08)'}}>
+                  {post.parcours.adversaires.map((a, i) => {
+                    const joue = a.scoreEquipe !== '' && a.scoreAdversaire !== '' && a.scoreEquipe !== undefined && a.scoreAdversaire !== undefined;
+                    const gagne = joue && parseInt(a.scoreEquipe) > parseInt(a.scoreAdversaire);
+                    const perdu = joue && parseInt(a.scoreEquipe) < parseInt(a.scoreAdversaire);
+                    const couleurEquipeAdv = couleurEquipeParcours(a.nom);
+                    return (
+                    <div key={i} style={{display:'flex',alignItems:'center',padding:'8px 16px',fontSize:'14px',borderTop: i===0 ? 'none' : '1px solid #f3f4f6',background: i % 2 === 0 ? '#fff' : '#fcfcfd'}}>
+                      <span style={{width:'10px',height:'10px',borderRadius:'50%',background:couleurEquipeAdv,marginRight:'11px',flexShrink:0}}/>
+                      {a.label && <span style={{fontSize:'9px',fontWeight:900,color:'#6366f1',background:'#eef2ff',padding:'2px 7px',borderRadius:'999px',marginRight:'9px',flexShrink:0}}>{a.label}</span>}
+                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:'7px'}}>
+                        <span style={{fontWeight:900,color:'#0a0a0a',fontSize:'16px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nom}</span>
+                        {a.exterieur && <span style={{fontSize:'9px',fontWeight:900,color:'#c2410c',background:'#ffedd5',padding:'1px 6px',borderRadius:'999px',whiteSpace:'nowrap'}}>EXT.</span>}
+                        {a.date && <span style={{fontSize:'10.5px',color:'#9ca3af',fontWeight:600,whiteSpace:'nowrap'}}>{a.date}</span>}
+                      </div>
+                      <div style={{fontWeight:900,fontSize:'15px',color:joue?(gagne?'#16a34a':perdu?'#dc2626':'#8b5cf6'):'#9ca3af',whiteSpace:'nowrap',marginLeft:'8px'}}>
+                        {joue ? a.scoreEquipe + '-' + a.scoreAdversaire : '—'}
+                      </div>
+                    </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {post.declaration && post.declaration.citation && (
+              <div style={{margin:'8px 0 24px',textAlign:'center'}}>
+                <div style={{width:'62px',height:'62px',borderRadius:'50%',background:'linear-gradient(135deg,#0ea5e9,#0369a1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px',margin:'0 auto 12px',boxShadow:'0 8px 20px rgba(14,165,233,0.4)'}}>🎤</div>
+                <p style={{fontWeight:900,fontSize:'18px',color:'#0a0a0a',margin:'0 0 2px'}}>{post.declaration.pays && drapeau(post.declaration.pays) !== '🏳️' ? drapeau(post.declaration.pays) + ' ' : ''}{post.declaration.nom}</p>
+                {post.declaration.fonction && <p style={{fontSize:'12px',color:'#6b7280',fontWeight:700,margin:'0 0 16px'}}>{post.declaration.fonction}</p>}
+                <div style={{background:'#f0f9ff',borderRadius:'16px',padding:'20px',position:'relative',textAlign:'left'}}>
+                  <span style={{position:'absolute',top:'2px',left:'14px',fontSize:'42px',color:'rgba(14,165,233,0.25)',fontWeight:900,lineHeight:1}}>&ldquo;</span>
+                  <p style={{fontSize:'16px',fontStyle:'italic',fontWeight:700,color:'#0c4a6e',margin:0,lineHeight:1.5,position:'relative'}}>{post.declaration.citation}</p>
+                </div>
+                {post.declaration.contexte && <p style={{fontSize:'11px',color:'#9ca3af',fontWeight:600,marginTop:'10px'}}>{post.declaration.contexte}</p>}
+              </div>
+            )}
+
+            {post.gagnants && post.gagnants.gagnants && post.gagnants.gagnants.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{background:'linear-gradient(135deg,#78350f,#eab308)',borderRadius:'20px',padding:'26px 22px',textAlign:'center',marginBottom:'16px'}}>
+                  <div style={{fontSize:'40px',marginBottom:'8px'}}>🎉</div>
+                  <h2 style={{color:'#fff',fontWeight:900,fontSize:'22px',lineHeight:'1.2',margin:0}}>{post.gagnants.titreTirage || 'Les gagnants'}</h2>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {post.gagnants.gagnants.map((g, i) => (
+                    <div key={i} style={{border:'2px solid #fde68a',borderRadius:'14px',padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',background:'#fffbeb'}}>
+                      <span style={{fontWeight:900,fontSize:'15px',color:'#78350f'}}>🏆 {g.nom}</span>
+                      {g.prix && <span style={{fontWeight:700,fontSize:'13px',color:'#92400e',background:'#fef3c7',padding:'4px 12px',borderRadius:'999px'}}>{g.prix}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {post.invitation_concours && post.invitation_concours.titreConcours && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{background:'linear-gradient(135deg,#7c1fd9,#bf00ff)',borderRadius:'20px',padding:'26px 22px',textAlign:'center',marginBottom:'16px'}}>
+                  <p style={{color:'rgba(255,255,255,0.8)',fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',margin:'0 0 6px'}}>🏆 Konkou MakeGoal — {post.invitation_concours.titreConcours}</p>
+                  {post.invitation_concours.slogan && (
+                    <h2 style={{color:'#fff',fontWeight:900,fontSize:'25px',lineHeight:'1.2',margin:'0 0 10px'}}>{post.invitation_concours.slogan}</h2>
+                  )}
+                  <div style={{display:'inline-block',background:'#ffd700',color:'#7c1fd9',fontWeight:900,fontSize:'32px',padding:'4px 24px',borderRadius:'10px',marginBottom:'14px',transform:'rotate(-2deg)'}}>GRATIS</div>
+                  {post.invitation_concours.lots && (
+                    <div style={{background:'rgba(255,255,255,0.15)',borderRadius:'12px',padding:'10px 16px'}}>
+                      <p style={{color:'#ffd700',fontSize:'13px',fontWeight:700,margin:0}}>🎁 {post.invitation_concours.lots}</p>
+                    </div>
+                  )}
+                </div>
+
+                {post.invitation_concours.matchs && post.invitation_concours.matchs.length > 0 && (
+                  <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                    {post.invitation_concours.matchs.map((m, i) => (
+                      <div key={i} style={{border:'2px solid #e5e7eb',borderRadius:'14px',padding:'12px 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+                        <span style={{flex:1,fontWeight:900,fontSize:'14px',color:'#111',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe1}</span>
+                        <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                          {['1','X','2'].map(opt => (
+                            <span key={opt} style={{width:'26px',height:'26px',borderRadius:'8px',background:'#f3f4f6',color:'#9ca3af',fontWeight:900,fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center'}}>{opt}</span>
+                          ))}
+                        </div>
+                        <span style={{flex:1,fontWeight:900,fontSize:'14px',color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipe2}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {post.quarts_temps && post.quarts_temps.length > 0 && (
+              <div style={{margin:'8px 0 24px',padding:'20px',background:SPORT_COULEURS.basketball.clair,borderRadius:'16px'}}>
+                <p style={{fontSize:'11px',fontWeight:900,color:SPORT_COULEURS.basketball.primaire,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'12px',textAlign:'center'}}>🏀 Score par quart-temps</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat('+post.quarts_temps.length+',1fr)',gap:'8px'}}>
+                  {post.quarts_temps.map((q, i) => (
+                    <div key={i} style={{background:'#fff',borderRadius:'10px',padding:'10px 6px',textAlign:'center',border:'1px solid '+SPORT_COULEURS.basketball.primaire+'33'}}>
+                      <div style={{fontSize:'10px',fontWeight:900,color:'#9ca3af',marginBottom:'4px'}}>{q.quart}</div>
+                      <div style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{q.score1}-{q.score2}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {post.resultat_details && (post.resultat_details.buts?.length > 0 || post.resultat_details.rouges?.length > 0 || post.resultat_details.jaunes?.length > 0) && (
+              <div style={{margin:'8px 0 24px',padding:'18px',background:'#faf5ff',borderRadius:'16px'}}>
+                {post.resultat_details.buts && post.resultat_details.buts.length > 0 && (
+                  <div style={{marginBottom: (post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length) ? '14px' : 0}}>
+                    {Array.from(new Set(post.resultat_details.buts.map(b => b.equipe))).map(eq => (
+                      <div key={eq} style={{marginBottom:'10px'}}>
+                        <div style={{fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{eq}</div>
+                        {post.resultat_details!.buts.filter(b => b.equipe === eq).map((b, i) => (
+                          <div key={i} style={{fontSize:'16px',color:'#111',marginBottom:'6px',display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
+                            <span>⚽</span><span style={{fontWeight:800}}>{b.joueur}</span> <span style={{color:'#6b7280',fontWeight:600}}>{b.minute}'</span>
+                            {b.passeur && <span style={{display:'inline-flex',alignItems:'center',gap:'4px',color:'#6b7280',fontWeight:700}}><IconCrampon/> {b.passeur}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {post.resultat_details.rouges && post.resultat_details.rouges.length > 0 && (
+                  <div style={{marginBottom: post.resultat_details.jaunes?.length ? '10px' : 0}}>
+                    {post.resultat_details.rouges.map((c, i) => (
+                      <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>🟥 {c.joueur} <span style={{color:'#6b7280'}}>{c.minute}'</span></div>
+                    ))}
+                  </div>
+                )}
+                {post.resultat_details.jaunes && post.resultat_details.jaunes.length > 0 && (
+                  <div>
+                    {post.resultat_details.jaunes.map((c, i) => (
+                      <div key={i} style={{fontSize:'13px',color:'#111',marginBottom:'3px'}}>🟨 {c.joueur} <span style={{color:'#6b7280'}}>{c.minute}'</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {post.stats_joueur && post.stats_joueur.joueurs && post.stats_joueur.joueurs.length > 0 && (
+              <div style={{margin:'8px 0 24px',padding:'18px',background:couleurSport==='#ff7a00'?SPORT_COULEURS.basketball.clair:'#faf5ff',borderRadius:'16px'}}>
+                {(() => {
+                  // Anciens posts "bilan" : pas de période enregistrée, on garde "Bilan sur X matchs".
+                  const texte = libellePeriode((post.stats_joueur!.periode as Periode | null | undefined) || null, post.stats_joueur!.nbMatchs);
+                  return texte ? (
+                    <div style={{textAlign:'center',marginBottom:'14px'}}>
+                      <span style={{display:'inline-block',background:couleurSport,color:'#fff',fontSize:'14px',fontWeight:900,padding:'6px 18px',borderRadius:'999px'}}>🗓️ {texte}</span>
+                    </div>
+                  ) : null;
+                })()}
+                <div style={{display:'flex',gap:'12px',overflowX:'auto'}}>
+                  {post.stats_joueur.joueurs.map((j, i) => {
+                    // Seul : grands caractères. À plusieurs (côte à côte) : un peu plus petits pour tenir.
+                    const seul = post.stats_joueur!.joueurs.length === 1;
+                    const tLabel = seul ? 17 : 13;
+                    const tValeur = seul ? 22 : 17;
+                    return (
+                    <div key={i} style={{flex:1,minWidth:0,background:'#fff',borderRadius:'12px',padding:seul ? '18px 20px' : '12px 10px',border:'1px solid #f3f4f6'}}>
+                      {post.stats_joueur!.joueurs.some(x => x.photo) && (
+                        <div style={{display:'flex',justifyContent:'center',marginBottom:'10px'}}>
+                          {j.photo ? (
+                            <img src={j.photo} alt={j.nom} crossOrigin="anonymous" style={{width:seul ? 112 : 76,height:seul ? 112 : 76,borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'3px solid '+couleurSport,display:'block'}}/>
+                          ) : (
+                            <div style={{width:seul ? 112 : 76,height:seul ? 112 : 76,borderRadius:'50%',background:couleurSport+'14',border:'3px solid '+couleurSport+'55',display:'flex',alignItems:'center',justifyContent:'center',color:couleurSport,fontWeight:900,fontSize:seul ? 40 : 28}}>{(j.nom || '?').trim().charAt(0).toUpperCase()}</div>
+                          )}
+                        </div>
+                      )}
+                      <div style={{fontWeight:900,fontSize:seul ? '24px' : '17px',color:'#111',textAlign:'center',lineHeight:1.2,minHeight:seul ? undefined : '2.4em',display:'flex',alignItems:'center',justifyContent:'center'}}>{j.pays && drapeau(j.pays) !== '🏳️' ? drapeau(j.pays) + ' ' : ''}{j.nom}</div>
+                      {j.equipe && <div style={{fontSize:seul ? '15px' : '13px',fontWeight:700,color:'#4b5563',textAlign:'center',marginTop:'3px'}}>{j.equipe}</div>}
+                      {j.adversaire && periodeAvecAdversaire(post.stats_joueur!.periode?.type) && (
+                        <div style={{textAlign:'center',marginTop:'6px'}}>
+                          <span style={{display:'inline-block',fontSize:seul ? '14px' : '12px',fontWeight:800,color:couleurSport,background:couleurSport+'14',padding:'3px 10px',borderRadius:'999px'}}>face à {j.adversaire}</span>
+                        </div>
+                      )}
+                      <div style={{height:'10px'}}/>
+                      {(() => {
+                        // Seules les catégories remplies apparaissent. Un joueur seul voit
+                        // ses stats regroupées (Attaque, Apport défensif...) si plusieurs groupes sont remplis.
+                        const groupes = groupesPourPeriode(post.sport, post.stats_joueur!.poste, post.stats_joueur!.periode?.type)
+                          .map(gr => ({ titre: gr.titre, champs: gr.champs.filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim()) }))
+                          .filter(gr => gr.champs.length > 0);
+                        const avecTitres = seul && groupes.length > 1;
+                        return groupes.map(gr => (
+                          <div key={gr.titre || 'stats'}>
+                            {avecTitres && gr.titre && (
+                              <div style={{fontSize:'11px',fontWeight:900,color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',margin:'16px 0 2px'}}>{gr.titre}</div>
+                            )}
+                            {gr.champs.map(c => (
+                              <div key={c.cle} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',padding:seul ? '9px 0' : '7px 0',borderBottom:'1px solid #f3f4f6'}}>
+                                <span style={{color:couleurSport,fontWeight:800,fontSize:tLabel+'px',lineHeight:1.25,minWidth:0}}>{c.label}</span>
+                                <span style={{color:'#000',fontWeight:900,fontSize:tValeur+'px',lineHeight:1}}>{j.valeurs[c.cle]}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {post.distinction_type && (
+              <div style={{margin:'8px 0 24px',padding:'24px',background:'linear-gradient(135deg,#fef9e7,#faf5ff)',borderRadius:'16px',border:'2px solid #ffd700',textAlign:'center'}}>
+                {post.distinction_details?.photo ? (
+                  <img src={post.distinction_details.photo} alt={post.laureat || ''} crossOrigin="anonymous" style={{width:112,height:112,borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'4px solid #ffd700',display:'block',margin:'0 auto 12px'}}/>
+                ) : (
+                  <div style={{fontSize:'40px',lineHeight:1,marginBottom:'8px'}}>🏆</div>
+                )}
+                <div style={{fontSize:'14px',fontWeight:900,color:'#b8860b',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>{post.distinction_type}</div>
+                {post.distinction_details?.periode && <div style={{display:'inline-block',background:'#fff',border:'1px solid #ffd700',color:'#b8860b',fontSize:'13px',fontWeight:800,padding:'3px 14px',borderRadius:'999px',marginBottom:'10px'}}>🗓️ {post.distinction_details.periode}</div>}
+                {post.laureat && <div style={{fontSize:'30px',fontWeight:900,color:'#111',marginBottom:'6px',lineHeight:1.15}}>{post.distinction_details?.pays && drapeau(post.distinction_details.pays) !== '🏳️' ? drapeau(post.distinction_details.pays) + ' ' : ''}{post.laureat}</div>}
+                {ligneContexte(post.distinction_details, post.laureat) && <div style={{fontSize:'16px',fontWeight:700,color:'#4b5563',marginBottom:'10px'}}>{ligneContexte(post.distinction_details, post.laureat)}</div>}
+                {post.distinction_stats && (
+                  <div style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'14px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',marginBottom:'10px'}}>📊 {post.distinction_stats}</div>
+                )}
+                {post.distinction_note && <p style={{fontSize:'14px',color:'#6b7280',fontStyle:'italic',margin:'8px 0 0',lineHeight:'1.5'}}>{post.distinction_note}</p>}
+              </div>
+            )}
+
+            {post.formation && post.onze && FORMATIONS[post.formation] && post.onze_details?.categorie && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'10px'}}>
+                  {(post.onze_details.competition || post.onze_details.periode) && (
+                    <div style={{fontSize:'15px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{post.onze_details.competition}</div>
+                  )}
+                  <div style={{display:'inline-flex',gap:'6px',marginTop:'6px',flexWrap:'wrap',justifyContent:'center'}}>
+                    {post.onze_details.periode && <span style={{background:VIOLET,color:'#fff',fontSize:'12px',fontWeight:900,padding:'4px 14px',borderRadius:'999px'}}>🗓️ {post.onze_details.periode}</span>}
+                    <span style={{background:'#0b1030',color:'#fff',fontSize:'12px',fontWeight:900,padding:'4px 14px',borderRadius:'999px'}}>{post.formation}</span>
+                  </div>
+                </div>
+                <div style={{position:'relative',width:'100%',paddingBottom:'135%',background:'linear-gradient(180deg,#0b1030,#241052 55%,#0b1030)',borderRadius:'16px',overflow:'hidden'}}>
+                  <div style={{position:'absolute',top:'50%',left:0,right:0,height:'2px',background:'rgba(255,255,255,0.18)'}}/>
+                  <div style={{position:'absolute',top:'50%',left:'50%',width:'90px',height:'90px',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'50%',transform:'translate(-50%,-50%)'}}/>
+                  <div style={{position:'absolute',bottom:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.18)',borderBottom:'none'}}/>
+                  <div style={{position:'absolute',top:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.18)',borderTop:'none'}}/>
+                  {FORMATIONS[post.formation].map((pos, i) => {
+                    const j = post.onze![i];
+                    if (!j || !j.nom) return null;
+                    const dr = drapeau(j.pays || j.equipe || '');
+                    const clubTxt = j.equipe && drapeau(j.equipe) === '🏳️' ? j.equipe : '';
+                    const estPays = dr !== '🏳️';
+                    const g5 = estCinqMajeur(post.formation);
+                    const dia = g5 ? 76 : 52;
+                    return (
+                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:(pos.y*0.9+3)+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:g5 ? '110px' : '76px'}}>
+                        {g5 && <div style={{color:'#fdba74',fontSize:'9.5px',fontWeight:900,letterSpacing:'1px',textTransform:'uppercase',marginBottom:'3px'}}>{POSTES_5_MAJEUR[i]}</div>}
+                        <div style={{position:'relative',width:dia+'px',height:dia+'px',margin:'0 auto 3px'}}>
+                          <div style={{width:dia+'px',height:dia+'px',borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',background:'#3b2a7a',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:900,fontSize:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
+                            {j.photo ? <img src={j.photo} crossOrigin="anonymous" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (j.nom.trim()[0] || '').toUpperCase()}
+                          </div>
+                          {estPays && <div style={{position:'absolute',right:'-8px',bottom:'-4px',fontSize:'16px',lineHeight:1}}>{dr}</div>}
+                        </div>
+                        <div style={{color:'#fff',fontSize:'10.5px',fontWeight:900,lineHeight:1.2,textShadow:'0 1px 3px rgba(0,0,0,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.nom}</div>
+                        {clubTxt && <div style={{color:'#c4b5fd',fontSize:'9px',fontWeight:700,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{clubTxt}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {post.formation && post.onze && FORMATIONS[post.formation] && !post.onze_details?.categorie && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'10px'}}>
+                  <span style={{display:'inline-block',background:VIOLET,color:'#fff',fontSize:'13px',fontWeight:900,padding:'5px 16px',borderRadius:'999px'}}>{estCinqMajeur(post.formation) ? '5 majeur' : 'Formation ' + post.formation}</span>
+                </div>
+                <div style={{position:'relative',width:'100%',paddingBottom:'125%',background:estCinqMajeur(post.formation) ? 'linear-gradient(#c2410c,#9a3412)' : 'linear-gradient(#2d7a3e,#1e5c2e)',borderRadius:'16px',overflow:'hidden'}}>
+                  <div style={{position:'absolute',top:'50%',left:0,right:0,height:'2px',background:'rgba(255,255,255,0.3)'}}/>
+                  <div style={{position:'absolute',top:'50%',left:'50%',width:'80px',height:'80px',border:'2px solid rgba(255,255,255,0.3)',borderRadius:'50%',transform:'translate(-50%,-50%)'}}/>
+                  <div style={{position:'absolute',bottom:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.3)',borderBottom:'none'}}/>
+                  <div style={{position:'absolute',top:0,left:'25%',right:'25%',height:'12%',border:'2px solid rgba(255,255,255,0.3)',borderTop:'none'}}/>
+                  {FORMATIONS[post.formation].map((pos, i) => {
+                    const j = post.onze![i];
+                    if (!j) return null;
+                    const dr = drapeau(j.pays || j.equipe);
+                    const estPays = dr !== '🏳️';
+                    return (
+                      <div key={i} style={{position:'absolute',left:pos.x+'%',top:pos.y+'%',transform:'translate(-50%,-50%)',textAlign:'center',width:'80px'}}>
+                        <div style={{width:'30px',height:'30px',background:'#fff',borderRadius:'50%',margin:'0 auto 4px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',fontWeight:900,color:VIOLET,boxShadow:'0 2px 6px rgba(0,0,0,0.3)'}}>{i+1}</div>
+                        <div style={{background:'rgba(0,0,0,0.6)',borderRadius:'6px',padding:'2px 4px'}}>
+                          <div style={{color:'#fff',fontSize:'10px',fontWeight:900,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{j.nom}</div>
+                          {j.equipe && <div style={{color:'#e5e7eb',fontSize:'9px',lineHeight:1.3}}>{estPays ? dr : j.equipe}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {post.mini_quizz && miniQuestionsPubliees(post.mini_quizz.questions).length > 0 && (() => {
+              const mq = post.mini_quizz!;
+              const qs = miniQuestionsPubliees(mq.questions);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  {mq.titre && <div style={{fontSize:'20px',fontWeight:900,marginBottom:'14px'}}>{mq.titre}</div>}
+                  {qs.map((q, i) => (
+                    <div key={i} style={{border:'2px solid #e9d5ff',borderRadius:'14px',padding:'14px',marginBottom:'12px',background:'#faf5ff'}}>
+                      <div style={{fontSize:'11px',fontWeight:900,color:'#bf00ff',marginBottom:'6px'}}>QUESTION {i + 1} / {qs.length}</div>
+                      <div style={{fontSize:'16px',fontWeight:800,marginBottom:'10px',color:'#111'}}>{q.question}</div>
+                      {miniOptionsPubliees(q).map(o => (
+                        <div key={o.cle} style={{display:'flex',gap:'10px',alignItems:'center',background:'#fff',border:'1px solid #ddd6fe',borderRadius:'10px',padding:'8px 10px',marginBottom:'6px',color:'#111',fontSize:'14px'}}>
+                          <span style={{width:'26px',height:'26px',borderRadius:'7px',background:post.sport === 'basketball' ? '#ff7a00' : '#bf00ff',color:'#fff',fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{o.cle}</span>{o.texte}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{background:'#bf00ff',color:'#fff',borderRadius:'14px',padding:'14px',fontWeight:900,textAlign:'center',fontSize:'15px'}}>
+                    🎁 Cadeaux à gagner parmi les bonnes réponses{mq.cadeau ? ' : ' + mq.cadeau : ''}<br/>
+                    <span style={{fontWeight:700,fontSize:'13px'}}>Commente tes 3 réponses et partage !</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {post.promo && lotsPublies(post.promo.lots || []).length > 0 && (() => {
+              const pr = post.promo!;
+              const lots = lotsPublies(pr.lots);
+              const sp = sponsorsPublies(pr.sponsors);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'30px',lineHeight:1}}>🎁</div>
+                    <div style={{fontSize:'21px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginTop:'4px'}}>{pr.accroche || 'À gagner !'}</div>
+                    {pr.quizz && <div style={{fontSize:'13px',fontWeight:800,color:'#be123c',marginTop:'2px'}}>{pr.quizz}</div>}
+                    {pr.fin && <span style={{display:'inline-block',background:'linear-gradient(135deg,#fb7185,#e11d48)',color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px',marginTop:'8px'}}>Jusqu&apos;au {formaterDate(pr.fin)}</span>}
+                  </div>
+                  {lots.map((l, i) => (
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:'12px',border:'1px solid #fecdd3',borderLeft:'6px solid #e11d48',borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff1f2'}}>
+                      {l.photo && <img src={l.photo} alt="" style={{width:'64px',height:'64px',borderRadius:'12px',objectFit:'cover',border:'2px solid #e11d48',flexShrink:0}}/>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:'17px',fontWeight:900,color:'#111',lineHeight:1.2}}>{l.nom}</div>
+                        {l.detail && <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{l.detail}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  {pr.conditions && <p style={{fontSize:'13px',fontWeight:700,color:'#374151',textAlign:'center',margin:'12px 0 0',whiteSpace:'pre-line'}}>{pr.conditions}</p>}
+                  {sp.length > 0 && (
+                    <div style={{marginTop:'16px',textAlign:'center'}}>
+                      <div style={{fontSize:'11px',fontWeight:800,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Avec le soutien de</div>
+                      <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:'14px'}}>
+                        {sp.map((s, i) => (
+                          <div key={i} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                            {s.logo && <img src={s.logo} alt="" style={{height:'36px',maxWidth:'90px',objectFit:'contain'}}/>}
+                            {s.nom && <span style={{fontSize:'14px',fontWeight:900,color:'#111'}}>{s.nom}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {post.nominations && nominesPublies(post.nominations.nomines || []).length > 0 && (() => {
+              const nm = post.nominations!;
+              const ns = nominesPublies(nm.nomines);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'28px',lineHeight:1}}>🏆</div>
+                    <div style={{fontSize:'20px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginTop:'4px'}}>{nm.categorie || 'Nominations'}</div>
+                    {nm.edition && <div style={{fontSize:'12px',fontWeight:800,color:'#b45309',marginTop:'2px'}}>{nm.edition}</div>}
+                    <span style={{display:'inline-block',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'12px',fontWeight:900,padding:'5px 16px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px',marginTop:'8px'}}>{ns.length} nominé{ns.length > 1 ? 's' : ''}</span>
+                  </div>
+                  {ns.map((n, i) => {
+                    const dr = drapeau(n.pays || n.equipe || '');
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',border:'1px solid #fde68a',borderLeft:'6px solid #f59e0b',borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fffbeb'}}>
+                        <span style={{fontSize:'12px',fontWeight:900,color:'#b45309',minWidth:'20px'}}>{i + 1}</span>
+                        {n.photo && <img src={n.photo} alt="" style={{width:'48px',height:'48px',borderRadius:'12px',objectFit:'cover',border:'2px solid #f59e0b',flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:'16px',fontWeight:900,color:'#111',lineHeight:1.2}}>{n.nom}</div>
+                          <div style={{fontSize:'12px',color:'#6b7280',fontWeight:700,lineHeight:1.3}}>{[n.equipe, n.note].filter(Boolean).join(' · ')}</div>
+                        </div>
+                        {n.ecusson ? <img src={n.ecusson} alt="" style={{width:'40px',height:'40px',objectFit:'contain',flexShrink:0}}/> : (dr !== '🏳️' && <span style={{fontSize:'24px',lineHeight:1}}>{dr}</span>)}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length > 0 && (() => {
+              const j = post.journee_resultats!;
+              const ms = matchsJourneePublies(j.matchs);
+              const dt = formaterDateJ(j.date);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    {j.competition && <div style={{fontSize:'17px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginBottom:'6px'}}>{j.competition}</div>}
+                    {j.journee && <span style={{display:'inline-block',background:'linear-gradient(135deg,#bf00ff,#7c3aed)',color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{j.journee}</span>}
+                    {dt && <div style={{fontSize:'12px',fontWeight:800,color:'#6b7280',marginTop:'8px'}}>📅 {dt}</div>}
+                  </div>
+                  {ms.map((m, i) => {
+                    const is = issueJournee(m);
+                    const c1 = is === 'G' ? '#16a34a' : is === 'P' ? '#dc2626' : '#111';
+                    const c2 = is === 'P' ? '#16a34a' : is === 'G' ? '#dc2626' : '#111';
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'12px 10px',marginBottom:'8px',background:'#fff'}}>
+                        <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:c1,lineHeight:1.2}}>{m.equipe1}</span>{pastille(m.equipe1, j.ecussons)}
+                        <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{m.score1.trim()} - {m.score2.trim()}</span>
+                        {pastille(m.equipe2, j.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:c2,lineHeight:1.2}}>{m.equipe2}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length > 0 && (() => {
+              const d = post.derniers_matchs!;
+              const ms = derniersPublies(d.matchs);
+              const b = bilanDerniers(ms);
+              const coul = (i: 'G' | 'P' | 'N' | null) => i === 'G' ? '#16a34a' : i === 'P' ? '#dc2626' : '#bf00ff';
+              const dr = drapeau(d.equipe);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'12px'}}>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#0891b2',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>{libelleDerniers(ms.length)}</div>
+                    <div style={{fontSize:'20px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{dr !== '🏳️' ? dr + ' ' : ''}{d.equipe}</div>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'center',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}}>
+                    {ms.map((m, k) => { const i = issueDernier(m); return <span key={k} style={{width:'28px',height:'28px',borderRadius:'50%',background:coul(i),color:'#fff',fontSize:'13px',fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}}>{i === 'G' ? 'V' : i === 'P' ? 'D' : 'N'}</span>; })}
+                  </div>
+                  <p style={{textAlign:'center',fontSize:'12px',fontWeight:800,color:'#374151',margin:'0 0 12px'}}>{b.v} V · {b.n} N · {b.d} D  |  Buts {b.bp}-{b.bc}</p>
+                  {ms.map((m, i) => {
+                    const is = issueDernier(m);
+                    const af = affichageDernier(d.equipe, m, post.sport);
+                    const gaucheGagne = Number(af.sa) > Number(af.sb), droiteGagne = Number(af.sb) > Number(af.sa);
+                    const cg = gaucheGagne ? '#16a34a' : droiteGagne ? '#dc2626' : '#7c3aed';
+                    const cd = droiteGagne ? '#16a34a' : gaucheGagne ? '#dc2626' : '#7c3aed';
+                    return (
+                      <div key={i} style={{border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',textAlign:'center',lineHeight:1.3,marginBottom:'6px'}}>{[formaterDate(m.date), m.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:cg,lineHeight:1.2}}>{af.a}</span>{pastille(af.a, d.ecussons)}
+                          <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{af.sa} - {af.sb}</span>
+                          {pastille(af.b, d.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:cd,lineHeight:1.2}}>{af.b}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {post.confrontations && matchsPublies(post.confrontations.matchs || []).length > 0 && (() => {
+              const c = post.confrontations!;
+              const ms = matchsPublies(c.matchs);
+              const b = bilanConf({ ...c, matchs: ms });
+              const coul = (i: 'G' | 'P' | 'N' | null) => i === 'G' ? '#16a34a' : i === 'P' ? '#dc2626' : '#bf00ff';
+              const d1 = drapeau(c.equipe1), d2 = drapeau(c.equipe2);
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  <div style={{textAlign:'center',marginBottom:'14px'}}>
+                    <div style={{fontSize:'12px',fontWeight:900,color:'#7c3aed',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Confrontations dans le passé · {libelleConfrontations(ms.length).toLowerCase()}</div>
+                    <div style={{fontSize:'18px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3}}>{d1 !== '🏳️' ? d1 + ' ' : ''}{c.equipe1} <span style={{color:'#bf00ff'}}>vs</span> {c.equipe2}{d2 !== '🏳️' ? ' ' + d2 : ''}</div>
+                  </div>
+                  <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+                    {[{ n: b.v1, t: 'Victoires ' + c.equipe1, c: '#16a34a' }, { n: b.n, t: 'Nuls', c: '#bf00ff' }, { n: b.v2, t: 'Victoires ' + c.equipe2, c: '#dc2626' }].map((x, k) => (
+                      <div key={k} style={{flex:1,textAlign:'center',background:x.c + '12',border:'1px solid ' + x.c + '55',borderRadius:'12px',padding:'8px 4px'}}>
+                        <div style={{fontSize:'24px',fontWeight:900,color:x.c,lineHeight:1}}>{x.n}</div>
+                        <div style={{fontSize:'10px',fontWeight:800,color:'#374151',marginTop:'4px',lineHeight:1.2}}>{x.t}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {ms.map((m, i) => {
+                    const is = issueConf(m);
+                    const af = affichageConf(c, m);
+                    // vert = gagnant, rouge = perdant, violet = nul (équipe qui reçoit à gauche)
+                    const gaucheGagne = Number(af.sa) > Number(af.sb), droiteGagne = Number(af.sb) > Number(af.sa);
+                    const cg = gaucheGagne ? '#16a34a' : droiteGagne ? '#dc2626' : '#7c3aed';
+                    const cd = droiteGagne ? '#16a34a' : gaucheGagne ? '#dc2626' : '#7c3aed';
+                    return (
+                      <div key={i} style={{border:'1px solid #e5e7eb',borderLeft:'6px solid ' + coul(is),borderRadius:'12px',padding:'10px 12px',marginBottom:'8px',background:'#fff'}}>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',textAlign:'center',lineHeight:1.3,marginBottom:'6px'}}>{[formaterDate(m.date) || 'Date inconnue', m.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{flex:1,textAlign:'right',fontWeight:900,fontSize:'15px',color:cg,lineHeight:1.2}}>{af.a}</span>{pastille(af.a, c.ecussons)}
+                          <span style={{fontWeight:900,fontSize:'24px',color:'#000',whiteSpace:'nowrap',minWidth:'74px',textAlign:'center'}}>{af.sa} - {af.sb}</span>
+                          {pastille(af.b, c.ecussons)}<span style={{flex:1,textAlign:'left',fontWeight:900,fontSize:'15px',color:cd,lineHeight:1.2}}>{af.b}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {prochainRempli(c.prochain) && (() => {
+                    const ap = affichageProchain(c);
+                    return (
+                      <div style={{marginTop:'14px',border:'2px dashed #fb923c',borderRadius:'14px',padding:'12px',background:'#fff7ed',textAlign:'center'}}>
+                        <div style={{fontSize:'11px',fontWeight:900,color:'#c2410c',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}}>Le prochain match</div>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',fontSize:'16px',fontWeight:900,color:'#111'}}>
+                          {pastille(ap.a, c.ecussons)}<span>{ap.a}</span><span style={{color:'#bf00ff'}}>-</span><span>{ap.b}</span>{pastille(ap.b, c.ecussons)}
+                        </div>
+                        <div style={{fontSize:'11px',fontWeight:800,color:'#6b7280',marginTop:'4px'}}>{[formaterDate(c.prochain.date), c.prochain.competition].filter(Boolean).join(' · ')}</div>
+                        <div style={{fontSize:'14px',fontWeight:900,color:'#7c3aed',marginTop:'8px'}}>{MESSAGE_PRONOSTIC}</div>
+                        {!c.prochain.sansCadeaux && <div style={{fontSize:'12px',fontWeight:800,color:'#be123c',marginTop:'4px'}}>{MESSAGE_CADEAUX}</div>}
+                      </div>
+                    );
+                  })()}
+                  <p style={{textAlign:'center',fontSize:'11px',fontWeight:800,color:'#6b7280',margin:'6px 0 0'}}>Buts marqués : {c.equipe1} {b.b1} - {b.b2} {c.equipe2}</p>
+                </div>
+              );
+            })()}
+
+            {post.elimination && post.elimination.rencontres?.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                <div style={{textAlign:'center',marginBottom:'14px'}}>
+                  {post.elimination.competition && <div style={{fontSize:'15px',fontWeight:900,color:'#0a0a0a',lineHeight:1.3,marginBottom:'6px'}}>{post.elimination.competition}</div>}
+                  {post.elimination.tour && <span style={{display:'inline-block',background:'linear-gradient(135deg,#bf00ff,#7c3aed)',color:'#fff',fontSize:'13px',fontWeight:900,padding:'6px 18px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{post.elimination.tour}</span>}
+                </div>
+                {post.elimination.rencontres.map((r, i) => {
+                  const q = qualifie(r);
+                  const avecScore = aScore(r);
+                  const detail = detailScore(r);
+                  const ligne = (n: 1 | 2) => {
+                    const nom = n === 1 ? r.equipe1 : r.equipe2;
+                    const sc = n === 1 ? r.score1 : r.score2;
+                    const gagne = q === n, perd = q !== 0 && q !== n;
+                    const dr = drapeau(nom);
+                    return (
+                      <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 12px',borderRadius:'10px',background:gagne ? '#ecfdf5' : perd ? '#f9fafb' : '#fff',border:gagne ? '2px solid #10b981' : '2px solid transparent',opacity:perd ? 0.62 : 1}}>
+                        <span style={{fontSize:'22px',lineHeight:1,width:'28px',textAlign:'center'}}>{dr !== '🏳️' ? dr : '⚽'}</span>
+                        <span style={{flex:1,minWidth:0,fontWeight:900,fontSize:'16px',color:gagne ? '#065f46' : '#111',lineHeight:1.2}}>{nom}</span>
+                        {gagne && <span style={{fontSize:'10px',fontWeight:900,color:'#fff',background:'#10b981',padding:'3px 9px',borderRadius:'999px',whiteSpace:'nowrap'}}>QUALIFIÉ</span>}
+                        {perd && <span style={{fontSize:'10px',fontWeight:900,color:'#fff',background:'#ef4444',padding:'3px 9px',borderRadius:'999px',whiteSpace:'nowrap'}}>ÉLIMINÉ</span>}
+                        {avecScore && <span style={{fontWeight:900,fontSize:'26px',color:'#000',minWidth:'30px',textAlign:'right',lineHeight:1}}>{sc}</span>}
+                      </div>
+                    );
+                  };
+                  return (
+                    <div key={i} style={{border:'1px solid #e5e7eb',borderRadius:'14px',padding:'8px',marginBottom:'10px',background:'#fff',boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+                      {ligne(1)}
+                      <div style={{textAlign:'center',fontSize:'10px',fontWeight:900,color:'#9ca3af',letterSpacing:'2px',margin:'1px 0'}}>{avecScore ? (detail || 'VS') : 'VS'}</div>
+                      {ligne(2)}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {post.classement_type && post.classement && post.classement.length > 0 && (
+              <div style={{margin:'8px 0 24px'}}>
+                {post.classement_titre && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'15px',fontWeight:900,padding:'11px 16px',borderRadius:'12px',marginBottom:'12px',boxShadow:'0 6px 16px #f59e0b40'}}>
+                    <span>{post.classement_pays && drapeau(post.classement_pays) !== '🏳️' ? drapeau(post.classement_pays) : '🏆'}</span><span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_titre}</span>
+                  </div>
+                )}
+                <div style={{height:'4px',background:'linear-gradient(90deg,'+couleurSport+',#16a34a,'+couleurSport+')',borderRadius:'999px',marginBottom:'2px'}}/>
+                <div style={{display:'flex',padding:'10px 4px 10px 8px',fontSize:CLASSEMENT_TAILLES.entete+'px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',borderBottom:'2px solid '+couleurSport+'33'}}>
+                  <span style={{width:CLASSEMENT_TAILLES.pos+'px'}}>#</span>
+                  <span style={{flex:3}}>{post.classement_type === 'equipes' ? 'Équipe' : 'Joueur'}</span>
+                  <span style={{flex:1.3}}>{post.classement_type === 'equipes' ? 'Match' : (post.classement_titre||'').toLowerCase().includes('quizz') ? 'Temps' : 'Équipe'}</span>
+                  {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right'}}>Diff</span>}
+                  <span style={{flex:0.9,textAlign:'right'}}>{post.classement_type === 'equipes' ? 'Pts' : (post.classement_titre||'').toLowerCase().includes('passeur') ? 'Passes' : (post.classement_titre||'').toLowerCase().includes('quizz') ? 'Score' : 'Buts'}</span>
+                </div>
+                {classementAffiche.map((l, i) => {
+                    const medaille = i===0?'#D4AF37':i===1?'#C0C0C0':couleurSport;
+                    const fondLigne = i===0?'#FFFBEB':i===1?'#F9FAFB':(i % 2 === 0 ? '#fff' : '#fcfcfd');
+                    return (
+                    <div key={i} style={{display:'flex',padding:CLASSEMENT_TAILLES.padding,fontSize:CLASSEMENT_TAILLES.ligne+'px',borderBottom:'1px solid #f3f4f6',background:fondLigne,alignItems:'center',borderLeft:'4px solid '+couleurLigne(l.couleur)}}>
+                      <span style={{width:CLASSEMENT_TAILLES.pos+'px',height:CLASSEMENT_TAILLES.pos+'px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:CLASSEMENT_TAILLES.posFont+'px',color:medaille?'#fff':'#9ca3af',background:medaille||'transparent',boxShadow:medaille?'0 3px 8px '+medaille+'66':'none',flexShrink:0}}>{l.pos}</span>
+                      <span style={{flex:3,fontWeight:900,color:'#0a0a0a',marginLeft:'10px',fontSize:CLASSEMENT_TAILLES.nom+'px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {post.classement_type === 'joueurs' && l.pays && drapeau(l.pays) !== '🏳️' ? drapeau(l.pays) + ' ' : ''}{l.nom}
+                      </span>
+                      <span style={{flex:1.3,color:'#6b7280',fontSize:CLASSEMENT_TAILLES.extra+'px',fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.classement_type === 'equipes' && drapeau(l.extra) !== '🏳️' ? drapeau(l.extra) + ' ' : ''}{l.extra}</span>
+                      {post.classement_type === 'equipes' && <span style={{flex:0.9,textAlign:'right',color:l.diff && l.diff.trim().startsWith('-') ? '#dc2626' : '#16a34a',fontWeight:800,fontSize:(CLASSEMENT_TAILLES.extra+1)+'px'}}>{l.diff}</span>}
+                      <span style={{flex:0.9,textAlign:'right',fontWeight:900,color:medaille||couleurSport,fontSize:CLASSEMENT_TAILLES.val+'px'}}>{l.val}</span>
+                    </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {post.pub_actif && (post.pub_nom || post.pub_logo) && (
+              <a href={post.pub_lien || '#'} target="_blank" rel="noopener noreferrer" style={{textDecoration:'none',display:'block',margin:'0 0 20px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'14px',background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,border:'1px solid '+couleurSport+'33',borderRadius:'14px',padding:'14px 18px'}}>
+                  {post.pub_logo && <img src={post.pub_logo} alt={post.pub_nom || 'pub'} style={{height:'48px',width:'48px',objectFit:'contain',borderRadius:'8px',background:'#fff',padding:'4px'}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontSize:'10px',fontWeight:900,color:couleurSport,textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 2px'}}>Sponsorisé</p>
+                    <p style={{fontSize:'15px',fontWeight:700,color:'#111',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{post.pub_nom}</p>
+                  </div>
+                  {post.pub_lien && <span style={{fontSize:'20px',color:couleurSport}}>→</span>}
+                </div>
+              </a>
+            )}
+
+            {post.contenu && (
+              <div style={{background:SPORT_COULEURS[(post.sport as Sport) || 'football'].clair,borderLeft:'4px solid '+couleurSport,borderRadius:'12px',padding:'20px 22px',margin:'0 0 24px'}}>
+                <p style={{color:'#111',fontSize:'20px',fontWeight:600,lineHeight:'1.5',margin:0,whiteSpace:'pre-wrap'}}>
+                  {post.contenu}
+                </p>
+              </div>
+            )}
+
+            {post.source_nom && (
+              <div style={{background:'#faf5ff',borderLeft:'4px solid '+VIOLET,padding:'12px 16px',borderRadius:'8px',marginBottom:'20px'}}>
+                <span style={{color:'#6b7280',fontSize:'13px'}}>Source : </span>
+                <span style={{color:VIOLET,fontWeight:700,fontSize:'14px'}}>{post.source_nom}</span>
+              </div>
+            )}
+
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop: format==='carre' ? '14px' : 'auto',paddingTop:'12px',borderTop:'1px solid #f3f4f6'}}>
+              <span style={{color:'#9ca3af',fontSize:'12px',fontWeight:600}}>makegoal.vercel.app</span>
+              <span style={{color:VIOLET,fontSize:'12px',fontWeight:900}}>⚽ MakeGoal</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{textAlign:'center',marginBottom:'32px'}}>
+          <button onClick={telecharger} disabled={downloading} style={{
+            background:VIOLET, color:'#fff', border:'none', padding:'14px 32px',
+            borderRadius:'999px', fontWeight:700, fontSize:'15px', cursor:'pointer'
+          }}>
+            {downloading ? '⏳ Génération...' : '⬇️ Télécharger l\'image'}
+          </button>
+
+          <div style={{display:'flex',justifyContent:'center',gap:'10px',flexWrap:'wrap',marginTop:'18px'}}>
+            <a href={'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(urlPost)} target="_blank" rel="noopener noreferrer" style={{background:'#1877f2',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>Facebook</a>
+            <a href={'https://wa.me/?text=' + encodeURIComponent((post.titre || 'MakeGoal') + ' ' + urlPost)} target="_blank" rel="noopener noreferrer" style={{background:'#25d366',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>WhatsApp</a>
+            <a href={'https://twitter.com/intent/tweet?url=' + encodeURIComponent(urlPost) + '&text=' + encodeURIComponent(post.titre || 'MakeGoal')} target="_blank" rel="noopener noreferrer" style={{background:'#111',color:'#fff',textDecoration:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px'}}>X</a>
+            <button onClick={copierLien} style={{background:'#e5e7eb',color:'#374151',border:'none',padding:'10px 18px',borderRadius:'999px',fontWeight:700,fontSize:'13px',cursor:'pointer'}}>{lienCopie ? '✓ Copié' : '🔗 Copier le lien'}</button>
+          </div>
+
+          {post.source_url && (
+            <p style={{marginTop:'16px'}}>
+              <a href={post.source_url} target="_blank" rel="noopener noreferrer" style={{color:VIOLET,fontSize:'14px',fontWeight:600}}>Voir la source originale →</a>
+            </p>
+          )}
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'20px 0',margin:'8px 0 24px',borderTop:'1px solid #e5e7eb',borderBottom:'1px solid #e5e7eb',flexWrap:'wrap'}}>
+          <button onClick={toggleLike} style={{display:'flex',alignItems:'center',gap:'6px',padding:'10px 20px',borderRadius:'999px',border:'2px solid '+(likedByMe?VIOLET:'#e5e7eb'),background:likedByMe?'#faf5ff':'#fff',color:likedByMe?VIOLET:'#374151',cursor:'pointer',fontWeight:700,fontSize:'14px'}}>
+            {likedByMe ? '❤️' : '🤍'} {likes} J'aime
+          </button>
+          <span style={{color:'#9ca3af',fontSize:'13px'}}>💬 {commentaires.length}</span>
+          <div style={{marginLeft:'auto',display:'flex',gap:'8px',alignItems:'center'}}>
+            {partageMsg && <span style={{color:'#10b981',fontSize:'13px',fontWeight:700}}>{partageMsg}</span>}
+            <button onClick={() => partager('whatsapp')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#25D366',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>WhatsApp</button>
+            <button onClick={() => partager('facebook')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#1877f2',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Facebook</button>
+            <button onClick={() => partager('twitter')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#000',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>X</button>
+            <button onClick={() => partager('telegram')} style={{padding:'8px 14px',borderRadius:'999px',border:'none',background:'#0088cc',color:'#fff',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>Telegram</button>
+            <button onClick={() => partager('copier')} style={{padding:'8px 14px',borderRadius:'999px',border:'2px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontWeight:700,fontSize:'13px'}}>🔗</button>
+          </div>
+        </div>
+
+        <div style={{marginBottom:'40px'}}>
+          <h3 style={{fontWeight:900,fontSize:'20px',marginBottom:'16px'}}>💬 Commentaires ({commentaires.length})</h3>
+          <div style={{display:'flex',gap:'8px',marginBottom:'24px'}}>
+            <input value={nouveauComm} onChange={e => setNouveauComm(e.target.value)} placeholder={user ? 'Ajouter un commentaire...' : 'Connectez-vous pour commenter'} onKeyDown={e => e.key === 'Enter' && posterComm()} style={{flex:1,padding:'12px 16px',borderRadius:'12px',border:'1px solid #e5e7eb',fontSize:'14px'}}/>
+            <button onClick={posterComm} style={{padding:'12px 20px',borderRadius:'12px',border:'none',background:VIOLET,color:'#fff',fontWeight:700,fontSize:'14px',cursor:'pointer'}}>Publier</button>
+          </div>
+          {commentaires.length === 0 && <p style={{color:'#9ca3af',fontSize:'14px'}}>Soyez le premier à commenter !</p>}
+          {commentaires.map(cm => (
+            <div key={cm.id} style={{background:'#f9fafb',borderRadius:'12px',padding:'16px',marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                <span style={{fontWeight:700,fontSize:'14px'}}>{cm.username}</span>
+                <span style={{color:'#9ca3af',fontSize:'12px'}}>{formatComm(cm.created_at)}</span>
+              </div>
+              <p style={{margin:'0 0 10px',fontSize:'15px',lineHeight:'1.5'}}>{cm.contenu}</p>
+              <div style={{display:'flex',gap:'16px',alignItems:'center'}}>
+                <button onClick={() => toggleLikeComm(cm)} style={{background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:cm.likedByMe?VIOLET:'#6b7280',fontWeight:700}}>{cm.likedByMe ? '❤️' : '🤍'} {cm.likes}</button>
+                {(user?.id === cm.user_id || isAdmin) && <button onClick={() => supprimerComm(cm.id)} style={{background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:'#ef4444',fontWeight:700}}>🗑️</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </main>
+      <Footer />
+    </div>
+  );
+}

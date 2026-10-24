@@ -4,7 +4,7 @@
 // texte), puis un seul moteur les dessine avec le même style (violet, projecteurs,
 // bande orange, pelouse). Ajouter un type de post = ajouter un cas dans construireScenes.
 
-import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from './statsJoueur';
+import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode, colonnesActives, nomsColonnes, valeurColonne, aValeurColonne } from './statsJoueur';
 import { ligneContexte, DistinctionDetails } from './distinctions';
 import { drapeau, CINQ_MAJEUR, POSTES_5_MAJEUR, OnzeJoueur, OnzeDetails } from './formations';
 import { EliminationDetails, Rencontre, qualifie, aScore, detailScore } from './elimination';
@@ -15,6 +15,7 @@ import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
 import { adversaireAGauche } from './lieu';
+import { BilanHistorique, bilanValide, totalMatchs, butsRenseignes, lignesPubliees, nb as nbBilan } from './bilan';
 import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
 import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
@@ -39,10 +40,11 @@ export type VideoPost = {
   declaration?: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
   invitation_concours?: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants?: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
-  stats_joueur?: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; joueurs: { nom: string; equipe: string; adversaire: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
+  stats_joueur?: { mode: string; poste: string; nbMatchs: string | null; periode?: Periode | null; competitions?: string[] | null; joueurs: { nom: string; equipe: string; adversaire: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   elimination?: EliminationDetails | null;
   confrontations?: ConfrontationsDetails | null;
   derniers_matchs?: DerniersMatchsDetails | null;
+  bilan_historique?: BilanHistorique | null;
   journee_resultats?: JourneeDetails | null;
   nominations?: NominationsDetails | null;
   promo?: PromoDetails | null;
@@ -54,15 +56,16 @@ export type VideoPost = {
 // ---------- Scènes ----------
 type Issue = 'G' | 'P' | 'N';
 type MatchLigne = { a: string; b: string; sa?: string; sb?: string; va?: VisuelEquipe; vb?: VisuelEquipe };
-type Ligne = { photo?: string; ecusson?: string; cols?: [string, string, string]; match?: MatchLigne; label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
+type Ligne = { trio?: [string, string, string]; photo?: string; ecusson?: string; cols?: [string, string, string]; match?: MatchLigne; label: string; valeur: string; valeur2?: string; sous?: string; accent?: string; couleurSous?: string };
 type Morceau = { t: string; c: string; o?: string };
 type Duo = { nom: string; sous?: string; photo?: string; initiale: string };
 type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo] };
 
 type Scene =
   | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; fixe?: boolean; duree: number }
-  | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
+  | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; entetesTrio?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
   | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
+  | { k: 'bilan'; badge: string; fond: string; e1: string; e2: string; p1?: string; p2?: string; periode?: string; total: number; rangees: { label: string; a: number; b: number; nuls?: number }[]; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; lettre?: string; duree: number }
   | { k: 'mq'; badge: string; fond: string; mode: 'splash' | 'q' | 'fin'; lettre?: string; titre?: string; sous?: string; cadeau?: string; numero?: number; total?: number; question?: string; options?: { cle: string; texte: string }[]; duree: number }
@@ -122,6 +125,7 @@ export function typeVideo(p: VideoPost): string {
   if (p.promo && lotsPublies(p.promo.lots || []).length) return 'Promo';
   if (p.nominations && nominesPublies(p.nominations.nomines || []).length) return 'Nominations';
   if (p.journee_resultats && matchsJourneePublies(p.journee_resultats.matchs || []).length) return 'Résultats de la journée';
+  if (p.bilan_historique && bilanValide(p.bilan_historique)) return 'Bilan historique';
   if (p.derniers_matchs && derniersPublies(p.derniers_matchs.matchs || []).length) return 'Derniers matchs';
   if (p.confrontations && matchsPublies(p.confrontations.matchs || []).length) return 'Confrontations';
   if (p.elimination?.rencontres?.length) return 'Élimination directe';
@@ -183,6 +187,21 @@ export function construireScenes(p: VideoPost): Scene[] {
       st.joueurs.forEach(j => {
         const sous = [j.equipe, avecAdv && j.adversaire ? 'face à ' + j.adversaire : ''].filter(Boolean).join('  •  ');
         scenes.push({ k: 'intro', badge: 'STATS JOUEUR', fond: 'GOAL', titre: j.nom, sous: avecDrapeau(j.pays, j.equipe), pill: avecAdv && j.adversaire ? 'FACE À ' + majuscule(j.adversaire) : (periode || undefined), photo: j.photo, initiale: initiale(j.nom), duree: 3.2 });
+        const cols = colonnesActives(st.competitions);
+        if (cols.length > 0) {
+          // Un seul joueur, ses stats par compétition côte à côte (3 colonnes).
+          const noms = nomsColonnes(st.competitions);
+          const entetes: [string, string, string] = [noms[0], noms[1], noms[2]];
+          const lignesCol: Ligne[] = groupes.flatMap(g => g.champs)
+            .filter(c => aValeurColonne(j.valeurs, c.cle))
+            .map(c => ({ label: c.label, valeur: '', trio: [0, 1, 2].map(k => valeurColonne(j.valeurs, c.cle, k) || '-') as [string, string, string] }));
+          pagesDeLignes(lignesCol, 4).forEach(pg => scenes.push({
+            k: 'lignes', badge: 'STATS JOUEUR', fond: 'STATS', entetesTrio: entetes,
+            entete: { nom: j.nom, sous: avecDrapeau(j.pays, periode || sous), photo: j.photo, initiale: initiale(j.nom) },
+            lignes: pg, duree: dureeLignes(pg.length) + 0.6,
+          }));
+          return;
+        }
         pagesDeLignes(lignesDe(j), PAR_PAGE_ENTETE).forEach(pg => scenes.push({
           k: 'lignes', badge: 'STATS JOUEUR', fond: 'STATS',
           entete: { nom: j.nom, sous: avecDrapeau(j.pays, periode || sous), photo: j.photo, initiale: initiale(j.nom) },
@@ -316,6 +335,21 @@ export function construireScenes(p: VideoPost): Scene[] {
       { label: 'Buts marqués / encaissés', valeur: b.bp + '-' + b.bc, accent: '#ff7a00' },
     ];
     scenes.push({ k: 'lignes', badge, fond: 'FORM', titre: 'Le bilan', lignes: bil, duree: dureeLignes(bil.length) });
+  } else if (type === 'Bilan historique') {
+    const bh = p.bilan_historique!;
+    const initiale = (n: string) => ((n || '?').trim()[0] || '?').toUpperCase();
+    const badge = 'BILAN HISTORIQUE';
+    const duo: [Duo, Duo] = [
+      { nom: bh.equipe1, sous: avecDrapeau(bh.equipe1, '') || undefined, photo: visuelEquipe(bh.equipe1, bh.ecussons).url, initiale: initiale(bh.equipe1) },
+      { nom: bh.equipe2, sous: avecDrapeau(bh.equipe2, '') || undefined, photo: visuelEquipe(bh.equipe2, bh.ecussons).url, initiale: initiale(bh.equipe2) },
+    ];
+    scenes.push({ k: 'intro', badge, fond: 'VS', titre: '', pill: majuscule(bh.competition || 'Toutes leurs confrontations'), duo, duree: 3.4 });
+    const rangees: { label: string; a: number; b: number; nuls?: number }[] = [
+      { label: 'Victoires', a: nbBilan(bh.victoires1), b: nbBilan(bh.victoires2), nuls: nbBilan(bh.nuls) },
+    ];
+    if (butsRenseignes(bh)) rangees.push({ label: 'Buts marqués', a: nbBilan(bh.buts1), b: nbBilan(bh.buts2) });
+    lignesPubliees(bh.lignes).forEach(l => rangees.push({ label: l.label, a: nbBilan(l.v1), b: nbBilan(l.v2) }));
+    scenes.push({ k: 'bilan', badge, fond: 'VS', e1: bh.equipe1, e2: bh.equipe2, p1: duo[0].photo, p2: duo[1].photo, periode: bh.competition || undefined, total: totalMatchs(bh), rangees, duree: 1.6 + rangees.length * 1.3 + 2.6 });
   } else if (type === 'Confrontations') {
     const c = p.confrontations!;
     const matchs = matchsPublies(c.matchs);
@@ -1049,6 +1083,16 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       if (s.soustitre) texteOr(ctx, majuscule(s.soustitre), 540, 396, 38, 'center', 940);
       y0 = 470; pas = 164; h = 136;
     }
+    if (s.entetesTrio) {
+      y0 += 56;
+      ctx.save(); ctx.globalAlpha = alpha * easeOut((t - 0.3) / 0.4);
+      const teintes = ['#10b981', '#ff7a00', '#bf00ff'];
+      s.entetesTrio.forEach((n, k) => {
+        if (!n) return;
+        pill(ctx, majuscule(n), 270 + k * 270, y0 - 40, 26, teintes[k], '#fff', 250);
+      });
+      ctx.restore();
+    }
     if (s.entetesCols) {
       y0 += 56;
       ctx.save(); ctx.globalAlpha = alpha * easeOut((t - 0.3) / 0.4);
@@ -1099,6 +1143,13 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
           texteIncline(ctx, '-', 540, ya, 80, '#fff', 'center', '#bf00ff');
         }
         if (l.sous) texteIncline(ctx, l.sous, 540, cy + 42, 32, l.couleurSous || '#e9d5ff', 'center', '#0b0b2a', 900);
+      } else if (l.trio) {
+        texteIncline(ctx, majuscule(l.label), 100, cy - 44, 28, '#e9d5ff', 'left', undefined, 700);
+        const pr = (tr - 0.1) / 0.6;
+        l.trio.forEach((v, k) => {
+          if (!s.entetesTrio?.[k]) return;
+          texteIncline(ctx, valeurAnimee(v, pr), 270 + k * 270, cy + 18, 84, v === '-' ? '#6b7280' : '#fff', 'center', v === '-' ? undefined : '#bf00ff', 240);
+        });
       } else if (l.cols) {
         texteIncline(ctx, majuscule(l.label), 100, cy, 42, '#fff', 'left', '#0b0b2a', 500);
         const d = l.cols[1].trim();
@@ -1115,7 +1166,9 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       } else {
         const largValeur = l.ecusson ? 0 : Math.min(360, Math.max(160, (l.valeur.length) * 52));
         const xTxt = l.photo ? 235 : 100;
-        const maxL = (l.ecusson ? 860 : 960 - largValeur) - xTxt;
+        // Les chiffres s'arrêtent à x = 880 : la colonne de réactions des réseaux (cœur, commentaires...) occupe le bord droit.
+        const XVALEUR = 880;
+        const maxL = (l.ecusson ? 860 : XVALEUR - 20 - largValeur) - xTxt;
         if (l.photo) imageCarree(ctx, images.get(l.photo) || null, 90, cy - 56, 112, true, l.label);
         if (l.ecusson) imageCarree(ctx, images.get(l.ecusson) || null, 880, cy - 56, 112, false, '');
         if (l.sous) {
@@ -1124,12 +1177,58 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
         } else {
           texteIncline(ctx, majuscule(l.label), xTxt, cy, 46, '#e9d5ff', 'left', undefined, maxL);
         }
-        if (!l.ecusson) texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), 990, cy, 96, '#fff', 'right', '#bf00ff', largValeur);
+        if (!l.ecusson) texteIncline(ctx, valeurAnimee(l.valeur, (tr - 0.1) / 0.6), XVALEUR, cy, 96, '#fff', 'right', '#bf00ff', largValeur);
       }
       ctx.restore();
     });
   }
 
+  else if (s.k === 'bilan') {
+    const C1 = '#ff7a00', C2 = '#bf00ff', CN = '#cbd5e1';
+    [s.e1, s.e2].forEach((nom, i) => {
+      const x = i === 0 ? 270 : 810;
+      const dx = (1 - easeOut((t - 0.05) / 0.5)) * (i === 0 ? -500 : 500);
+      halo(ctx, x + dx, 470, 130, t, i === 0 ? s.p1 : s.p2, ((nom || '?').trim()[0] || '?').toUpperCase(), undefined, images, easeBack((t - 0.05) / 0.6));
+      ctx.font = `italic 900 50px ${POLICE}`;
+      const lg = coupeLignes(ctx, majuscule(nom), 440).slice(0, 2);
+      lg.forEach((l, k) => texteIncline(ctx, l, x + dx, 665 + k * 54, 50, '#fff', 'center', i === 0 ? C1 : C2, 440));
+    });
+    const pv = easeBack((t - 0.4) / 0.5);
+    ctx.save(); ctx.translate(540, 470); ctx.scale(Math.max(0.01, pv), Math.max(0.01, pv));
+    texteIncline(ctx, 'VS', 0, 0, 90, '#fff', 'center', '#bf00ff', 160);
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = alpha * easeOut((t - 0.7) / 0.4);
+    pill(ctx, valeurAnimee(String(s.total), (t - 0.8) / 1.0) + ' MATCHS', 540, 830, 48, '#fff', '#111');
+    if (s.periode) texteOr(ctx, majuscule(s.periode), 540, 905, 30, 'center', 900);
+    ctx.restore();
+    const n = s.rangees.length;
+    const H = Math.min(270, 690 / n), Y0 = 968;
+    s.rangees.forEach((r, i) => {
+      const tr = t - 1.2 - i * 0.9;
+      if (tr < 0) return;
+      const cy = Y0 + i * H;
+      const ap = clamp(tr / 0.3), pr = easeOut(tr / 1.0);
+      ctx.save(); ctx.globalAlpha = alpha * ap;
+      texteIncline(ctx, majuscule(r.label), 540, cy + 10, 34, '#e9d5ff', 'center', undefined, 560);
+      const TS = Math.min(130, H * 0.46);
+      texteIncline(ctx, String(Math.round(r.a * pr)), 90, cy + 18 + TS * 0.55, TS, '#fff', 'left', C1, 330);
+      texteIncline(ctx, String(Math.round(r.b * pr)), 990, cy + 18 + TS * 0.55, TS, '#fff', 'right', C2, 330);
+      if (r.nuls !== undefined) {
+        texteIncline(ctx, String(Math.round(r.nuls * pr)), 540, cy + 18 + TS * 0.45, Math.round(TS * 0.6), '#fff', 'center', undefined, 200);
+        texteOr(ctx, 'NULS', 540, cy + 18 + TS * 0.45 + TS * 0.42, 24, 'center', 200);
+      }
+      const by = cy + H - 56, bw = 900, bx = 90, bh = 26;
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(bx, by, bw, bh);
+      const tot = r.nuls !== undefined ? r.a + r.b + r.nuls : r.a + r.b;
+      if (tot > 0) {
+        const wa = bw * (r.a / tot) * pr, wb = bw * (r.b / tot) * pr, wn = r.nuls !== undefined ? bw * (r.nuls / tot) * pr : 0;
+        ctx.fillStyle = C1; ctx.fillRect(bx, by, wa, bh);
+        if (wn > 0) { ctx.fillStyle = CN; ctx.fillRect(bx + wa, by, wn, bh); }
+        ctx.fillStyle = C2; ctx.fillRect(bx + bw - wb, by, wb, bh);
+      }
+      ctx.restore();
+    });
+  }
   else if (s.k === 'duels') {
     if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, 290, 46, '#fff', 'center', '#ff7a00', 960);
     const H = 300, PAS = 345, Y0 = 390;
@@ -1500,6 +1599,7 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   scenes.forEach(s => {
     if (s.k === 'intro') { if (s.photo) urls.add(s.photo); s.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
     if (s.k === 'lignes') s.lignes.forEach(l => { if (l.photo && l.photo !== PHOTO_ABSENTE) urls.add(l.photo); if (l.ecusson) urls.add(l.ecusson); if (l.match?.va?.url) urls.add(l.match.va.url); if (l.match?.vb?.url) urls.add(l.match.vb.url); });
+    if (s.k === 'bilan') { if (s.p1) urls.add(s.p1); if (s.p2) urls.add(s.p2); }
     if (s.k === 'lignes' && s.entete) { if (s.entete.photo) urls.add(s.entete.photo); s.entete.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
   });
   const images: Images = new Map();

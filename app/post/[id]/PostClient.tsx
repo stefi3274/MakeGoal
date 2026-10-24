@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/auth';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { SPORT_COULEURS, Sport } from '../../../lib/sport';
-import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode } from '../../../lib/statsJoueur';
+import { groupesPourPeriode, periodeAvecAdversaire, libellePeriode, Periode, colonnesActives, nomsColonnes, valeurColonne, aValeurColonne } from '../../../lib/statsJoueur';
 import { ligneContexte } from '../../../lib/distinctions';
 import { Visuel, visuelsPublies } from '../../../lib/visuels';
 import { FORMATIONS, POSTES_5_MAJEUR, estCinqMajeur, drapeau, OnzeJoueur, OnzeDetails } from '../../../lib/formations';
@@ -16,7 +16,8 @@ import { NominationsDetails, nominesPublies } from '../../../lib/nominations';
 import { MiniQuizzDetails, questionsPubliees as miniQuestionsPubliees, optionsPubliees as miniOptionsPubliees } from '../../../lib/miniQuizz';
 import { PromoDetails, lotsPublies, sponsorsPublies } from '../../../lib/promo';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from '../../../lib/journee';
-import { visuelEquipe } from '../../../lib/ecussons';
+import { BilanHistorique, bilanValide, totalMatchs, butsRenseignes, lignesPubliees, nb as nbBilan, part as partBilan } from '../../../lib/bilan';
+import { visuelEquipe, cleEquipe } from '../../../lib/ecussons';
 import { formaterDate as formaterDateJ } from '../../../lib/confrontations';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from '../../../lib/derniersMatchs';
 import { prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, ConfrontationsDetails, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from '../../../lib/confrontations';
@@ -85,7 +86,7 @@ type Post = {
   score1: number | null; score2: number | null; statut_match: string | null;
   heure_match: string | null; stade: string | null;
   distinction_type: string | null; laureat: string | null; distinction_note: string | null; distinction_stats: string | null; distinction_details?: { equipe?: string; championnat?: string; periode?: string; photo?: string; pays?: string } | null;
-  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null; mini_quizz?: MiniQuizzDetails | null;
+  formation: string | null; onze: OnzeJoueur[] | null; onze_details?: OnzeDetails | null; elimination?: EliminationDetails | null; confrontations?: ConfrontationsDetails | null; derniers_matchs?: DerniersMatchsDetails | null; bilan_historique?: BilanHistorique | null; journee_resultats?: JourneeDetails | null; nominations?: NominationsDetails | null; promo?: PromoDetails | null; mini_quizz?: MiniQuizzDetails | null;
   classement_type: string | null; classement_titre: string | null; classement_pays: string | null;
   classement: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur?: string }[] | null;
   matchs_jour: { id: string; equipe1: string; equipe2: string; competition: string | null; pays: string | null; date_match: string; score1: number | null; score2: number | null }[] | null;
@@ -95,7 +96,7 @@ type Post = {
   declaration: { nom: string; fonction: string; citation: string; contexte: string; pays?: string } | null;
   invitation_concours: { titreConcours: string; lots: string; slogan: string; matchs: { equipe1: string; equipe2: string }[] } | null;
   gagnants: { titreTirage: string; gagnants: { nom: string; prix: string }[] } | null;
-  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string } | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
+  stats_joueur: { mode: string; poste: string; nbMatchs: string | null; periode?: { type: string; libelle: string; competition?: string } | null; competitions?: string[] | null; joueurs: { nom: string; equipe: string; adversaire?: string; photo?: string; pays?: string; valeurs: Record<string, string> }[] } | null;
   sport: string | null;
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; visuels?: Visuel[] | null; auteur: string; created_at: string;
@@ -111,6 +112,14 @@ const pastille = (nom: string, ecussons?: Record<string, string>) => {
   if (v.url) return <img src={v.url} alt="" style={{width:'30px',height:'30px',objectFit:'contain',flexShrink:0}} />;
   if (v.drapeau) return <span style={{fontSize:'24px',lineHeight:1,flexShrink:0}}>{v.drapeau}</span>;
   return null;
+};
+
+// Grand écusson / drapeau pour l'en-tête du match.
+const emblemeGrand = (nom: string, pays: string | null | undefined, ecussons?: Record<string, string>) => {
+  const v = visuelEquipe(nom, ecussons);
+  if (v.url) return <img src={v.url} alt="" crossOrigin="anonymous" style={{width:'64px',height:'64px',objectFit:'contain'}} />;
+  const d = v.drapeau || (pays ? drapeau(pays) : '');
+  return d && d !== '🏳️' ? <div style={{fontSize:'52px',lineHeight:1}}>{d}</div> : null;
 };
 
 export default function PostPage() {
@@ -251,6 +260,17 @@ export default function PostPage() {
 
   const dims = format === 'carre' ? { width: 540, height: 540 } : { width: 400, minHeight: 640 };
   const couleurSport = SPORT_COULEURS[(post.sport as Sport) || 'football'].primaire;
+  // Écussons des équipes du match (affichés dans l'en-tête), le reste va dans le bandeau.
+  const ecussonsMatch: Record<string, string> = {};
+  const clesMatch = [cleEquipe(post.equipe1), cleEquipe(post.equipe2), cleEquipe(post.pays1), cleEquipe(post.pays2)].filter(Boolean);
+  const entete = !!((post.pays1 && post.pays2) || (post.equipe1 && post.equipe2));
+  const visuelsBandeau = visuelsPublies(post.visuels).filter(v => {
+    if (!entete || v.type !== 'ecusson' || !v.url) return true;
+    const k = cleEquipe(v.nom);
+    if (!clesMatch.includes(k)) return true;
+    ecussonsMatch[k] = v.url;
+    return false;
+  });
   const estResultatMatch = !!(post.quarts_temps?.length || (post.resultat_details && (post.resultat_details.buts?.length || post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length)));
   const VERT = '#16a34a', ROUGE = '#dc2626', VIOLET_EGALITE = '#8b5cf6';
   const couleurEquipe1 = estResultatMatch && post.score1 !== null && post.score2 !== null
@@ -269,6 +289,7 @@ export default function PostPage() {
     if (post.promo && lotsPublies(post.promo.lots || []).length) return { label: 'PROMO', couleur: '#e11d48' };
     if (post.nominations && nominesPublies(post.nominations.nomines || []).length) return { label: 'NOMINATIONS', couleur: '#d97706' };
     if (post.journee_resultats && matchsJourneePublies(post.journee_resultats.matchs || []).length) return { label: 'RÉSULTATS DE LA JOURNÉE', couleur: '#ea580c' };
+    if (post.bilan_historique && bilanValide(post.bilan_historique)) return { label: 'BILAN HISTORIQUE', couleur: '#ea580c' };
     if (post.derniers_matchs && derniersPublies(post.derniers_matchs.matchs || []).length) return { label: 'DERNIERS MATCHS', couleur: '#0891b2' };
     if (post.confrontations && matchsPublies(post.confrontations.matchs || []).length) return { label: 'CONFRONTATIONS DANS LE PASSÉ', couleur: '#7c3aed' };
     if (post.elimination?.rencontres?.length) return { label: 'ÉLIMINATION DIRECTE', couleur: '#dc2626' };
@@ -332,9 +353,9 @@ export default function PostPage() {
               </div>
             )}
 
-            {visuelsPublies(post.visuels).length > 0 && (
+            {visuelsBandeau.length > 0 && (
               <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:'14px',margin:'4px 0 14px'}}>
-                {visuelsPublies(post.visuels).map((v, i) => (
+                {visuelsBandeau.map((v, i) => (
                   <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',maxWidth:'84px'}}>
                     {v.type === 'drapeau' ? (
                       <span style={{fontSize:'44px',lineHeight:'52px',height:'52px'}}>{drapeau(v.nom)}</span>
@@ -357,7 +378,7 @@ export default function PostPage() {
                 )}
                 <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'18px'}}>
                   <div style={{textAlign:'center',flex:1}}>
-                    {post.pays1 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays1)}</div>}
+                    {emblemeGrand(post.equipe1 || post.pays1 || '', post.pays1, ecussonsMatch)}
                     <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe1,marginTop:'8px'}}>{post.equipe1 || post.pays1}</div>
                   </div>
                   {post.score1 !== null && post.score2 !== null ? (
@@ -368,7 +389,7 @@ export default function PostPage() {
                     <div style={{color:'#fff',fontWeight:900,fontSize:'15px',background:'linear-gradient(135deg,'+couleurSport+','+SPORT_COULEURS[(post.sport as Sport) || 'football'].sombre+')',borderRadius:'50%',width:'46px',height:'46px',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 16px '+couleurSport+'59',flexShrink:0}}>VS</div>
                   )}
                   <div style={{textAlign:'center',flex:1}}>
-                    {post.pays2 && <div style={{fontSize:'52px',lineHeight:1}}>{drapeau(post.pays2)}</div>}
+                    {emblemeGrand(post.equipe2 || post.pays2 || '', post.pays2, ecussonsMatch)}
                     <div style={{fontWeight:900,fontSize:'18px',color:couleurEquipe2,marginTop:'8px'}}>{post.equipe2 || post.pays2}</div>
                   </div>
                 </div>
@@ -528,7 +549,7 @@ export default function PostPage() {
                   <div style={{marginBottom: (post.resultat_details.rouges?.length || post.resultat_details.jaunes?.length) ? '14px' : 0}}>
                     {Array.from(new Set(post.resultat_details.buts.map(b => b.equipe))).map(eq => (
                       <div key={eq} style={{marginBottom:'10px'}}>
-                        <div style={{fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{eq}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:900,color:VIOLET,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>{pastille(String(eq), ecussonsMatch)}<span>{eq}</span></div>
                         {post.resultat_details!.buts.filter(b => b.equipe === eq).map((b, i) => (
                           <div key={i} style={{fontSize:'16px',color:'#111',marginBottom:'6px',display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
                             <span>⚽</span><span style={{fontWeight:800}}>{b.joueur}</span> <span style={{color:'#6b7280',fontWeight:600}}>{b.minute}'</span>
@@ -595,10 +616,35 @@ export default function PostPage() {
                       {(() => {
                         // Seules les catégories remplies apparaissent. Un joueur seul voit
                         // ses stats regroupées (Attaque, Apport défensif...) si plusieurs groupes sont remplis.
+                        const cols = colonnesActives(post.stats_joueur!.competitions);
+                        const noms = nomsColonnes(post.stats_joueur!.competitions);
+                        const parCol = seul && cols.length > 0;
                         const groupes = groupesPourPeriode(post.sport, post.stats_joueur!.poste, post.stats_joueur!.periode?.type)
-                          .map(gr => ({ titre: gr.titre, champs: gr.champs.filter(c => j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim()) }))
+                          .map(gr => ({ titre: gr.titre, champs: gr.champs.filter(c => parCol ? aValeurColonne(j.valeurs, c.cle) : (j.valeurs?.[c.cle] && String(j.valeurs[c.cle]).trim())) }))
                           .filter(gr => gr.champs.length > 0);
                         const avecTitres = seul && groupes.length > 1;
+                        if (parCol) {
+                          const teinte = ['#16a34a', '#ea580c', VIOLET];
+                          return (
+                            <div>
+                              <div style={{display:'flex',alignItems:'center',gap:'6px',padding:'6px 0',borderBottom:'2px solid #e5e7eb'}}>
+                                <span style={{flex:1.5}}/>
+                                {cols.map(k => <span key={k} style={{flex:1,textAlign:'center',fontSize:'11px',fontWeight:900,color:'#fff',background:teinte[k],borderRadius:'999px',padding:'4px 4px',lineHeight:1.15}}>{noms[k]}</span>)}
+                              </div>
+                              {groupes.map(gr => (
+                                <div key={gr.titre || 'stats'}>
+                                  {avecTitres && gr.titre && <div style={{fontSize:'11px',fontWeight:900,color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',margin:'16px 0 2px'}}>{gr.titre}</div>}
+                                  {gr.champs.map(c => (
+                                    <div key={c.cle} style={{display:'flex',alignItems:'center',gap:'6px',padding:'9px 0',borderBottom:'1px solid #f3f4f6'}}>
+                                      <span style={{flex:1.5,color:couleurSport,fontWeight:800,fontSize:'13px',lineHeight:1.25,minWidth:0}}>{c.label}</span>
+                                      {cols.map(k => <span key={k} style={{flex:1,textAlign:'center',color:valeurColonne(j.valeurs, c.cle, k) ? '#000' : '#d1d5db',fontWeight:900,fontSize:'20px',lineHeight:1}}>{valeurColonne(j.valeurs, c.cle, k) || '-'}</span>)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
                         return groupes.map(gr => (
                           <div key={gr.titre || 'stats'}>
                             {avecTitres && gr.titre && (
@@ -825,6 +871,64 @@ export default function PostPage() {
                       </div>
                     );
                   })}
+                </div>
+              );
+            })()}
+
+            {post.bilan_historique && bilanValide(post.bilan_historique) && (() => {
+              const b = post.bilan_historique!;
+              const C1 = '#ea580c', C2 = VIOLET, CN = '#9ca3af';
+              const v1 = nbBilan(b.victoires1), v2 = nbBilan(b.victoires2), n = nbBilan(b.nuls);
+              const tot = v1 + n + v2;
+              const rangee = (label: string, a: number, c: number, centre?: number) => {
+                const pa = partBilan(a, c) * 100;
+                return (
+                  <div style={{marginBottom:'18px'}}>
+                    <div style={{textAlign:'center',fontSize:'11px',fontWeight:900,color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'6px'}}>{label}</div>
+                    <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:'6px'}}>
+                      <span style={{fontSize:'38px',fontWeight:900,color:C1,lineHeight:1}}>{a}</span>
+                      {centre !== undefined && <span style={{fontSize:'26px',fontWeight:900,color:CN,lineHeight:1}}>{centre}<span style={{fontSize:'10px',display:'block',textAlign:'center',letterSpacing:'1px'}}>NULS</span></span>}
+                      <span style={{fontSize:'38px',fontWeight:900,color:C2,lineHeight:1}}>{c}</span>
+                    </div>
+                    <div style={{display:'flex',height:'14px',borderRadius:'999px',overflow:'hidden',background:'#e5e7eb'}}>
+                      {centre !== undefined && tot > 0 ? (
+                        <>
+                          <div style={{width:(a / tot * 100) + '%',background:C1}}/>
+                          <div style={{width:(centre / tot * 100) + '%',background:CN}}/>
+                          <div style={{width:(c / tot * 100) + '%',background:C2}}/>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{width:pa + '%',background:C1}}/>
+                          <div style={{width:(100 - pa) + '%',background:C2}}/>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              };
+              return (
+                <div style={{margin:'8px 0 24px'}}>
+                  {b.competition && <div style={{textAlign:'center',fontSize:'13px',fontWeight:800,color:'#6b7280',marginBottom:'12px'}}>{b.competition}</div>}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'14px',marginBottom:'14px'}}>
+                    <div style={{flex:1,textAlign:'center'}}>
+                      {emblemeGrand(b.equipe1, null, b.ecussons)}
+                      <div style={{fontWeight:900,fontSize:'17px',color:C1,marginTop:'6px',lineHeight:1.2}}>{b.equipe1}</div>
+                    </div>
+                    <div style={{fontWeight:900,fontSize:'20px',color:VIOLET}}>VS</div>
+                    <div style={{flex:1,textAlign:'center'}}>
+                      {emblemeGrand(b.equipe2, null, b.ecussons)}
+                      <div style={{fontWeight:900,fontSize:'17px',color:C2,marginTop:'6px',lineHeight:1.2}}>{b.equipe2}</div>
+                    </div>
+                  </div>
+                  <div style={{textAlign:'center',marginBottom:'18px'}}>
+                    <span style={{display:'inline-block',background:'linear-gradient(135deg,#ea580c,#bf00ff)',color:'#fff',fontSize:'14px',fontWeight:900,padding:'7px 20px',borderRadius:'999px',textTransform:'uppercase',letterSpacing:'0.8px'}}>{totalMatchs(b)} matchs</span>
+                  </div>
+                  <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'16px',padding:'16px 16px 2px',boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+                    {rangee('Victoires', v1, v2, n)}
+                    {butsRenseignes(b) && rangee('Buts marqués', nbBilan(b.buts1), nbBilan(b.buts2))}
+                    {lignesPubliees(b.lignes).map((l, i) => <div key={i}>{rangee(l.label, nbBilan(l.v1), nbBilan(l.v2))}</div>)}
+                  </div>
                 </div>
               );
             })()}
