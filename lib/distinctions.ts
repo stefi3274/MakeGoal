@@ -2,6 +2,8 @@
 // Importé par l'admin (app/admin/media/page.tsx). Le post public n'a besoin
 // que de l'affichage ; ne jamais recopier ces listes ailleurs.
 
+import { separerHook } from './hook';
+
 export type GroupeDistinction = { titre: string; items: string[] };
 
 export const GROUPES_DISTINCTIONS: GroupeDistinction[] = [
@@ -73,6 +75,7 @@ export function trouverDistinction(texte: string): string | undefined {
 export type DistinctionLot = {
   categorie: string;      // catégorie officielle, ou texte libre si inconnue
   officielle: boolean;
+  hook?: string;
   laureat: string;
   equipe: string;
   championnat: string;
@@ -95,8 +98,10 @@ export function parserLotDistinctions(texte: string): { distinctions: Distinctio
   const blocs = (texte || '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
   const distinctions: DistinctionLot[] = [];
   let ignores = 0;
-  for (const bloc of blocs) {
+  for (const blocBrut of blocs) {
+    const { hook, reste: bloc } = separerHook(blocBrut);
     const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lignes.length) { ignores++; continue; }
     const champs = lignes[0].split(/\s+[-–—]\s+|\s*\|\s*/).map(c => c.trim());
     const categorieSaisie = champs[0] || '';
     const reste = champs.slice(1);
@@ -111,7 +116,7 @@ export function parserLotDistinctions(texte: string): { distinctions: Distinctio
     const pays = equipeLaureat ? '' : ((reste[4]) || '');
     distinctions.push({
       categorie, officielle: !!officielle, laureat, equipe, championnat, periode, pays,
-      stats: lignes[1] || '', note: lignes.slice(2).join(' '),
+      stats: lignes[1] || '', note: lignes.slice(2).join(' '), hook,
     });
   }
   return { distinctions, ignores };

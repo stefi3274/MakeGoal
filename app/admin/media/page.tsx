@@ -13,6 +13,7 @@ import { extraireLieu, adversaireAGauche } from '../../../lib/lieu';
 import { cleEquipe, visuelEquipe, equipesDistinctes, ecussonsUtiles } from '../../../lib/ecussons';
 import { NominationsDetails, NOMINATIONS_VIDE, NOMINE_VIDE, Nomine, MAX_NOMINES, categoriesNomination, parserNominations, nominesPublies } from '../../../lib/nominations';
 import { JourneeDetails, JOURNEE_VIDE, MATCH_JOURNEE_VIDE, MatchJournee, MAX_JOURNEE, JOURNEES, parserJournee, matchsJourneePublies, issueJournee } from '../../../lib/journee';
+import { separerHook, hookPublie, MAX_HOOK } from '../../../lib/hook';
 import { parserBilan, BilanHistorique, BilanLigne, BILAN_VIDE, LIGNE_BILAN_VIDE, MAX_LIGNES_BILAN, bilanValide, bilanPublie, totalMatchs, nb as nbBilan } from '../../../lib/bilan';
 import { libelleDerniers } from '../../../lib/derniersMatchs';
 import { libelleConfrontations, PROCHAIN_VIDE, prochainRempli } from '../../../lib/confrontations';
@@ -83,6 +84,7 @@ type Article = {
   pub_actif: boolean | null; pub_nom: string | null; pub_logo: string | null; pub_lien: string | null;
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   visuels?: Visuel[] | null;
+  hook?: string | null;
   publie: boolean; created_at: string; sport: string | null;
 };
 
@@ -104,6 +106,10 @@ export default function AdminMedia() {
   const [imageCouverture, setImageCouverture] = useState('');
   const [visuels, setVisuels] = useState<Visuel[]>([]);
   const [avaitVisuels, setAvaitVisuels] = useState(false);
+  const [hook, setHook] = useState('');
+  const [avaitHook, setAvaitHook] = useState(false);
+  // Tous les formats à coller acceptent une ligne « Hook: ... » : elle est retirée du texte et placée dans le champ Hook.
+  const prendreHook = (texte: string): string => { const r = separerHook(texte); if (r.hook) setHook(r.hook); return r.reste; };
   const [uploadingVisuel, setUploadingVisuel] = useState<number | null>(null);
   const [extrait, setExtrait] = useState('');
   const [contenu, setContenu] = useState('');
@@ -162,7 +168,7 @@ export default function AdminMedia() {
   const [bil, setBil] = useState<BilanHistorique>({ ...BILAN_VIDE, lignes: [] });
   const [texteBil, setTexteBil] = useState('');
   const appliquerTexteBil = () => {
-    const r = parserBilan(texteBil);
+    const r = parserBilan(prendreHook(texteBil));
     if (!r.bilan.equipe1 || !r.bilan.equipe2) { setMessage('❌ Première ligne attendue : « Équipe 1 vs Équipe 2 | période (facultatif) ».'); return; }
     setBil(prev => ({ ...r.bilan, ecussons: prev.ecussons }));
     setMessage('✅ Bilan analysé.' + (r.inconnues.length ? ' ⚠️ Lignes non reconnues : ' + r.inconnues.join(' | ') : ''));
@@ -290,6 +296,7 @@ export default function AdminMedia() {
         type: 'post', langue, categorie: 'Ponctuel', sport: sportForm,
         titre: 'Matchs du jour — ' + (pays !== 'Autre' ? pays + ' — ' : '') + dateLisible,
         pays1: pays !== 'Autre' ? pays : null,
+        ...(hookPublie(hook) ? { hook: hookPublie(hook) } : {}),
         matchs_jour: matchs,
         publie: true
       };
@@ -354,7 +361,7 @@ export default function AdminMedia() {
   };
 
   const analyserResultat = () => {
-    const r = parserResultatFootball(resTexteColle);
+    const r = parserResultatFootball(prendreHook(resTexteColle));
     if (!r) { setMessage('❌ Première ligne non reconnue. Format attendu : "Equipe1 3 - 1 Equipe2"'); return; }
     setEquipe1(r.equipe1); setScore1(r.score1); setScore2(r.score2); setEquipe2(r.equipe2);
     setResButs(r.buts); setResRouges(r.rouges); setResJaunes(r.jaunes);
@@ -368,13 +375,16 @@ export default function AdminMedia() {
   const creerResultatsEnLot = async () => {
     const blocs = texteLotResultats.split(/\n-{3,}\n/).map(b => b.trim()).filter(Boolean);
     const aCreer = [];
-    for (const bloc of blocs) {
+    const hooks: string[] = [];
+    for (const blocBrut of blocs) {
+      const { hook: h, reste: bloc } = separerHook(blocBrut);
       const r = parserResultatFootball(bloc);
-      if (r) aCreer.push(r);
+      if (r) { aCreer.push(r); hooks.push(h); }
     }
     if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un résultat par bloc, séparés par une ligne "---".'); return; }
     setImportLotResultats(true);
-    const rows = aCreer.map(r => ({
+    const rows = aCreer.map((r, i) => ({
+      ...(hooks[i] ? { hook: hooks[i] } : {}),
       type: 'post', langue, categorie: 'Actualités', sport: 'football',
       titre: r.equipe1 + ' vs ' + r.equipe2,
       equipe1: r.equipe1, equipe2: r.equipe2, score1: parseInt(r.score1), score2: parseInt(r.score2),
@@ -391,7 +401,7 @@ export default function AdminMedia() {
   };
 
   const analyserResultatBasket = () => {
-    const lignes = resTexteColle.split('\n').map(l => l.trim());
+    const lignes = prendreHook(resTexteColle).split('\n').map(l => l.trim());
     let i = 0;
     while (i < lignes.length && !lignes[i]) i++;
     const header = lignes[i] || '';
@@ -467,7 +477,7 @@ export default function AdminMedia() {
   };
 
   const analyserParcours = () => {
-    const lignes = pTexteColle.split('\n').map(l => l.trim());
+    const lignes = prendreHook(pTexteColle).split('\n').map(l => l.trim());
     let i = 0;
     while (i < lignes.length && !lignes[i]) i++;
     const enTete = (lignes[i] || '').split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
@@ -487,17 +497,21 @@ export default function AdminMedia() {
   const creerParcoursEnLot = async () => {
     const blocs = texteLotParcours.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     const aCreer: { equipe: string; competition: string; poule: string; adversaires: AdversaireParcours[] }[] = [];
-    for (const bloc of blocs) {
+    const hooks: string[] = [];
+    for (const blocBrut of blocs) {
+      const { hook: h, reste: bloc } = separerHook(blocBrut);
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       if (lignes.length < 2) continue;
       const enTete = lignes[0].split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
       if (enTete.length < 2) continue;
       const adversaires = lignes.slice(1).map(l => parserLigneAdversaire(l));
       aCreer.push({ equipe: enTete[0], competition: enTete[1], poule: enTete[2] || '', adversaires });
+      hooks.push(h);
     }
     if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un bloc par équipe : 1ère ligne "Équipe - Compétition - Poule", puis une ligne par adversaire.'); return; }
     setImportLotParcours(true);
-    const rows = aCreer.map(c => ({
+    const rows = aCreer.map((c, i) => ({
+      ...(hooks[i] ? { hook: hooks[i] } : {}),
       type: 'post', langue, categorie: 'Ponctuel', sport: sportForm, titre: 'Parcours — ' + c.equipe,
       parcours: c, publie: true
     }));
@@ -522,7 +536,7 @@ export default function AdminMedia() {
 
   const analyserDeclaration = () => {
     if (!dTexteColle.trim()) { setMessage('❌ Collez du texte à analyser.'); return; }
-    const d = parserDeclaration(dTexteColle);
+    const d = parserDeclaration(prendreHook(dTexteColle));
     if (!d.nom || !d.citation) { setMessage('❌ Format non reconnu. 1ère ligne : "Nom - Fonction - Contexte (optionnel)", ligne vide, puis la citation.'); return; }
     setDNom(d.nom); setDPays(''); setDFonction(d.fonction); setDContexte(d.contexte); setDCitation(d.citation);
     setMessage('✅ Déclaration analysée. Vérifiez et corrigez si besoin.');
@@ -531,13 +545,16 @@ export default function AdminMedia() {
   const creerDeclarationsEnLot = async () => {
     const blocs = texteLotDeclarations.split(/\n-{3,}\n/).map(b => b.trim()).filter(Boolean);
     const aCreer: Declaration[] = [];
-    for (const bloc of blocs) {
+    const hooks: string[] = [];
+    for (const blocBrut of blocs) {
+      const { hook: h, reste: bloc } = separerHook(blocBrut);
       const d = parserDeclaration(bloc);
-      if (d.nom && d.citation) aCreer.push(d);
+      if (d.nom && d.citation) { aCreer.push(d); hooks.push(h); }
     }
     if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un bloc par déclaration, séparés par une ligne "---".'); return; }
     setImportLotDeclarations(true);
-    const rows = aCreer.map(d => ({
+    const rows = aCreer.map((d, i) => ({
+      ...(hooks[i] ? { hook: hooks[i] } : {}),
       type: 'post', langue, categorie: 'Ponctuel', sport: sportForm, titre: 'Déclaration — ' + d.nom,
       declaration: d, publie: true
     }));
@@ -550,38 +567,38 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'bilan_historique', 'journee_resultats', 'nominations', 'promo', 'mini_quizz', 'visuels'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'bilan_historique', 'journee_resultats', 'nominations', 'promo', 'mini_quizz', 'visuels', 'hook'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
   };
 
   const appliquerTexteElim = () => {
-    const r = parserElimination(texteElim);
+    const r = parserElimination(prendreHook(texteElim));
     if (!r.details.rencontres.length) { setMessage('❌ Aucune rencontre reconnue. Une ligne par match : « Haïti 2-1 Cuba » ou « France vs Argentine ».'); return; }
     setElim(prev => ({ competition: r.details.competition || prev.competition, tour: r.details.tour || prev.tour, rencontres: r.details.rencontres }));
     setMessage('✅ ' + r.details.rencontres.length + ' rencontre(s) importée(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteConf = () => {
-    const r = parserConfrontations(texteConf);
+    const r = parserConfrontations(prendreHook(texteConf));
     if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « 12/03/2022 | Gold Cup | Haïti 2-1 Cuba ».'); return; }
     setConf(prev => ({ equipe1: r.details.equipe1 || prev.equipe1, equipe2: r.details.equipe2 || prev.equipe2, matchs: r.details.matchs, ecussons: prev.ecussons, prochain: r.details.prochain || prev.prochain }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteDer = () => {
-    const r = parserDerniers(texteDer, sportForm);
+    const r = parserDerniers(prendreHook(texteDer), sportForm);
     if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « 12/03/2022 | Gold Cup | Haïti 2-1 Cuba ».'); return; }
     setDer(prev => ({ equipe: r.details.equipe || prev.equipe, matchs: r.details.matchs, ecussons: prev.ecussons }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteJour = () => {
-    const r = parserJournee(texteJour);
+    const r = parserJournee(prendreHook(texteJour));
     if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « Real Madrid 2-1 Barcelone ».'); return; }
     setJour(prev => ({ competition: r.details.competition || prev.competition, journee: r.details.journee || prev.journee, date: r.details.date || prev.date, matchs: r.details.matchs, ecussons: prev.ecussons }));
     setMessage('✅ ' + r.details.matchs.length + ' match(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
   };
   const appliquerTexteNomi = () => {
-    const r = parserNominations(texteNomi);
+    const r = parserNominations(prendreHook(texteNomi));
     if (!r.details.nomines.length) { setMessage('❌ Aucun nominé reconnu. Une ligne par nominé : « Nom - Équipe - Pays - Note ».'); return; }
     setNomi(prev => ({ categorie: r.details.categorie || prev.categorie, edition: r.details.edition || prev.edition, nomines: r.details.nomines }));
     setMessage('✅ ' + r.details.nomines.length + ' nominé(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
@@ -651,7 +668,7 @@ export default function AdminMedia() {
   const [mini, setMini] = useState<MiniQuizzDetails>(MINI_VIDE());
   const [texteMini, setTexteMini] = useState('');
   const appliquerTexteMini = () => {
-    const r = parserMiniQuizz(texteMini);
+    const r = parserMiniQuizz(prendreHook(texteMini));
     if (!miniQuestionsPubliees(r.details.questions).length) { setMessage('❌ Aucune question reconnue. Format : « Q1. Question ? » puis « A) ... » à « D) ... ».'); return; }
     setMini(prev => ({ titre: r.details.titre || prev.titre, cadeau: r.details.cadeau || prev.cadeau, questions: r.details.questions }));
     setMessage('✅ ' + miniQuestionsPubliees(r.details.questions).length + ' question(s) importée(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
@@ -664,7 +681,7 @@ export default function AdminMedia() {
   const [textePromo, setTextePromo] = useState('');
   const [uploadingPromo, setUploadingPromo] = useState<string | null>(null);
   const appliquerTextePromo = () => {
-    const r = parserPromo(textePromo);
+    const r = parserPromo(prendreHook(textePromo));
     if (!r.details.lots.length) { setMessage('❌ Aucun lot reconnu. Une ligne par lot : « iPhone 16 Pro - 256 Go ».'); return; }
     setPromo(prev => ({ accroche: r.details.accroche || prev.accroche, quizz: r.details.quizz || prev.quizz, fin: r.details.fin || prev.fin, conditions: r.details.conditions || prev.conditions, lots: r.details.lots, sponsors: r.details.sponsors.length ? r.details.sponsors : prev.sponsors }));
     setMessage('✅ ' + r.details.lots.length + ' lot(s) importé(s).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
@@ -820,7 +837,7 @@ export default function AdminMedia() {
   };
 
   const appliquerTexteOnze = () => {
-    const r = parserOnze(texteOnze, sportForm);
+    const r = parserOnze(prendreHook(texteOnze), sportForm);
     if (r.erreurs.length) { setMessage('❌ ' + r.erreurs.join(' · ')); return; }
     setOnzeDetails(r.details);
     setFormation(r.formation);
@@ -852,6 +869,7 @@ export default function AdminMedia() {
     if (distinctions.length === 0) { setMessage('❌ Format non reconnu. 1ère ligne de chaque bloc : "Catégorie - Lauréat - Équipe - Championnat - Période". Blocs séparés par une ligne vide.'); return; }
     setImportLotDistinctions(true);
     const rows = distinctions.map(d => ({
+      ...(d.hook ? { hook: d.hook } : {}),
       type: 'post', langue, categorie: 'Ponctuel', sport: sportForm,
       titre: d.categorie + ' — ' + d.laureat + (d.periode ? ' (' + d.periode + ')' : ''),
       distinction_type: d.categorie, laureat: d.laureat,
@@ -875,7 +893,7 @@ export default function AdminMedia() {
     // premier) pour ne jamais perdre une stat collée.
     const champs = champsPourPeriode(sportForm, statsPoste, statsPeriodeType);
     const avecAdv = periodeAvecAdversaire(statsPeriodeType);
-    const blocs = statsTexteColle.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    const blocs = prendreHook(statsTexteColle).split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     if (blocs.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
     const nonReconnues: string[] = [];
     let enteteColonnes: string[] | null = null;
@@ -985,7 +1003,7 @@ export default function AdminMedia() {
 
   const resetForm = () => {
     setTitre(''); setType('article'); setLangue('fr'); setCategorie('Actualités');
-    setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu(''); setVisuels([]); setAvaitVisuels(false);
+    setSourceNom(''); setSourceUrl(''); setImageCouverture(''); setExtrait(''); setContenu(''); setVisuels([]); setAvaitVisuels(false); setHook(''); setAvaitHook(false);
     setTags([]); setPays1(''); setPays2('');
     setLigue(''); setLigueLogo(''); setEquipe1(''); setEquipe2(''); setScore1(''); setScore2(''); setStatutMatch('');
     setDistinctionType(''); setDistinctionAutre(''); setLaureat(''); setDistinctionNote(''); setDistinctionStats('');
@@ -1025,6 +1043,7 @@ export default function AdminMedia() {
     setCategorie(a.categorie); setSourceNom(a.source_nom || ''); setSourceUrl(a.source_url || '');
     setImageCouverture(a.image_couverture || ''); setExtrait(a.extrait || ''); setContenu(a.contenu || '');
     setVisuels(Array.isArray(a.visuels) ? a.visuels : []); setAvaitVisuels(Array.isArray(a.visuels) && a.visuels.length > 0);
+    setHook(a.hook || ''); setAvaitHook(!!(a.hook && a.hook.trim()));
     setTags(a.tags || []); setPays1(a.pays1 || ''); setPays2(a.pays2 || '');
     setLigue(a.ligue || ''); setLigueLogo(a.ligue_logo || '');
     setEquipe1(a.equipe1 || ''); setEquipe2(a.equipe2 || '');
@@ -1124,7 +1143,7 @@ export default function AdminMedia() {
   const ajouterLigne = () => setClassement(prev => [...prev, { pos: String(prev.length+1), nom:'', extra:'', diff:'', pays:'', val:'', couleur:'' }]);
 
   const collerClassement = () => {
-    const lignes = classementTexteColle.split('\n').map(l => l.trim()).filter(l => l);
+    const lignes = prendreHook(classementTexteColle).split('\n').map(l => l.trim()).filter(l => l);
     if (lignes.length === 0) { setMessage('❌ Collez du texte à analyser.'); return; }
     const depart = parseInt(classementPositionDepart) || 1;
     const parsees = lignes.map((l, i) => {
@@ -1203,10 +1222,13 @@ export default function AdminMedia() {
     const blocs = texteLotClassements.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
     const depart = parseInt(classementPositionDepart) || 1;
     const aCreer: { nomLigue: string; lignes: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur: string }[] }[] = [];
-    for (const bloc of blocs) {
+    const hooks: string[] = [];
+    for (const blocBrut of blocs) {
+      const { hook: h, reste: bloc } = separerHook(blocBrut);
       const lignes = bloc.split('\n').map(l => l.trim()).filter(Boolean);
       if (lignes.length < 2) continue;
       const nomLigue = lignes[0];
+      hooks.push(h);
       const equipes = lignes.slice(1).map((l, i) => {
         const parts = l.split(/\s+-\s+/).map(p => p.trim()).filter(p => p !== '');
         if (typeLotClassements === 'equipes') {
@@ -1221,7 +1243,8 @@ export default function AdminMedia() {
     }
     if (aCreer.length === 0) { setMessage('❌ Format non reconnu. Un nom de championnat par bloc, puis une ligne par ' + (typeLotClassements === 'equipes' ? 'équipe' : 'joueur') + '.'); return; }
     setImportLotClassements(true);
-    const rows = aCreer.map(c => ({
+    const rows = aCreer.map((c, i) => ({
+      ...(hooks[i] ? { hook: hooks[i] } : {}),
       type: 'post', langue, categorie: 'Classement', titre: 'Classement — ' + c.nomLigue,
       classement_type: typeLotClassements, classement_titre: c.nomLigue, classement_pays: classementPays || null, classement: c.lignes,
       publie: true
@@ -1336,6 +1359,8 @@ export default function AdminMedia() {
       image_couverture: imageCouverture || null,
       extrait: extrait || null, contenu: contenu || null,
       // Envoyé seulement s'il y a des visuels (ou s'il fallait les retirer) : sans eux, la colonne n'est pas requise.
+      // Hook : envoyé seulement s'il est rempli (ou s'il fallait l'effacer), pour ne rien casser avant le SQL.
+      ...(hookPublie(hook) || avaitHook ? { hook: hookPublie(hook) || null } : {}),
       ...(visuelsPublies(visuels).length || avaitVisuels ? { visuels: visuelsPublies(visuels).length ? visuelsPublies(visuels) : null } : {}),
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
@@ -1614,13 +1639,13 @@ export default function AdminMedia() {
                   <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post "Parcours" par équipe, en une fois. Un bloc par équipe, séparé par une ligne vide.</p>
                     <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>1ère ligne du bloc : "Équipe - Compétition - Poule (optionnel)". Puis une ligne par adversaire : "Adversaire - Étiquette (optionnel) - Date (optionnel) - Score (optionnel, ex: 3-1)". Ajoute (E) en fin de ligne si l'équipe joue à l'extérieur.</p>
-                    <textarea value={texteLotParcours} onChange={e => setTexteLotParcours(e.target.value)} rows={12} placeholder={"Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct.\n\nBarcelone - Ligue des Champions - Phase ligue\nPSG - J1 - 17 sept.\nBayern Munich - J2 - 30 sept. - 2-2"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <textarea value={texteLotParcours} onChange={e => setTexteLotParcours(e.target.value)} rows={12} placeholder={'Hook: Ton accroche ici\n' + ("Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct.\n\nBarcelone - Ligue des Champions - Phase ligue\nPSG - J1 - 17 sept.\nBayern Munich - J2 - 30 sept. - 2-2")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={creerParcoursEnLot} disabled={importLotParcours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotParcours ? '⏳ Création...' : '🚀 Créer tous les parcours'}</button>
                   </div>
                 )}
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour une seule équipe (remplit le formulaire ci-dessous)</p>
-                <textarea value={pTexteColle} onChange={e => setPTexteColle(e.target.value)} rows={6} placeholder={"Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <textarea value={pTexteColle} onChange={e => setPTexteColle(e.target.value)} rows={6} placeholder={'Hook: Ton accroche ici\n' + ("Real Madrid - Ligue des Champions - Phase ligue\nManchester City - J1 - 18 sept. - 3-1\nJuventus - J2 - 1 oct.")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserParcours} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
@@ -1673,13 +1698,13 @@ export default function AdminMedia() {
                 {lotDeclarationsOuvert && (
                   <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post par déclaration, en une fois. Séparez chaque déclaration par une ligne "---".</p>
-                    <textarea value={texteLotDeclarations} onChange={e => setTexteLotDeclarations(e.target.value)} rows={12} placeholder={"Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent.\n---\nXabi Alonso - Entraîneur du Bayern Munich\n\nNous avons un groupe difficile mais très motivant."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <textarea value={texteLotDeclarations} onChange={e => setTexteLotDeclarations(e.target.value)} rows={12} placeholder={'Hook: Ton accroche ici\n' + ("Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent.\n---\nXabi Alonso - Entraîneur du Bayern Munich\n\nNous avons un groupe difficile mais très motivant.")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={creerDeclarationsEnLot} disabled={importLotDeclarations} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotDeclarations ? '⏳ Création...' : '🚀 Créer toutes les déclarations'}</button>
                   </div>
                 )}
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour une seule déclaration (remplit le formulaire ci-dessous)</p>
-                <textarea value={dTexteColle} onChange={e => setDTexteColle(e.target.value)} rows={5} placeholder={"Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent."} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <textarea value={dTexteColle} onChange={e => setDTexteColle(e.target.value)} rows={5} placeholder={'Hook: Ton accroche ici\n' + ("Carlo Ancelotti - Entraîneur du Real Madrid - Conférence d'après-tirage\n\nOn savait que ce tirage serait exigeant, mais cette équipe a l'habitude de répondre présent.")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserDeclaration} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'14px'}}>
@@ -1719,13 +1744,13 @@ export default function AdminMedia() {
                 {lotResultatsOuvert && (
                   <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Crée et publie un post par résultat, en une fois. Séparez chaque résultat par une ligne "---".</p>
-                    <textarea value={texteLotResultats} onChange={e => setTexteLotResultats(e.target.value)} rows={14} placeholder={"Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n---\nPSG 2 - 0 Monaco\n\nButs PSG\nMbappé 10 (Hakimi)\nDembélé 67"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <textarea value={texteLotResultats} onChange={e => setTexteLotResultats(e.target.value)} rows={14} placeholder={'Hook: Ton accroche ici\n' + ("Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n---\nPSG 2 - 0 Monaco\n\nButs PSG\nMbappé 10 (Hakimi)\nDembélé 67")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={creerResultatsEnLot} disabled={importLotResultats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotResultats ? '⏳ Création...' : '🚀 Créer tous les résultats'}</button>
                   </div>
                 )}
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour un seul résultat (remplit le formulaire ci-dessous)</p>
-                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={"Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n\nRouges\nAraújo 80"} rows={10} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={'Hook: Ton accroche ici\n' + ("Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n\nRouges\nAraújo 80")} rows={10} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserResultat} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'18px'}}>🔍 Analyser le texte</button>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Score (vérifiez / corrigez)</p>
@@ -1780,7 +1805,7 @@ export default function AdminMedia() {
               <div style={sectionStyle}>
                 <label style={labelStyle}>📋 Résultat de match</label>
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 12px'}}>Collez le résultat au format : première ligne "Equipe1 102 - 98 Equipe2", puis une ligne par quart-temps "Q1 28-22" (Q1 à Q4, OT pour prolongation).</p>
-                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={"Lakers 102 - 98 Celtics\n\nQ1 28-22\nQ2 24-26\nQ3 25-24\nQ4 25-26"} rows={9} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={'Hook: Ton accroche ici\n' + ("Lakers 102 - 98 Celtics\n\nQ1 28-22\nQ2 24-26\nQ3 25-24\nQ4 25-26")} rows={9} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                 <button type="button" onClick={analyserResultatBasket} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS.basketball.primaire,color:'#fff',marginBottom:'18px'}}>🔍 Analyser le texte</button>
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Score final (vérifiez / corrigez)</p>
@@ -1886,13 +1911,11 @@ export default function AdminMedia() {
                     {statsMode === 'comparaison' ? 'Un bloc par joueur, séparés par une ligne vide. ' : 'Un seul joueur. '}
                     1ère ligne : « {periodeAvecAdversaire(statsPeriodeType) ? 'Joueur - Son équipe - Adversaire | Pays' : 'Joueur - Son équipe | Pays'} » (le pays est facultatif). {parColonnes ? 'Puis (facultatif) une ligne avec les noms des colonnes : « Championnat | Coupe | Ligue des champions ». Puis une ligne par stat : « Label: valeur 1 | valeur 2 | valeur 3 » (un tiret pour une case vide). ' : 'Puis une ligne par stat : « Label: valeur ». '}Les stats vides n'apparaissent pas.
                   </p>
-                  <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={8} placeholder={
-                    sportForm !== 'football' ? 'LeBron James - Lakers\nPoints: 32\nRebonds: 8\nPasses décisives: 11'
+                  <textarea value={statsTexteColle} onChange={e => setStatsTexteColle(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + (sportForm !== 'football' ? 'LeBron James - Lakers\nPoints: 32\nRebonds: 8\nPasses décisives: 11'
                     : parColonnes ? 'Kylian Mbappé - Real Madrid | France\nChampionnat | Coupe | Ligue des champions\nMatchs joués: 34 | 5 | 13\nButs: 27 | 6 | 9\nPasses décisives: 5 | 2 | 3'
                     : estCarriere(statsPeriodeType) ? 'Lionel Messi - Inter Miami | Argentine\nMatchs joués: 1060\nButs: 932\nPasses décisives: 426\nTitres: 45\nBallons d\'or: 8\nSouliers d\'or: 6'
                     : periodeAvecAdversaire(statsPeriodeType) ? 'Wilson Isidor - Haïti - Trinidad-et-Tobago | Haïti\nMinutes jouées: 90\nButs: 1\nPasses décisives: 2\nRécupérations: 4'
-                    : 'Wilson Isidor - Grenoble | Haïti\nMatchs joués: 8\nButs: 5\nPasses décisives: 3\nRécupérations: 21'
-                  } style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                    : 'Wilson Isidor - Grenoble | Haïti\nMatchs joués: 8\nButs: 5\nPasses décisives: 3\nRécupérations: 21')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={analyserStats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:SPORT_COULEURS[sportForm].primaire,color:'#fff'}}>🔍 Analyser le texte</button>
                 </details>
 
@@ -1975,7 +1998,7 @@ export default function AdminMedia() {
                   <div style={{background:'#1e1e1e',border:'1px solid #333',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px'}}>Crée et publie un post par distinction. Un bloc par distinction, séparés par une ligne vide.</p>
                     <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 10px'}}>1ère ligne : "Catégorie - Lauréat - Équipe - Championnat - Période". Ligne 2 (optionnelle) : les chiffres. Ligne 3 (optionnelle) : la note. Pour une distinction d'équipe, le lauréat est l'équipe : "Équipe du mois - Arsenal - Premier League - Septembre 2026". Les photos s'ajoutent ensuite en modifiant le post.</p>
-                    <textarea value={texteLotDistinctions} onChange={e => setTexteLotDistinctions(e.target.value)} rows={12} placeholder={"Joueur du mois - Wilson Isidor - Haïti - Ligue 2 - Septembre 2026\n4 buts, 2 passes décisives\nAuteur de 4 buts en 5 matchs.\n\nEntraîneur du mois - Mikel Arteta - Arsenal - Premier League - Septembre 2026\n\nÉquipe du mois - Arsenal - Premier League - Septembre 2026"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <textarea value={texteLotDistinctions} onChange={e => setTexteLotDistinctions(e.target.value)} rows={12} placeholder={'Hook: Ton accroche ici\n' + ("Joueur du mois - Wilson Isidor - Haïti - Ligue 2 - Septembre 2026\n4 buts, 2 passes décisives\nAuteur de 4 buts en 5 matchs.\n\nEntraîneur du mois - Mikel Arteta - Arsenal - Premier League - Septembre 2026\n\nÉquipe du mois - Arsenal - Premier League - Septembre 2026")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={creerDistinctionsEnLot} disabled={importLotDistinctions} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotDistinctions ? '⏳ Création...' : '🚀 Créer toutes les distinctions'}</button>
                   </div>
                 )}
@@ -2081,7 +2104,7 @@ export default function AdminMedia() {
                           <button type="button" onClick={() => setTypeLotClassements('equipes')} style={btnChoix(typeLotClassements==='equipes')}>🏆 Équipes</button>
                           <button type="button" onClick={() => setTypeLotClassements('joueurs')} style={btnChoix(typeLotClassements==='joueurs')}>👤 Joueurs</button>
                         </div>
-                        <textarea value={texteLotClassements} onChange={e => setTexteLotClassements(e.target.value)} rows={12} placeholder={"La Liga\nSevilla - 2 - 6\nAlavés - 2 - 4\n\nPremier League\nBrighton - 1 - 3\nArsenal - 1 - 3"} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                        <textarea value={texteLotClassements} onChange={e => setTexteLotClassements(e.target.value)} rows={12} placeholder={'Hook: Ton accroche ici\n' + ("La Liga\nSevilla - 2 - 6\nAlavés - 2 - 4\n\nPremier League\nBrighton - 1 - 3\nArsenal - 1 - 3")} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                         <button type="button" onClick={creerClassementsEnLot} disabled={importLotClassements} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotClassements ? '⏳ Création...' : '🚀 Créer tous les classements'}</button>
                       </div>
                     )}
@@ -2097,7 +2120,7 @@ export default function AdminMedia() {
 
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Coller le classement (une ligne par {classementType==='equipes'?'équipe':'joueur'})</p>
                     <p style={{fontSize:'10px',color:'#6b7280',margin:'0 0 8px'}}>Format : {classementType==='equipes' ? 'Équipe - Joués - Diff. buts - Points' : 'Joueur - Équipe - Buts/Passes (ou Joueur - Équipe - Pays - Buts/Passes pour afficher le drapeau du joueur)'} (un tiret entre chaque valeur)</p>
-                    <textarea value={classementTexteColle} onChange={e => setClassementTexteColle(e.target.value)} placeholder={classementType==='equipes' ? 'France - 6 - +12 - 16\nArgentine - 6 - +8 - 15\nBrésil - 6 - +5 - 13' : 'Mbappé - France - 8\nMessi - Argentine - 7'} rows={6} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <textarea value={classementTexteColle} onChange={e => setClassementTexteColle(e.target.value)} placeholder={'Hook: Ton accroche ici\n' + (classementType==='equipes' ? 'France - 6 - +12 - 16\nArgentine - 6 - +8 - 15\nBrésil - 6 - +5 - 13' : 'Mbappé - France - 8\nMessi - Argentine - 7')} rows={6} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
                     <button type="button" onClick={collerClassement} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff',marginBottom:'20px'}}>🔍 Analyser le texte</button>
 
                     <div style={{display:'flex',gap:'6px',marginBottom:'6px',fontSize:'10px',color:'#6b7280',fontWeight:700,textTransform:'uppercase'}}>
@@ -2152,7 +2175,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'12px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller les 3 questions d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>« Titre : ... » et « Cadeau : ... » (facultatifs), puis pour chaque question une ligne « Q1. ... » suivie de « A) ... », « B) ... », « C) ... », « D) ... ».</p>
-                  <textarea value={texteMini} onChange={e => setTexteMini(e.target.value)} rows={10} placeholder={"Titre : Mini quizz Ligue des champions\nCadeau : Un maillot dédicacé\nQ1. Quel club a le plus de Ligues des champions ?\nA) Real Madrid\nB) AC Milan\nC) Liverpool\nD) Bayern\nQ2. ...\nQ3. ..."} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
+                  <textarea value={texteMini} onChange={e => setTexteMini(e.target.value)} rows={10} placeholder={'Hook: Ton accroche ici\n' + ("Titre : Mini quizz Ligue des champions\nCadeau : Un maillot dédicacé\nQ1. Quel club a le plus de Ligues des champions ?\nA) Real Madrid\nB) AC Milan\nC) Liverpool\nD) Bayern\nQ2. ...\nQ3. ...")} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
                   <button type="button" onClick={appliquerTexteMini} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer',marginTop:'8px'}}>Appliquer</button>
                 </details>
                 {mini.questions.map((q, i) => (
@@ -2181,7 +2204,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'12px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute la promo d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Accroche | Quizz | Date de fin. Puis une ligne par lot (Nom - détail), « Condition : ... » et « Sponsor : Nom1, Nom2 ». Les photos et logos s'ajoutent ensuite.</p>
-                  <textarea value={textePromo} onChange={e => setTextePromo(e.target.value)} rows={7} placeholder={"Gagne un iPhone 16 | Quizz du weekend | 19/10/2026\niPhone 16 Pro - 256 Go\nMaillot du Real Madrid - dédicacé\nCondition : 80 % de bonnes réponses minimum\nSponsor : Natcom, Digicel"} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
+                  <textarea value={textePromo} onChange={e => setTextePromo(e.target.value)} rows={7} placeholder={'Hook: Ton accroche ici\n' + ("Gagne un iPhone 16 | Quizz du weekend | 19/10/2026\niPhone 16 Pro - 256 Go\nMaillot du Real Madrid - dédicacé\nCondition : 80 % de bonnes réponses minimum\nSponsor : Natcom, Digicel")} style={{...inputStyle,fontSize:'12px',resize:'vertical'}}/>
                   <button type="button" onClick={appliquerTextePromo} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer',marginTop:'8px'}}>Appliquer</button>
                 </details>
                 <label style={labelStyle}>Lots</label>
@@ -2233,7 +2256,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les nominés d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Catégorie | Édition. Puis une ligne par nominé : « Nom - Équipe - Pays - Note » (tout sauf le nom est facultatif).</p>
-                  <textarea value={texteNomi} onChange={e => setTexteNomi(e.target.value)} rows={8} placeholder={"Ballon d'or | 2026\nOusmane Dembélé - PSG - France - 35 buts\nLamine Yamal - FC Barcelone - Espagne\nKylian Mbappé - Real Madrid - France"} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteNomi} onChange={e => setTexteNomi(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + ("Ballon d'or | 2026\nOusmane Dembélé - PSG - France - 35 buts\nLamine Yamal - FC Barcelone - Espagne\nKylian Mbappé - Real Madrid - France")} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteNomi} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 {nomi.nomines.map((n, i) => (
@@ -2286,7 +2309,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les matchs d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Compétition | Journée | Date. Puis une ligne par match : « Real Madrid 2-1 Barcelone ».</p>
-                  <textarea value={texteJour} onChange={e => setTexteJour(e.target.value)} rows={8} placeholder={'Liga | 2e journée | 12/10/2025\nReal Madrid 2-1 Barcelone\nSéville 0-0 Betis'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteJour} onChange={e => setTexteJour(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + ('Liga | 2e journée | 12/10/2025\nReal Madrid 2-1 Barcelone\nSéville 0-0 Betis')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteJour} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 {jour.matchs.map((m, i) => (
@@ -2315,7 +2338,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller le bilan d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 : « Équipe 1 vs Équipe 2 | période » (période facultative). Puis « Victoires: 105 - 100 », « Nuls: 52 », « Buts: 470 - 441 », « Matchs: 257 » (facultatif). Toute autre ligne du type « Titres: 98 - 90 » devient une ligne libre (2 au maximum).</p>
-                  <textarea value={texteBil} onChange={e => setTexteBil(e.target.value)} rows={7} placeholder={'Real Madrid vs FC Barcelone | Toutes compétitions depuis 1902\nVictoires: 105 - 100\nNuls: 52\nButs: 470 - 441\nTitres: 98 - 90'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteBil} onChange={e => setTexteBil(e.target.value)} rows={7} placeholder={'Hook: Ton accroche ici\n' + ('Real Madrid vs FC Barcelone | Toutes compétitions depuis 1902\nVictoires: 105 - 100\nNuls: 52\nButs: 470 - 441\nTitres: 98 - 90')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteBil} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
@@ -2361,7 +2384,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les matchs d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : l'équipe. Puis une ligne par match, du plus récent au plus ancien : « date | compétition | Équipe 2-1 Adversaire ». Le score suit les noms. Football : l'équipe qui reçoit est écrite à gauche (équipe à droite = à l'extérieur). Basketball : c'est l'inverse, le visiteur est écrit à gauche. Tu peux aussi ajouter (D) domicile ou (E) extérieur en fin de ligne.</p>
-                  <textarea value={texteDer} onChange={e => setTexteDer(e.target.value)} rows={8} placeholder={'Haïti\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba (D)\n05/09/2019 | Amical | Panama 0-0 Haïti\n01/06/2019 | Amical | Haïti 1-1 Cuba (E)'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteDer} onChange={e => setTexteDer(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + ('Haïti\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba (D)\n05/09/2019 | Amical | Panama 0-0 Haïti\n01/06/2019 | Amical | Haïti 1-1 Cuba (E)')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteDer} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 {der.matchs.map((m, i) => {
@@ -2407,7 +2430,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller tous les matchs d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Équipe 1 vs Équipe 2. Puis une ligne par match : « date | compétition | Équipe 1 2-1 Équipe 2 ». La date peut être 12/03/2022 ou juste 2019.</p>
-                  <textarea value={texteConf} onChange={e => setTexteConf(e.target.value)} rows={8} placeholder={'Haïti vs Cuba\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba\n05/09/2019 | Éliminatoires | Cuba 0-0 Haïti'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteConf} onChange={e => setTexteConf(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + ('Haïti vs Cuba\n12/03/2022 | Gold Cup | Haïti 2-1 Cuba\n05/09/2019 | Éliminatoires | Cuba 0-0 Haïti')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteConf} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
                 {conf.matchs.map((m, i) => {
@@ -2468,7 +2491,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toutes les rencontres d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>Ligne 1 (facultative) : Tour - Compétition. Puis une ligne par match : « Haïti 2-1 Cuba », « Brésil 1-1 Croatie ap 1-1 tab 4-2 », ou « France vs Argentine » (à venir).</p>
-                  <textarea value={texteElim} onChange={e => setTexteElim(e.target.value)} rows={8} placeholder={'Quarts de finale - Ligue des champions\nHaïti 2-1 Cuba\nBrésil 1-1 Croatie ap 1-1 tab 4-2\nFrance vs Argentine'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteElim} onChange={e => setTexteElim(e.target.value)} rows={8} placeholder={'Hook: Ton accroche ici\n' + ('Quarts de finale - Ligue des champions\nHaïti 2-1 Cuba\nBrésil 1-1 Croatie ap 1-1 tab 4-2\nFrance vs Argentine')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteElim} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
 
@@ -2519,7 +2542,7 @@ export default function AdminMedia() {
                 <details style={{marginBottom:'14px'}}>
                   <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:800,color:VIOLET}}>📋 Coller toute l'équipe d'un coup</summary>
                   <p style={{fontSize:'10px',color:'#6b7280',margin:'8px 0'}}>{sportForm === 'basketball' ? 'Ligne 1 : Catégorie - Compétition - Période. Puis 5 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : meneur, arrière, ailier, ailier fort, pivot.' : 'Ligne 1 : Catégorie - Compétition - Période. Ligne 2 : formation (ex: 4-3-3). Puis 11 lignes « Joueur - Club | Pays » (le pays après la barre | est facultatif) : gardien, défenseurs, milieux, attaquants (de gauche à droite).'}</p>
-                  <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={sportForm === 'basketball' ? '5 majeur du mois - Championnat national - Octobre 2026\nMeneur - Équipe\nArrière - Équipe\n...' : 'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...'} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
+                  <textarea value={texteOnze} onChange={e => setTexteOnze(e.target.value)} rows={14} placeholder={'Hook: Ton accroche ici\n' + (sportForm === 'basketball' ? '5 majeur du mois - Championnat national - Octobre 2026\nMeneur - Équipe\nArrière - Équipe\n...' : 'Équipe du mois - Concacaf Nations League A - Septembre-Octobre 2026\n4-3-3\nGardien - Équipe\n...')} style={{...inputStyle,fontFamily:'inherit',marginBottom:'8px'}}/>
                   <button type="button" onClick={appliquerTexteOnze} style={{padding:'9px 16px',borderRadius:'999px',border:'none',background:VIOLET,color:'#fff',fontWeight:800,fontSize:'12px',cursor:'pointer'}}>Appliquer</button>
                 </details>
 
@@ -2627,6 +2650,13 @@ export default function AdminMedia() {
               <input type="file" accept="image/*" onChange={uploadImage} style={{...inputStyle,padding:'8px'}}/>
               {uploading && <p style={{color:'#f59e0b',fontSize:'12px',margin:'8px 0 0'}}>⏳ Upload...</p>}
               {imageCouverture && <img src={imageCouverture} alt="" style={{width:'100%',maxHeight:'200px',objectFit:'cover',borderRadius:'10px',marginTop:'12px'}}/>}
+            </div>
+
+            <div style={sectionStyle}>
+              <label style={labelStyle}>🎣 Hook de la vidéo (optionnel)</label>
+              <p style={{fontSize:'11px',color:'#9ca3af',margin:'0 0 10px'}}>La phrase d'accroche qui ouvre la vidéo, pour tous les types de post. Dans tous les formats à coller, écris-la sur une ligne : « Hook: ta phrase ».</p>
+              <input value={hook} onChange={e => setHook(e.target.value.slice(0, MAX_HOOK))} placeholder="Ex : 105 victoires contre 100, qui domine vraiment l'histoire ?" style={inputStyle}/>
+              <p style={{fontSize:'10px',color:'#6b7280',margin:'6px 0 0',textAlign:'right'}}>{hook.length}/{MAX_HOOK}</p>
             </div>
 
             <div style={sectionStyle}>

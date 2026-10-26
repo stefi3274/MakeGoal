@@ -15,6 +15,7 @@ import { formaterDate as formaterDatePromo } from './confrontations';
 import { JourneeDetails, issueJournee, matchsJourneePublies } from './journee';
 import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier, bilanDerniers, derniersPublies } from './derniersMatchs';
 import { adversaireAGauche } from './lieu';
+import { hookPublie } from './hook';
 import { BilanHistorique, bilanValide, totalMatchs, butsRenseignes, lignesPubliees, nb as nbBilan } from './bilan';
 import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
 import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
@@ -22,6 +23,7 @@ import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONO
 // ---------- Données d'entrée (compatible avec le type Article de l'admin) ----------
 export type VideoPost = {
   titre: string;
+  hook?: string | null;
   sport?: string | null;
   ligue?: string | null;
   pays1?: string | null; pays2?: string | null;
@@ -66,6 +68,7 @@ type Scene =
   | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; entetesTrio?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
   | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'bilan'; badge: string; fond: string; e1: string; e2: string; p1?: string; p2?: string; periode?: string; total: number; rangees: { label: string; a: number; b: number; nuls?: number }[]; duree: number }
+  | { k: 'hook'; badge: string; fond: string; texte: string; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; lettre?: string; duree: number }
   | { k: 'mq'; badge: string; fond: string; mode: 'splash' | 'q' | 'fin'; lettre?: string; titre?: string; sous?: string; cadeau?: string; numero?: number; total?: number; question?: string; options?: { cle: string; texte: string }[]; duree: number }
@@ -455,7 +458,11 @@ export function construireScenes(p: VideoPost): Scene[] {
   } else {
     scenes.push({ k: 'intro', badge: 'MAKEGOAL', fond: 'GOAL', titre: p.titre, sous: p.extrait || undefined, icone: '⚽', duree: 4 });
   }
-  return scenes.map(ajusterLecture);
+  const accroche = hookPublie(p.hook);
+  const finales = scenes.map(ajusterLecture);
+  if (!accroche) return finales;
+  // Le hook ouvre TOUTES les vidéos : même fond et même bandeau que la première scène.
+  return [{ k: 'hook', badge: finales[0].badge, fond: finales[0].fond, texte: accroche, duree: 2.2 + Math.min(1.6, accroche.length * 0.03) }, ...finales];
 }
 
 // Temps de lecture : chaque écran dure au moins le temps de lire son texte
@@ -512,6 +519,23 @@ function texteOr(ctx: Ctx, txt: string, x: number, y: number, taille: number, al
   ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(6, t * 0.2); ctx.strokeStyle = CONTOUR_OR;
   ctx.strokeText(txt, 0, 0);
   ctx.fillStyle = OR;
+  ctx.fillText(txt, 0, 0);
+  ctx.restore();
+}
+
+// Texte coloré avec contour sombre (utilisé par le hook : ambre chaud lisible sur le violet comme sur le blanc).
+const AMBRE = '#ffb52e';
+function texteContour(ctx: Ctx, txt: string, x: number, y: number, taille: number, couleur: string, maxLarg?: number) {
+  let t = taille;
+  ctx.font = `italic 900 ${t}px ${POLICE}`;
+  if (maxLarg) while (ctx.measureText(txt).width > maxLarg && t > 18) { t -= 2; ctx.font = `italic 900 ${t}px ${POLICE}`; }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.transform(1, 0, -0.16, 1, 0, 0);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(8, t * 0.16); ctx.strokeStyle = CONTOUR_OR;
+  ctx.strokeText(txt, 0, 0);
+  ctx.fillStyle = couleur;
   ctx.fillText(txt, 0, 0);
   ctx.restore();
 }
@@ -1228,6 +1252,25 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       }
       ctx.restore();
     });
+  }
+  else if (s.k === 'hook') {
+    const taille = s.texte.length > 60 ? 66 : s.texte.length > 32 ? 80 : 96;
+    ctx.font = `italic 900 ${taille}px ${POLICE}`;
+    const lg = coupeLignes(ctx, majuscule(s.texte), 800).slice(0, 5);
+    const pas = taille * 1.12;
+    const y0 = 880 - ((lg.length - 1) * pas) / 2;
+    lg.forEach((l, i) => {
+      const tr = t - 0.15 - i * 0.22;
+      if (tr < 0) return;
+      const p = easeBack(tr / 0.45);
+      ctx.save();
+      ctx.globalAlpha = alpha * clamp(tr / 0.2);
+      ctx.translate(480, y0 + i * pas); ctx.scale(Math.max(0.01, p), Math.max(0.01, p)); ctx.translate(-480, -(y0 + i * pas));
+      texteContour(ctx, l, 480, y0 + i * pas, taille, AMBRE, 820);
+      ctx.restore();
+    });
+    const bw = 640 * easeOut((t - 0.3 - lg.length * 0.2) / 0.5);
+    ctx.fillStyle = '#ff7a00'; ctx.fillRect(480 - bw / 2, y0 + (lg.length - 1) * pas + taille * 0.8, bw, 14);
   }
   else if (s.k === 'duels') {
     if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, 290, 46, '#fff', 'center', '#ff7a00', 960);

@@ -8,6 +8,7 @@ const supabaseAdmin = createClient(
 const NB_QUESTIONS = 10;
 import { TYPES_QUIZZ, typeValide } from '../../../lib/quizzTypes';
 import { sponsorsPublies } from '../../../lib/promo';
+import { hookPublie } from '../../../lib/hook';
 
 // La table quizz_foot est verrouillée (aucun accès direct depuis le navigateur).
 // L'admin passe donc par cette route : lecture de la liste et création d'un quizz.
@@ -31,6 +32,9 @@ async function verifierAdmin(request: Request): Promise<Response | null> {
 export async function GET(request: Request) {
   const refus = await verifierAdmin(request);
   if (refus) return refus;
+  // Colonnes « hook » et « sponsors » : on lit avec, puis sans hook, puis sans rien, pour ne rien casser avant le SQL.
+  const complet = await supabaseAdmin.from('quizz_foot').select('id, titre, sport, statut, date_fermeture, created_at, questions, sponsors, hook').order('created_at', { ascending: false }).limit(60);
+  if (!complet.error) return Response.json({ quizzes: complet.data || [] });
   const { data, error } = await supabaseAdmin
     .from('quizz_foot')
     .select('id, titre, sport, statut, date_fermeture, created_at, questions, sponsors')
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
   const refus = await verifierAdmin(request);
   if (refus) return refus;
 
-  const body = await request.json().catch(() => null) as { titre?: string; sport?: string; type?: string; sponsors?: { nom?: string; logo?: string }[]; questions?: QuestionQ[] } | null;
+  const body = await request.json().catch(() => null) as { titre?: string; sport?: string; type?: string; sponsors?: { nom?: string; logo?: string }[]; hook?: string; questions?: QuestionQ[] } | null;
   const titre = (body?.titre || '').trim();
   const sport = body?.sport === 'basketball' ? 'basketball' : 'football';
   const questions = body?.questions;
@@ -79,8 +83,12 @@ export async function POST(request: Request) {
     titre, sport, questions: propres, statut: 'ouvert',
     date_fermeture: new Date(Date.now() + duree * 3600 * 1000).toISOString(),
   };
-  // La colonne « sponsors » n'est envoyée que s'il y en a : tant que le SQL n'est pas passé, rien ne casse.
-  const { error } = await supabaseAdmin.from('quizz_foot').insert((sponsors.length ? { ...ligne, sponsors } : ligne) as never);
+  const hook = hookPublie(body?.hook);
+  // Les colonnes « sponsors » et « hook » ne sont envoyées que si elles sont remplies : tant que le SQL n'est pas passé, rien ne casse.
+  const { error } = await supabaseAdmin.from('quizz_foot').insert(({ ...ligne, ...(sponsors.length ? { sponsors } : {}), ...(hook ? { hook } : {}) }) as never);
+  if (error && hook && /hook/i.test(error.message)) {
+    return Response.json({ error: "La colonne « hook » n'existe pas encore : lance d'abord le SQL fourni, puis recrée le quizz." }, { status: 500 });
+  }
   if (error && sponsors.length && /sponsors/i.test(error.message)) {
     return Response.json({ error: "La colonne « sponsors » n'existe pas encore : lance d'abord le SQL fourni, puis recrée le quizz." }, { status: 500 });
   }
