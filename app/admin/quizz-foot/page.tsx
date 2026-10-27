@@ -38,8 +38,6 @@ export default function AdminQuizzFoot() {
   const [connecte, setConnecte] = useState(false);
   const [quizzes, setQuizzes] = useState<Quizz[]>([]);
   const [videoQuizz, setVideoQuizz] = useState<Quizz | null>(null);
-  const [choixVideo, setChoixVideo] = useState<Quizz | null>(null);
-  const [nbVideo, setNbVideo] = useState(0);
   const [message, setMessage] = useState('');
   const [vue, setVue] = useState<'liste' | 'nouveau'>('liste');
   const [sportForm, setSportForm] = useState<Sport>('football');
@@ -290,7 +288,7 @@ export default function AdminQuizzFoot() {
                     <button onClick={() => declencherTirage(q.id)} disabled={tirageEnCours === q.id} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: VIOLET, color: '#fff' }}>{tirageEnCours === q.id ? '⏳...' : '🎲 Clôturer et tirer au sort'}</button>
                   )}
                   {q.questions && q.questions.length > 0 && (
-                    <button onClick={() => setChoixVideo(q)} style={{ padding: '8px 16px', borderRadius: '999px', border: '2px solid #10b981', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: 'transparent', color: '#10b981' }}>🎬 Vidéo</button>
+                    <button onClick={() => setVideoQuizz(q)} style={{ padding: '8px 16px', borderRadius: '999px', border: '2px solid #10b981', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: 'transparent', color: '#10b981' }}>🎬 Vidéo</button>
                   )}
                   <button onClick={() => voirResultats(q.id)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid #333', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: 'transparent', color: '#9ca3af' }}>{resultatsOuverts === q.id ? '▲ Masquer les résultats' : '▼ Voir les résultats (privé)'}</button>
                 </div>
@@ -312,26 +310,9 @@ export default function AdminQuizzFoot() {
           </>
         )}
       </main>
-      {choixVideo && choixVideo.questions && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '420px', color: '#fff' }}>
-            <p style={{ fontWeight: 900, fontSize: '15px', margin: '0 0 4px' }}>🎬 Vidéo du FootQuizz</p>
-            <p style={{ color: '#9ca3af', fontSize: '12px', margin: '0 0 14px' }}>{choixVideo.titre}</p>
-            <p style={{ fontSize: '13px', margin: '0 0 12px' }}>Combien de questions dans la vidéo ? Chaque question dure environ 11 s (3 s de lecture, 5 s pour répondre, puis la réponse). La vidéo reste toujours en un seul fichier.</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-              {Array.from(new Set([2, 3, 5, (choixVideo.questions || []).length])).filter(n => n <= (choixVideo.questions || []).length).map(n => (
-                <button key={n} onClick={() => { setNbVideo(n); setVideoQuizz(choixVideo); setChoixVideo(null); }} style={{ padding: '12px 18px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: '14px', background: VIOLET, color: '#fff' }}>
-                  {n === (choixVideo.questions || []).length ? 'Toutes (' + n + ')' : n + ' questions'}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setChoixVideo(null)} style={{ width: '100%', padding: '10px', borderRadius: '999px', border: '1px solid #444', background: 'transparent', color: '#d1d5db', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Annuler</button>
-          </div>
-        </div>
-      )}
       {videoQuizz && videoQuizz.questions && (
         <VideoModal titre={videoQuizz.titre} onFermer={() => setVideoQuizz(null)}
-          post={{ titre: videoQuizz.titre, hook: videoQuizz.hook, quizz: { titre: videoQuizz.titre, sport: videoQuizz.sport, sponsors: videoQuizz.sponsors, duree_heures: (() => { const t = typeDepuisDurees(videoQuizz.created_at, videoQuizz.date_fermeture); return t ? TYPES_QUIZZ[t].heures : null; })(), questions: videoQuizz.questions.slice(0, nbVideo || 3).map(x => ({ question: x.question, options: x.options, bonne_reponse: x.bonne_reponse })) } }} />
+          post={{ titre: videoQuizz.titre, hook: videoQuizz.hook, quizz: { titre: videoQuizz.titre, sport: videoQuizz.sport, sponsors: videoQuizz.sponsors, duree_heures: (() => { const t = typeDepuisDurees(videoQuizz.created_at, videoQuizz.date_fermeture); return t ? TYPES_QUIZZ[t].heures : null; })(), questions: videoQuizz.questions.map(x => ({ question: x.question, options: x.options, bonne_reponse: x.bonne_reponse })) } }} />
       )}
     </div>
   );

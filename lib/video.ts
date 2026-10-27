@@ -150,7 +150,7 @@ export function construireScenes(p: VideoPost): Scene[] {
     const tot = qz.questions.length;
     const basket = qz.sport === 'basketball';
     const badge = basket ? 'BASKETQUIZZ' : 'FOOTQUIZZ';
-    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: qz.titre, sous: tot + ' questions · 10 secondes chacune', pill: 'Une seule tentative' + (qz.duree_heures ? ' · actif ' + qz.duree_heures + ' h' : ''), icone: basket ? '🏀' : '🧠', duree: 3.4 });
+    scenes.push({ k: 'quiztitre', badge, fond: 'QUIZ', titre: qz.titre, sous: tot + ' questions · 3 s pour lire, 5 s pour répondre', pill: 'Une seule tentative' + (qz.duree_heures ? ' · actif ' + qz.duree_heures + ' h' : ''), icone: basket ? '🏀' : '🧠', duree: 3.4 });
     const spQ = sponsorsPublies(qz.sponsors);
     if (spQ.length) {
       const ls: Ligne[] = spQ.map(s => ({ label: s.nom || 'Sponsor', valeur: '', accent: '#fbbf24', ecusson: s.logo || undefined }));
@@ -1619,10 +1619,16 @@ function choisirFormat(): { mime: string; ext: string } | null {
 // Profil d'enregistrement. Un téléphone enregistre en 720 x 1280 à débit réduit : l'image est nette
 // pour les réseaux sociaux et la vidéo entière (une seule, quelle que soit sa durée) reste légère,
 // ce qui évite de faire planter le navigateur. Un ordinateur garde le 1080 x 1920.
-function profil(): { echelle: number; debit: number } {
+function profil(dureeSecondes: number): { echelle: number; debit: number } {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && typeof screen !== 'undefined' && screen.width < 900);
-  return mobile ? { echelle: 2 / 3, debit: 5_000_000 } : { echelle: 1, debit: 8_000_000 };
+  // Une seule vidéo, jamais découpée, quelle que soit sa durée : c'est le débit qui s'adapte pour que le fichier
+  // (et la mémoire du navigateur) reste raisonnable. Un FootQuizz de 10 questions dure environ 2 minutes.
+  const d = Math.max(1, dureeSecondes);
+  const borne = (v: number, mini: number, maxi: number) => Math.round(Math.min(maxi, Math.max(mini, v)));
+  return mobile
+    ? { echelle: 2 / 3, debit: borne(320e6 / d, 2_800_000, 5_000_000) }   // téléphone : 720 x 1280, environ 40 Mo au plus
+    : { echelle: 1, debit: borne(560e6 / d, 4_500_000, 8_000_000) };      // ordinateur : 1080 x 1920, environ 70 Mo au plus
 }
 
 export type PartieVideo = { blob: Blob; ext: string; duree: number };
@@ -1634,8 +1640,8 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   const scenes = construireScenes(post);
   if (!scenes.length) throw new Error('Rien à mettre en vidéo pour ce post.');
   const parties = [scenes]; // une seule vidéo, jamais découpée
-  const { echelle, debit } = profil();
   const totalGlobal = dureeTotale(scenes);
+  const { echelle, debit } = profil(totalGlobal);
 
   onProgress(0, 'Chargement des images…', Math.round(totalGlobal), scenes.length);
   const urls = new Set<string>();
