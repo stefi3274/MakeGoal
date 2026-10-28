@@ -1063,7 +1063,47 @@ export default function PostPage() {
               </div>
             )}
 
-            {post.classement_type && post.classement && post.classement.length > 0 && (
+            {post.classement_type === 'joueurs' && !(post.classement_titre || '').toLowerCase().includes('quizz') && classementAffiche.length > 0 && (() => {
+              const tt = (post.classement_titre || '').toLowerCase();
+              const unite = /pass/.test(tt) ? 'PASSES' : /but/.test(tt) ? 'BUTS' : /point|pts/.test(tt) ? 'PTS' : '';
+              const nombre = (v: string) => parseFloat((v || '').replace(',', '.')) || 0;
+              const max = Math.max(0, ...classementAffiche.map(l => nombre(l.val)));
+              const f = nbLignesClassement <= 3 ? 1.3 : nbLignesClassement <= 5 ? 1.1 : 0.92;
+              return (
+                <div style={{margin:'8px 0 24px',borderRadius:'18px',padding:'16px 14px',background:'linear-gradient(160deg,#7b0fd6 0%,#3a0f8f 55%,#1a0b4a 100%)',boxShadow:'0 10px 28px #3a0f8f55'}}>
+                  {post.classement_titre && (
+                    <div style={{textAlign:'center',color:'#fff',fontSize:Math.round(17*f)+'px',fontWeight:900,fontStyle:'italic',textTransform:'uppercase',textShadow:'2px 2px 0 #ff7a00',marginBottom:'14px',padding:'0 6px'}}>
+                      {post.classement_pays && drapeau(post.classement_pays) !== '🏳️' ? drapeau(post.classement_pays) + ' ' : '🏆 '}{post.classement_titre}
+                    </div>
+                  )}
+                  {classementAffiche.map((l, i) => {
+                    const n = parseInt(l.pos, 10);
+                    const c = n === 1 ? '#ffd23f' : n === 2 ? '#d5dde8' : n === 3 ? '#e08a45' : '#ff7a00';
+                    const fl = l.pays && drapeau(l.pays) !== '🏳️' ? drapeau(l.pays) : '';
+                    const sous = [fl, (l.extra || '').trim().toUpperCase()].filter(Boolean).join('  ');
+                    const v = nombre(l.val);
+                    return (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:Math.round(12*f)+'px',background:'linear-gradient(90deg,rgba(70,10,120,0.92),rgba(5,5,40,0.85))',borderLeft:'6px solid '+c,borderRadius:'4px 10px 10px 4px',padding:Math.round(11*f)+'px '+Math.round(12*f)+'px',marginBottom:'9px'}}>
+                        <span style={{width:Math.round(44*f)+'px',height:Math.round(44*f)+'px',borderRadius:'50%',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontStyle:'italic',fontSize:Math.round(22*f)+'px',color:n <= 3 ? '#1a0b3a' : '#fff',background:'radial-gradient(circle at 30% 28%,#fff 0%,'+c+' 30%,#3b1670 100%)',border:'3px solid rgba(255,255,255,0.85)'}}>{l.pos}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:'#fff',fontWeight:900,fontStyle:'italic',textTransform:'uppercase',fontSize:Math.round(19*f)+'px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.nom}</div>
+                          {sous && <div style={{color:'#fde68a',fontWeight:800,fontStyle:'italic',fontSize:Math.round(12.5*f)+'px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',marginTop:'2px'}}>{sous}</div>}
+                          {v > 0 && max > 0 && <div style={{height:'4px',background:'rgba(255,255,255,0.14)',borderRadius:'999px',marginTop:'6px'}}><div style={{height:'4px',width:Math.round((v / max) * 100) + '%',background:c,borderRadius:'999px'}}/></div>}
+                        </div>
+                        {l.val && (
+                          <div style={{textAlign:'right',flexShrink:0,minWidth:Math.round(56*f)+'px'}}>
+                            <div style={{color:n === 1 ? '#ffd23f' : '#fff',fontWeight:900,fontStyle:'italic',fontSize:Math.round(34*f)+'px',lineHeight:1,textShadow:'2px 2px 0 #bf00ff'}}>{l.val}</div>
+                            {unite && <div style={{color:'#fde68a',fontWeight:900,fontSize:Math.round(10.5*f)+'px',letterSpacing:'1px',marginTop:'3px'}}>{unite}</div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {post.classement_type && post.classement && post.classement.length > 0 && !(post.classement_type === 'joueurs' && !(post.classement_titre || '').toLowerCase().includes('quizz')) && (
               <div style={{margin:'8px 0 24px'}}>
                 {post.classement_titre && (
                   <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',background:'linear-gradient(135deg,#f59e0b,#d97706)',color:'#fff',fontSize:'15px',fontWeight:900,padding:'11px 16px',borderRadius:'12px',marginBottom:'12px',boxShadow:'0 6px 16px #f59e0b40'}}>

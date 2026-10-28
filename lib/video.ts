@@ -68,6 +68,7 @@ type Scene =
   | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; entetesTrio?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
   | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
   | { k: 'bilan'; badge: string; fond: string; e1: string; e2: string; p1?: string; p2?: string; periode?: string; total: number; rangees: { label: string; a: number; b: number; nuls?: number }[]; duree: number }
+  | { k: 'top'; badge: string; fond: string; titre?: string; soustitre?: string; unite?: string; rangs: { pos: string; nom: string; club?: string; flag?: string; val?: string }[]; duree: number }
   | { k: 'hook'; badge: string; fond: string; texte: string; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; lettre?: string; duree: number }
@@ -237,9 +238,14 @@ export function construireScenes(p: VideoPost): Scene[] {
       scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre, sous: 'Classement de la compétition', pill: dateTxt ? '📅 ' + dateTxt : undefined, icone: '📊', duree: 3.4 });
       pagesDeLignes(lignes, 6).forEach(pg => scenes.push({ k: 'lignes', badge: 'CLASSEMENT', fond: 'TOP', titre, soustitre: dateTxt ? 'Classement au ' + dateTxt : 'Classement', entetesCols: ['M', '+/-', 'P'], lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     } else {
-      const lignes: Ligne[] = (p.classement || []).slice(0, 10).map(l => ({ label: l.pos + '. ' + l.nom, valeur: (l.val || l.extra || '').toString() }));
-      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre, icone: '📊', duree: 3 });
-      pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge: 'CLASSEMENT', fond: 'TOP', titre, lignes: pg, duree: dureeLignes(pg.length) }));
+      const rangs = (p.classement || []).slice(0, 20).filter(l => (l.nom || '').trim()).map(l => {
+        const dr = l.pays ? drapeau(l.pays) : '';
+        return { pos: (l.pos || '').toString().trim(), nom: l.nom.trim(), club: (l.extra || '').trim() || undefined, flag: dr && dr !== '🏳️' ? dr : undefined, val: (l.val || '').toString().trim() || undefined };
+      });
+      const tt = (titre || '').toLowerCase();
+      const unite = /pass/.test(tt) ? 'PASSES' : /but/.test(tt) ? 'BUTS' : /point|pts/.test(tt) ? 'PTS' : undefined;
+      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre, icone: '🏆', duree: 3 });
+      pagesDeLignes(rangs as never, 5).forEach(pg => scenes.push({ k: 'top', badge: 'CLASSEMENT', fond: 'TOP', titre, unite, rangs: pg as never, duree: 1.2 + pg.length * 0.9 + 2 }));
     }
   } else if (type === 'Gagnants') {
     const g = p.gagnants!;
@@ -1253,6 +1259,60 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       ctx.restore();
     });
   }
+  else if (s.k === 'top') {
+    const OR = '#ffd23f', ARG = '#d5dde8', BRZ = '#e08a45';
+    if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, 330, 72, '#fff', 'center', '#ff7a00', 940);
+    const max = Math.max(...s.rangs.map(r => parseFloat((r.val || '').replace(',', '.')) || 0), 0);
+    const pas = 224, h = 200, y0 = 440;
+    s.rangs.forEach((r, i) => {
+      const tr = t - 0.4 - i * 0.7;
+      if (tr < 0) return;
+      const p = easeBack(tr / 0.45);
+      const cy = y0 + i * pas + h / 2;
+      const n = parseInt(r.pos, 10);
+      const c = n === 1 ? OR : n === 2 ? ARG : n === 3 ? BRZ : '#ff7a00';
+      ctx.save();
+      ctx.globalAlpha = alpha * clamp(tr / 0.2);
+      ctx.translate((1 - Math.min(1, p)) * -700, 0);
+      ctx.save();
+      ctx.translate(540, cy); ctx.transform(1, 0, -0.1, 1, 0, 0);
+      const g = ctx.createLinearGradient(-490, 0, 490, 0);
+      g.addColorStop(0, 'rgba(70,10,120,0.92)'); g.addColorStop(1, 'rgba(5,5,40,0.8)');
+      ctx.fillStyle = g; ctx.fillRect(-490, -h / 2, 980, h);
+      ctx.fillStyle = c; ctx.fillRect(-490, -h / 2, 18, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(-490, -h / 2, 980, 5);
+      ctx.restore();
+      // médaillon du rang
+      ctx.save();
+      ctx.translate(135, cy);
+      const rg = ctx.createRadialGradient(-12, -14, 4, 0, 0, 62);
+      rg.addColorStop(0, '#fff'); rg.addColorStop(0.25, c); rg.addColorStop(1, '#3b1670');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, 62, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.stroke();
+      ctx.restore();
+      texteIncline(ctx, r.pos, 135, cy + 2, 66, n <= 3 ? '#1a0b3a' : '#fff', 'center', undefined, 90);
+      // nom, club, pays
+      const aVal = !!r.val;
+      const xT = 235, maxN = (aVal ? 640 : 880) - xT;
+      const sousTxt = [r.flag, r.club ? majuscule(r.club) : ''].filter(Boolean).join('  ');
+      texteIncline(ctx, majuscule(r.nom), xT, sousTxt ? cy - 28 : cy, 52, '#fff', 'left', '#0b0b2a', maxN);
+      if (sousTxt) texteIncline(ctx, sousTxt, xT, cy + 30, 34, '#fde68a', 'left', '#0b0b2a', maxN);
+      // valeur + unité + barre de progression
+      if (aVal) {
+        const pr = (tr - 0.1) / 0.6;
+        texteIncline(ctx, valeurAnimee(r.val as string, pr), 880, cy - (s.unite ? 14 : 0), 96, n === 1 ? OR : '#fff', 'right', '#bf00ff', 230);
+        if (s.unite) texteOr(ctx, s.unite, 880, cy + 52, 28, 'right', 230);
+      }
+      const v = parseFloat((r.val || '').replace(',', '.')) || 0;
+      if (v > 0 && max > 0) {
+        const bw = 640 - xT, by = cy + h / 2 - 22;
+        ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(xT, by, bw, 8);
+        ctx.fillStyle = c; ctx.fillRect(xT, by, bw * (v / max) * easeOut((tr - 0.2) / 0.9), 8);
+      }
+      ctx.restore();
+    });
+  }
+
   else if (s.k === 'hook') {
     const taille = s.texte.length > 60 ? 66 : s.texte.length > 32 ? 80 : 96;
     ctx.font = `italic 900 ${taille}px ${POLICE}`;
