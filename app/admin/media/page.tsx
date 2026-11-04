@@ -85,6 +85,7 @@ type Article = {
   image_couverture: string | null; extrait: string | null; contenu: string | null;
   visuels?: Visuel[] | null;
   hook?: string | null;
+  classement_photo?: string | null; classement_intro?: string | null;
   publie: boolean; created_at: string; sport: string | null;
 };
 
@@ -148,6 +149,11 @@ export default function AdminMedia() {
   const [classementType, setClassementType] = useState('');
   const [classementTitre, setClassementTitre] = useState('');
   const [classementPays, setClassementPays] = useState('');
+  // Page d'ouverture de la vidéo : photo à la place de la coupe et titre au choix (facultatifs).
+  const [classementPhoto, setClassementPhoto] = useState('');
+  const [classementIntro, setClassementIntro] = useState('');
+  const [avaitClassementIntro, setAvaitClassementIntro] = useState(false);
+  const [uploadingClassementPhoto, setUploadingClassementPhoto] = useState(false);
   const [classementPositionDepart, setClassementPositionDepart] = useState('1');
   const [classement, setClassement] = useState<{ pos: string; nom: string; extra: string; diff: string; pays: string; val: string; couleur: string }[]>(
     Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''}))
@@ -400,6 +406,30 @@ export default function AdminMedia() {
     chargerArticles();
   };
 
+  // Une seule vidéo « scores rapides » : un match par ligne « Équipe 2-1 Équipe » (1re ligne facultative : Compétition | Journée | Date).
+  const [texteRapide, setTexteRapide] = useState('');
+  const [importRapide, setImportRapide] = useState(false);
+  const creerResultatsRapides = async () => {
+    const { hook: h, reste } = separerHook(texteRapide);
+    const r = parserJournee(reste);
+    if (!r.details.matchs.length) { setMessage('❌ Aucun match reconnu. Une ligne par match : « Real Madrid 2-1 Barcelone ».'); return; }
+    setImportRapide(true);
+    const d = r.details;
+    const row = {
+      ...(h ? { hook: h } : {}),
+      type: 'post', langue, categorie: 'Actualités', sport: 'football',
+      titre: 'Résultats' + (d.competition ? ' — ' + d.competition + (d.journee ? ' (' + d.journee + ')' : '') : ' du jour'),
+      journee_resultats: { competition: d.competition, journee: d.journee, date: d.date, matchs: matchsJourneePublies(d.matchs) },
+      publie: true
+    };
+    const { error } = await supabase.from('articles').insert(row as never);
+    setImportRapide(false);
+    if (error) { setMessage('❌ ' + error.message); return; }
+    setMessage('✅ 1 post créé avec ' + d.matchs.length + ' match(s). Ouvrez-le dans la liste pour générer la vidéo (les écussons se téléversent dans « Résultats de la journée »).' + (r.ignorees.length ? ' ⚠️ Lignes ignorées : ' + r.ignorees.join(' | ') : ''));
+    setTexteRapide('');
+    chargerArticles();
+  };
+
   const analyserResultatBasket = () => {
     const lignes = prendreHook(resTexteColle).split('\n').map(l => l.trim());
     let i = 0;
@@ -567,7 +597,7 @@ export default function AdminMedia() {
   };
 
   const erreurColonneDistinction = (msg: string) => {
-    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'bilan_historique', 'journee_resultats', 'nominations', 'promo', 'mini_quizz', 'visuels', 'hook'].find(c => msg.includes(c));
+    const col = ['distinction_details', 'onze_details', 'elimination', 'confrontations', 'derniers_matchs', 'bilan_historique', 'journee_resultats', 'nominations', 'promo', 'mini_quizz', 'visuels', 'hook', 'classement_photo', 'classement_intro'].find(c => msg.includes(c));
     return col
       ? "❌ La colonne '" + col + "' n'existe pas encore dans Supabase. Exécutez le SQL fourni (SQL Editor), puis réessayez."
       : '❌ ' + msg;
@@ -845,6 +875,24 @@ export default function AdminMedia() {
     setMessage('✅ Équipe importée : ' + r.joueurs.length + ' joueurs. Ajoutez les photos si vous voulez.');
   };
 
+  const uploadPhotoClassement = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingClassementPhoto(true); setMessage('');
+    try {
+      const blob = await redimensionnerImage(file);
+      const nom = 'classement-' + Date.now() + '.jpg';
+      const { error } = await supabase.storage.from('articles').upload(nom, blob, { contentType: 'image/jpeg' });
+      if (error) { setMessage('❌ Photo : ' + error.message); setUploadingClassementPhoto(false); return; }
+      const { data } = supabase.storage.from('articles').getPublicUrl(nom);
+      setClassementPhoto(data.publicUrl);
+      setMessage('✅ Photo ajoutée.');
+    } catch (err) {
+      setMessage('❌ Photo : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setUploadingClassementPhoto(false);
+  };
   const uploadPhotoDistinction = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -1015,7 +1063,7 @@ export default function AdminMedia() {
     setNomi({ ...NOMINATIONS_VIDE, nomines: [{ ...NOMINE_VIDE }] }); setTexteNomi('');
     setPromo({ ...PROMO_VIDE, lots: [{ ...LOT_VIDE }], sponsors: [{ ...SPONSOR_VIDE }] }); setTextePromo(''); setMini(MINI_VIDE()); setTexteMini('');
     setFormation(''); setOnze(Array.from({length:11},()=>({nom:'',equipe:'',photo:''}))); setOnzeDetails(ONZE_DETAILS_VIDES); setTexteOnze('');
-    setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1');
+    setModePost('simple'); setClassementType(''); setClassementTitre(''); setClassementPays(''); setClassementPositionDepart('1'); setClassementPhoto(''); setClassementIntro(''); setAvaitClassementIntro(false);
     setPubActif(false); setPubNom(''); setPubLogo(''); setPubLien('');
     setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setClassementTexteColle('');
@@ -1078,7 +1126,7 @@ export default function AdminMedia() {
     else if (a.gagnants && a.gagnants.gagnants?.length) setModePost('gagnants');
     else if (a.pays1 || a.equipe1 || a.ligue) setModePost('match');
     else setModePost('simple');
-    setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || ''); setClassementPays(a.classement_pays || ''); setClassementPositionDepart('1');
+    setClassementType(a.classement_type || ''); setClassementTitre(a.classement_titre || ''); setClassementPays(a.classement_pays || ''); setClassementPositionDepart('1'); setClassementPhoto(a.classement_photo || ''); setClassementIntro(a.classement_intro || ''); setAvaitClassementIntro(!!(a.classement_photo || a.classement_intro));
     if (a.classement && Array.isArray(a.classement) && a.classement.length > 0) setClassement(a.classement.map(l => ({...l, couleur: l.couleur || ''})));
     else setClassement(Array.from({length:10},(_,i)=>({pos:String(i+1),nom:'',extra:'',diff:'',pays:'',val:'',couleur:''})));
     setFormation(a.formation || '');
@@ -1361,6 +1409,8 @@ export default function AdminMedia() {
       // Envoyé seulement s'il y a des visuels (ou s'il fallait les retirer) : sans eux, la colonne n'est pas requise.
       // Hook : envoyé seulement s'il est rempli (ou s'il fallait l'effacer), pour ne rien casser avant le SQL.
       ...(hookPublie(hook) || avaitHook ? { hook: hookPublie(hook) || null } : {}),
+      // Envoyés seulement s'ils servent (ou s'il faut les retirer) : sans eux, les colonnes ne sont pas requises.
+      ...(classementType && (classementPhoto || classementIntro.trim() || avaitClassementIntro) ? { classement_photo: classementPhoto || null, classement_intro: classementIntro.trim() || null } : {}),
       ...(visuelsPublies(visuels).length || avaitVisuels ? { visuels: visuelsPublies(visuels).length ? visuelsPublies(visuels) : null } : {}),
       slug: slugify(titre) + '-' + Date.now().toString().slice(-5),
       publie: publier, updated_at: new Date().toISOString(),
@@ -1748,6 +1798,14 @@ export default function AdminMedia() {
                     <button type="button" onClick={creerResultatsEnLot} disabled={importLotResultats} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotResultats ? '⏳ Création...' : '🚀 Créer tous les résultats'}</button>
                   </div>
                 )}
+                {lotResultatsOuvert && (
+                  <div style={{background:'#1e1e1e',border:'1px solid #ff7a00',borderRadius:'10px',padding:'16px',marginBottom:'20px'}}>
+                    <p style={{fontSize:'12px',color:'#fff',fontWeight:800,margin:'0 0 6px'}}>⚡ Une seule vidéo, scores rapides (sans buteurs)</p>
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 10px'}}>Un match par ligne. Première ligne facultative : Compétition | Journée | Date. Les scores défilent match après match, 5 par écran. Crée UN seul post.</p>
+                    <textarea value={texteRapide} onChange={e => setTexteRapide(e.target.value)} rows={8} placeholder={'Hook: Ta soirée de Ligue des champions en 10 secondes\nLigue des champions | 3e journée | 04/11/2026\nReal Madrid 3-1 Barcelone\nPSG 2-0 Monaco\nBayern 4-4 Dortmund'} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
+                    <button type="button" onClick={creerResultatsRapides} disabled={importRapide} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:'#ff7a00',color:'#fff'}}>{importRapide ? '⏳ Création...' : '⚡ Créer la vidéo des résultats'}</button>
+                  </div>
+                )}
 
                 <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Ou coller le texte pour un seul résultat (remplit le formulaire ci-dessous)</p>
                 <textarea value={resTexteColle} onChange={e => setResTexteColle(e.target.value)} placeholder={'Hook: Ton accroche ici\n' + ("Real Madrid 3 - 1 Barcelone\n\nButs Real Madrid\nMbappé 23 (Valverde)\nVinicius 67\n\nButs Barcelone\nLewandowski 55\n\nRouges\nAraújo 80")} rows={10} style={{...inputStyle,marginBottom:'10px',fontFamily:'monospace',fontSize:'13px'}}/>
@@ -2108,6 +2166,17 @@ export default function AdminMedia() {
                         <button type="button" onClick={creerClassementsEnLot} disabled={importLotClassements} style={{padding:'10px 20px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'13px',background:VIOLET,color:'#fff'}}>{importLotClassements ? '⏳ Création...' : '🚀 Créer tous les classements'}</button>
                       </div>
                     )}
+
+                    <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>🎬 Page d'ouverture de la vidéo (facultatif)</p>
+                    <input value={classementIntro} onChange={e => setClassementIntro(e.target.value.slice(0, 80))} placeholder="Titre de la page d'ouverture (sinon : le titre du classement)" style={{...inputStyle,marginBottom:'8px'}}/>
+                    <div style={{display:'flex',gap:'12px',marginBottom:'14px',alignItems:'center'}}>
+                      {classementPhoto ? <img src={classementPhoto} alt="" style={{width:'64px',height:'64px',borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:'2px solid #ffd700'}}/> : <div style={{width:'64px',height:'64px',borderRadius:'50%',background:'#2a2a2a',border:'2px dashed #555',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px'}}>🏆</div>}
+                      <label style={{padding:'8px 14px',borderRadius:'999px',border:'1px dashed #555',color:'#9ca3af',cursor:'pointer',fontSize:'12px',fontWeight:700}}>
+                        {uploadingClassementPhoto ? '⏳ Envoi...' : (classementPhoto ? '📷 Changer la photo' : '📷 Photo à la place de la coupe')}
+                        <input type="file" accept="image/*" onChange={uploadPhotoClassement} style={{display:'none'}}/>
+                      </label>
+                      {classementPhoto && <button type="button" onClick={() => setClassementPhoto('')} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'12px',fontWeight:700}}>Retirer</button>}
+                    </div>
 
                     <p style={{fontSize:'11px',color:'#6b7280',margin:'0 0 6px',fontWeight:700}}>Titre du classement</p>
                     <input value={classementTitre} onChange={e => setClassementTitre(e.target.value)} placeholder={classementType==='equipes'?'Ex: Groupe A / Classement FIFA':'Ex: Meilleurs buteurs Ligue 1'} style={{...inputStyle,marginBottom:'14px'}}/>

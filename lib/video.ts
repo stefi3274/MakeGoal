@@ -17,7 +17,7 @@ import { DerniersMatchsDetails, libelleDerniers, affichageDernier, issueDernier,
 import { adversaireAGauche } from './lieu';
 import { hookPublie } from './hook';
 import { BilanHistorique, bilanValide, totalMatchs, butsRenseignes, lignesPubliees, nb as nbBilan } from './bilan';
-import { Ecussons, VisuelEquipe, visuelEquipe } from './ecussons';
+import { Ecussons, VisuelEquipe, visuelEquipe, cleEquipe } from './ecussons';
 import { ConfrontationsDetails, prochainRempli, affichageProchain, MESSAGE_PRONOSTIC, MESSAGE_CADEAUX, libelleConfrontations, affichageConf, issueConf, formaterDate, bilanConf, matchsPublies } from './confrontations';
 
 // ---------- Données d'entrée (compatible avec le type Article de l'admin) ----------
@@ -33,7 +33,7 @@ export type VideoPost = {
   distinction_type?: string | null; laureat?: string | null; distinction_note?: string | null;
   distinction_stats?: string | null; distinction_details?: DistinctionDetails | null;
   formation?: string | null; onze?: OnzeJoueur[] | null; onze_details?: OnzeDetails | null;
-  classement_type?: string | null; classement_titre?: string | null;
+  classement_type?: string | null; classement_titre?: string | null; classement_photo?: string | null; classement_intro?: string | null;
   classement?: { pos: string; nom: string; extra: string; diff: string; pays: string; val: string }[] | null;
   matchs_jour?: { equipe1: string; equipe2: string; date_match: string; score1: number | null; score2: number | null }[] | null;
   resultat_details?: { buts: { equipe: string; joueur: string; minute: string; passeur: string }[]; rouges: { joueur: string; minute: string }[]; jaunes: { joueur: string; minute: string }[] } | null;
@@ -53,6 +53,7 @@ export type VideoPost = {
   mini_quizz?: MiniQuizzDetails | null;
   quizz?: { titre: string; sport?: string | null; duree_heures?: number | null; sponsors?: Sponsor[] | null; questions: { question: string; options: { cle: string; texte: string }[]; bonne_reponse?: string }[] } | null;
   extrait?: string | null;
+  visuels?: { type: string; nom: string; url?: string }[] | null;
 };
 
 // ---------- Scènes ----------
@@ -66,9 +67,10 @@ type Enseigne = { nom: string; sous?: string; photo?: string; initiale?: string;
 type Scene =
   | { k: 'intro'; badge: string; fond: string; titre: string; sous?: string; pill?: string; photo?: string; initiale?: string; icone?: string; duo?: [Duo, Duo]; fixe?: boolean; duree: number }
   | { k: 'lignes'; badge: string; fond: string; titre?: string; soustitre?: string; entetesCols?: [string, string, string]; entetesTrio?: [string, string, string]; titreMorceaux?: Morceau[]; entete?: Enseigne; lignes: Ligne[]; duree: number }
-  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; infos: string[]; duree: number }
+  | { k: 'score'; badge: string; fond: string; e1: string; e2: string; s1: number | null; s2: number | null; i1?: Issue; i2?: Issue; buts?: { cote: 1 | 2; texte: string }[]; d1?: string; d2?: string; u1?: string; u2?: string; infos: string[]; duree: number }
   | { k: 'bilan'; badge: string; fond: string; e1: string; e2: string; p1?: string; p2?: string; periode?: string; total: number; rangees: { label: string; a: number; b: number; nuls?: number }[]; duree: number }
   | { k: 'top'; badge: string; fond: string; titre?: string; soustitre?: string; unite?: string; rangs: { pos: string; nom: string; club?: string; flag?: string; val?: string }[]; duree: number }
+  | { k: 'resultats'; badge: string; fond: string; titre?: string; soustitre?: string; matchs: MatchLigne[]; duree: number }
   | { k: 'hook'; badge: string; fond: string; texte: string; duree: number }
   | { k: 'duels'; badge: string; fond: string; titre?: string; rencontres: Rencontre[]; duree: number }
   | { k: 'quiz'; badge: string; fond: string; numero: number; total: number; question: string; options: { cle: string; texte: string }[]; bonne?: string; lettre?: string; duree: number }
@@ -228,6 +230,9 @@ export function construireScenes(p: VideoPost): Scene[] {
     pagesDeLignes(lignes, PAR_PAGE_LISTE).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'XI', titre: d?.competition || undefined, lignes: pg, duree: dureeLignes(pg.length) }));
   } else if (type === 'Classement') {
     const titre = p.classement_titre || p.titre;
+    // Page d'ouverture : titre au choix et photo à la place de la coupe (sinon titre du classement et icône).
+    const titreIntro = (p.classement_intro || '').trim() || titre;
+    const photoIntro = /^https:\/\//i.test(p.classement_photo || '') ? (p.classement_photo as string) : undefined;
     if (p.classement_type === 'equipes') {
       // Tableau de compétition : Équipe | M (matchs joués) | +/- (différence de buts) | P (points).
       const dateTxt = p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { timeZone: 'America/Port-au-Prince', day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -235,7 +240,7 @@ export function construireScenes(p: VideoPost): Scene[] {
         label: l.pos + '. ' + l.nom, valeur: '', cols: [(l.extra || '-').toString(), (l.diff || '-').toString(), (l.val || '-').toString()] as [string, string, string],
         accent: '#ff7a00',
       }));
-      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre, sous: 'Classement de la compétition', pill: dateTxt ? '📅 ' + dateTxt : undefined, icone: '📊', duree: 3.4 });
+      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre: titreIntro, sous: 'Classement de la compétition', pill: dateTxt ? '📅 ' + dateTxt : undefined, photo: photoIntro, icone: '📊', duree: 3.4 });
       pagesDeLignes(lignes, 6).forEach(pg => scenes.push({ k: 'lignes', badge: 'CLASSEMENT', fond: 'TOP', titre, soustitre: dateTxt ? 'Classement au ' + dateTxt : 'Classement', entetesCols: ['M', '+/-', 'P'], lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
     } else {
       const rangs = (p.classement || []).slice(0, 20).filter(l => (l.nom || '').trim()).map(l => {
@@ -244,7 +249,7 @@ export function construireScenes(p: VideoPost): Scene[] {
       });
       const tt = (titre || '').toLowerCase();
       const unite = /pass/.test(tt) ? 'PASSES' : /but/.test(tt) ? 'BUTS' : /point|pts/.test(tt) ? 'PTS' : undefined;
-      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre, icone: '🏆', duree: 3 });
+      scenes.push({ k: 'intro', badge: 'CLASSEMENT', fond: 'TOP', titre: titreIntro, photo: photoIntro, icone: '🏆', duree: 3 });
       pagesDeLignes(rangs as never, 5).forEach(pg => scenes.push({ k: 'top', badge: 'CLASSEMENT', fond: 'TOP', titre, unite, rangs: pg as never, duree: 1.2 + pg.length * 0.9 + 2 }));
     }
   } else if (type === 'Gagnants') {
@@ -323,7 +328,8 @@ export function construireScenes(p: VideoPost): Scene[] {
     scenes.push({ k: 'intro', badge, fond: 'FT', titre: j.competition || 'Résultats', sous: j.journee || undefined, pill: dateTxt ? '📅 ' + dateTxt : undefined, icone: '📋', duree: 3.4 });
     const lignes: Ligne[] = matchs.map(m => ({ match: avecVisuels({ a: m.equipe1, b: m.equipe2, sa: m.score1.trim(), sb: m.score2.trim() }, j.ecussons), label: m.equipe1 + ' vs ' + m.equipe2, valeur: '', accent: '#ff7a00' }));
     const sousT = [j.journee, dateTxt].filter(Boolean).join('  •  ') || undefined;
-    pagesDeLignes(lignes, 6).forEach(pg => scenes.push({ k: 'lignes', badge, fond: 'FT', titre: j.competition || 'Résultats', soustitre: sousT, lignes: pg, duree: dureeLignes(pg.length) + 0.6 }));
+    // Vidéo rapide : les scores défilent match après match (5 matchs par écran, 10 matchs = 2 écrans).
+    pagesDeLignes(lignes, 5).forEach(pg => scenes.push({ k: 'resultats', badge, fond: 'FT', titre: j.competition || 'Résultats', soustitre: sousT, matchs: pg.map(l => l.match as MatchLigne), duree: 0.5 + pg.length * 0.5 + 0.6 + 1.6 }));
   } else if (type === 'Derniers matchs') {
     const d = p.derniers_matchs!;
     const matchs = derniersPublies(d.matchs);
@@ -429,7 +435,12 @@ export function construireScenes(p: VideoPost): Scene[] {
       // Seulement si tous les buts sont attribués et que leur total correspond au score final.
       if (liste.every(x => x.cote !== 0) && n1 === p.score1 && n2 === p.score2) butsOrdre = liste.map(x => ({ cote: x.cote as 1 | 2, texte: x.texte }));
     }
-    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, i1: iss?.[0], i2: iss?.[1], buts: butsOrdre, d1: p.pays1 ? drapeau(p.pays1) : undefined, d2: p.pays2 ? drapeau(p.pays2) : undefined, infos, duree: butsOrdre ? DEBUT_BUTS + (butsOrdre.length - 1) * PAS_BUT + 1.0 : (fini && p.score1 === 0 && p.score2 === 0 ? 5 : fini ? 3.0 : 5) });
+    // Écussons des deux équipes : ceux téléversés dans les visuels du post (type écusson), sinon le drapeau du pays.
+    const ecP: Ecussons = {};
+    (p.visuels || []).forEach(v => { if (v && v.type === 'ecusson' && v.url && /^https:\/\//i.test(v.url)) ecP[cleEquipe(v.nom)] = v.url; });
+    const ve1 = visuelEquipe(p.equipe1, ecP), ve2 = visuelEquipe(p.equipe2, ecP);
+    const dr1 = p.pays1 ? drapeau(p.pays1) : (ve1.drapeau || undefined), dr2 = p.pays2 ? drapeau(p.pays2) : (ve2.drapeau || undefined);
+    scenes.push({ k: 'score', badge, fond: fini ? 'FINAL' : 'VS', e1: p.equipe1 || '', e2: p.equipe2 || '', s1: fini ? (p.score1 ?? null) : null, s2: fini ? (p.score2 ?? null) : null, i1: iss?.[0], i2: iss?.[1], buts: butsOrdre, d1: ve1.url ? undefined : dr1, d2: ve2.url ? undefined : dr2, u1: ve1.url, u2: ve2.url, infos, duree: butsOrdre ? DEBUT_BUTS + (butsOrdre.length - 1) * PAS_BUT + 1.0 : (fini && p.score1 === 0 && p.score2 === 0 ? 5 : fini ? 3.0 : 5) });
     const rd = p.resultat_details;
     if (fini && rd) {
       const cote = (nom: string): { i: Issue | undefined; etiquette: string } | null => {
@@ -1109,7 +1120,7 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
       }
     } else {
       if (s.titreMorceaux) texteMorceaux(ctx, s.titreMorceaux, 540, 330, 72, 940);
-      else if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, s.soustitre ? 318 : 330, 72, '#fff', 'center', '#ff7a00', 940);
+      else if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, s.soustitre ? 318 : 330, 72, s.fond === 'QUIZ' ? '#2a0a6b' : '#fff', 'center', '#ff7a00', 940); // fond QUIZ clair : titre foncé, sinon blanc sur blanc
       if (s.soustitre) texteOr(ctx, majuscule(s.soustitre), 540, 396, 38, 'center', 940);
       y0 = 470; pas = 164; h = 136;
     }
@@ -1313,6 +1324,58 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
     });
   }
 
+  else if (s.k === 'resultats') {
+    if (s.titre) texteIncline(ctx, majuscule(s.titre), 540, s.soustitre ? 318 : 330, 72, '#fff', 'center', '#ff7a00', 940);
+    if (s.soustitre) texteOr(ctx, majuscule(s.soustitre), 540, 396, 38, 'center', 940);
+    const pas = s.matchs.length <= 3 ? 250 : s.matchs.length === 4 ? 210 : 186, h = pas - 18, y0 = 450;
+    s.matchs.forEach((m, i) => {
+      const tr = t - 0.4 - i * 0.5;
+      if (tr < 0) return;
+      const p = easeBack(tr / 0.35);
+      const cy = y0 + i * pas + h / 2;
+      const na = parseInt(m.sa || '0', 10) || 0, nb = parseInt(m.sb || '0', 10) || 0;
+      const is = issuesMatch(na, nb);
+      const compte = clamp((tr - 0.1) / 0.5);
+      const fini = compte >= 1;
+      ctx.save();
+      ctx.globalAlpha = alpha * clamp(tr / 0.15);
+      ctx.translate((1 - Math.min(1, p)) * -700, 0);
+      ctx.save();
+      ctx.translate(540, cy); ctx.transform(1, 0, -0.1, 1, 0, 0);
+      const g = ctx.createLinearGradient(-490, 0, 490, 0);
+      g.addColorStop(0, 'rgba(70,10,120,0.92)'); g.addColorStop(1, 'rgba(5,5,40,0.82)');
+      ctx.fillStyle = g; ctx.fillRect(-490, -h / 2, 980, h);
+      ctx.fillStyle = '#ff7a00'; ctx.fillRect(-490, -h / 2, 16, h);
+      if (!fini) { ctx.fillStyle = 'rgba(255,181,46,' + (0.22 * (1 - compte)) + ')'; ctx.fillRect(-490, -h / 2, 980, h); }
+      ctx.restore();
+      const couleur = (k: 0 | 1) => fini && is ? texteIssue(is[k]) : '#fff';
+      // écussons ou drapeaux
+      const visuel = (v: VisuelEquipe | undefined, x: number) => {
+        if (!v) return;
+        if (v.url) imageCarree(ctx, images.get(v.url) || null, x, cy - 36, 72, false, '');
+        else if (v.drapeau) { ctx.save(); ctx.font = `58px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(v.drapeau, x + 36, cy + 3); ctx.restore(); }
+      };
+      visuel(m.va, 62); visuel(m.vb, 800);
+      // noms (jusqu'à 2 lignes)
+      const nom = (txt: string, x: number, align: CanvasTextAlign, c: string) => {
+        ctx.font = `italic 900 32px ${POLICE}`;
+        const lg = coupeLignes(ctx, majuscule(txt), 200).slice(0, 2);
+        const ts = lg.length > 1 ? 28 : 32;
+        lg.forEach((l, k) => texteIncline(ctx, l, x, cy + (k - (lg.length - 1) / 2) * ts * 1.1, ts, c, align, '#0b0b2a', 205));
+      };
+      nom(m.a, 345, 'right', couleur(0));
+      nom(m.b, 600, 'left', couleur(1));
+      // score qui défile rapidement
+      const pop = fini ? 1 + 0.12 * Math.max(0, 1 - (tr - 0.6) / 0.25) : 1;
+      ctx.save(); ctx.translate(472, cy); ctx.scale(pop, pop);
+      texteIncline(ctx, String(Math.round(na * easeOut(compte))), -30, 0, 84, couleur(0), 'right', '#bf00ff', 120);
+      texteIncline(ctx, '-', 0, 0, 64, '#e9d5ff', 'center');
+      texteIncline(ctx, String(Math.round(nb * easeOut(compte))), 30, 0, 84, couleur(1), 'left', '#bf00ff', 120);
+      ctx.restore();
+      ctx.restore();
+    });
+  }
+
   else if (s.k === 'hook') {
     const taille = s.texte.length > 60 ? 66 : s.texte.length > 32 ? 80 : 96;
     ctx.font = `italic 900 ${taille}px ${POLICE}`;
@@ -1387,6 +1450,8 @@ function dessinerScene(ctx: Ctx, s: Scene, t: number, images: Images) {
   else if (s.k === 'score') {
     const pop = easeBack((t - 0.2) / 0.6);
     ctx.save();
+    if (s.u1) { ctx.globalAlpha = alpha * clamp(t / 0.5); imageCarree(ctx, images.get(s.u1) || null, 270 - 140, 440 - 140, 280, false, ''); }
+    if (s.u2) { ctx.globalAlpha = alpha * clamp(t / 0.5); imageCarree(ctx, images.get(s.u2) || null, 810 - 140, 440 - 140, 280, false, ''); }
     if (s.d1) { ctx.font = `200px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = alpha * clamp(t / 0.5); ctx.fillText(s.d1, 270, 440); }
     if (s.d2) { ctx.font = `200px ${POLICE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = alpha * clamp(t / 0.5); ctx.fillText(s.d2, 810, 440); }
     ctx.restore();
@@ -1708,6 +1773,8 @@ export async function genererVideos(post: VideoPost, onProgress: Progression, si
   scenes.forEach(s => {
     if (s.k === 'intro') { if (s.photo) urls.add(s.photo); s.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
     if (s.k === 'lignes') s.lignes.forEach(l => { if (l.photo && l.photo !== PHOTO_ABSENTE) urls.add(l.photo); if (l.ecusson) urls.add(l.ecusson); if (l.match?.va?.url) urls.add(l.match.va.url); if (l.match?.vb?.url) urls.add(l.match.vb.url); });
+    if (s.k === 'score') { if (s.u1) urls.add(s.u1); if (s.u2) urls.add(s.u2); }
+    if (s.k === 'resultats') s.matchs.forEach(m => { if (m.va?.url) urls.add(m.va.url); if (m.vb?.url) urls.add(m.vb.url); });
     if (s.k === 'bilan') { if (s.p1) urls.add(s.p1); if (s.p2) urls.add(s.p2); }
     if (s.k === 'lignes' && s.entete) { if (s.entete.photo) urls.add(s.entete.photo); s.entete.duo?.forEach(d => { if (d.photo) urls.add(d.photo); }); }
   });
