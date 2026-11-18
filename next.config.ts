@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
     return [
       { source: '/:path*', headers: entetes },
       // Pages et API sensibles : jamais mises en cache, jamais indexées.
-      ...['/admin/:path*', '/caisse/:path*', '/api/caisse-:path*'].map(source => ({
+      ...['/admin/:path*', '/caisse/:path*', '/api/caisse-offres', '/api/caisse-ticket', '/api/caisse-payer', '/api/caisse-admin'].map(source => ({
         source,
         headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }, { key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       })),
