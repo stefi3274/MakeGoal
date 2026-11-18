@@ -34,6 +34,15 @@ export async function authentifier(request: Request, adminSeulement = false): Pr
   return Response.json({ error: 'Accès réservé aux caissiers' }, { status: 403 });
 }
 
+// Évite qu'une exception imprévue renvoie une page 500 muette : l'erreur est journalisée côté serveur
+// et renvoyée en JSON lisible (routes caisse réservées à des comptes connectés).
+export async function sansPlanter(f: () => Promise<Response>): Promise<Response> {
+  try { return await f(); } catch (e) {
+    console.error('[caisse] erreur serveur', e);
+    return Response.json({ error: 'Erreur serveur : ' + (e instanceof Error ? e.message : String(e)).slice(0, 200) }, { status: 500 });
+  }
+}
+
 export const estReponse = (x: Acteur | Response): x is Response => x instanceof Response;
 
 // Recalcule l'état des tickets (non payés, non annulés) qui contiennent l'une de ces offres.

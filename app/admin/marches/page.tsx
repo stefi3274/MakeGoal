@@ -18,7 +18,7 @@ const MARCHES_JAMBES: Marche[] = ['1x2', 'dc', 'mt_1x2', 'mt_dc', 'une_mt', 'ou'
 const LIGNES = ['0.5', '1.5', '2.5', '3.5', '4.5', '5.5'];
 
 const inputStyle = { padding: '10px', borderRadius: '8px', border: '1px solid #333', background: '#222', color: '#fff', fontSize: '14px', boxSizing: 'border-box' as const };
-const bouton = (bg: string) => ({ padding: '8px 14px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: bg, color: '#fff' });
+const bouton = (bg: string) => ({ padding: '8px 14px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', background: bg, color: '#fff', whiteSpace: 'nowrap' as const });
 const heureHaiti = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export default function AdminMarches() {
@@ -63,17 +63,22 @@ export default function AdminMarches() {
   };
 
   // caissiers + journal
-  const [caissiers, setCaissiers] = useState<{ user_id: string; nom: string | null; email: string }[]>([]);
+  const [caissiers, setCaissiers] = useState<{ user_id: string; nom: string | null; email: string; en_attente?: boolean }[]>([]);
+  const [lienInvitation, setLienInvitation] = useState('');
   const [emailCaissier, setEmailCaissier] = useState('');
   const [nomCaissier, setNomCaissier] = useState('');
   const [journalLignes, setJournalLignes] = useState<{ id: number; created_at: string; email: string | null; action: string; details: Record<string, unknown> }[]>([]);
   const chargerCaissiers = async () => { try { const j = await appeler({ action: 'caissiers_lister' }); setCaissiers(j.caissiers); } catch (e) { setMessage('❌ ' + (e as Error).message); } };
   const chargerJournal = async () => { try { const j = await appeler({ action: 'journal' }); setJournalLignes(j.journal); } catch (e) { setMessage('❌ ' + (e as Error).message); } };
   useEffect(() => { if (connecte && vue === 'caissiers') chargerCaissiers(); if (connecte && vue === 'journal') chargerJournal(); }, [connecte, vue]);
-  const ajouterCaissier = async () => {
-    setOccupe(true); setMessage('');
-    try { await appeler({ action: 'caissier_ajouter', email: emailCaissier, nom: nomCaissier }); setMessage('✅ Caissier ajouté.'); setEmailCaissier(''); setNomCaissier(''); chargerCaissiers(); }
-    catch (e) { setMessage('❌ ' + (e as Error).message); }
+  const ajouterCaissier = async (mode: 'mail' | 'lien') => {
+    setOccupe(true); setMessage(''); setLienInvitation('');
+    try {
+      const j = await appeler({ action: 'caissier_ajouter', email: emailCaissier, nom: nomCaissier, mode });
+      if (j.lien) setLienInvitation(j.lien);
+      setMessage(!j.invite ? '✅ Compte existant : ajouté comme caissier.' : j.lien ? '✅ Caissier créé. Copiez le lien ci-dessous et envoyez-le lui (WhatsApp, SMS).' : '✅ Invitation envoyée par e-mail.');
+      setEmailCaissier(''); setNomCaissier(''); chargerCaissiers();
+    } catch (e) { setMessage('❌ ' + (e as Error).message); }
     setOccupe(false);
   };
 
@@ -150,10 +155,10 @@ export default function AdminMarches() {
   const groupes = MARCHES_ORDRE.map(m => ({ m, liste: offres.filter(o => o.marche === m) })).filter(g => g.liste.length);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f0f0f', fontFamily: 'sans-serif', color: '#fff' }}>
-      <header style={{ background: '#111', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', flexWrap: 'wrap', gap: '10px' }}>
+    <div style={{ minHeight: '100vh', background: '#0f0f0f', fontFamily: 'sans-serif', color: '#fff', overflowX: 'hidden' }}>
+      <header style={{ background: '#111', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', flexWrap: 'wrap', gap: '10px' }}>
         <h1 style={{ color: VIOLET, fontWeight: 900, fontSize: '18px', margin: 0 }}>🎲 Paris en caisse : marchés et règlement</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <a href="/admin" style={{ ...bouton('#333'), textDecoration: 'none' }}>← Admin</a>
           <a href="/caisse" style={{ ...bouton('#0e7490'), textDecoration: 'none' }}>🧾 Ouvrir la caisse</a>
           <button onClick={() => setVue('offres')} style={bouton(vue === 'offres' ? VIOLET : '#333')}>Marchés</button>
@@ -177,7 +182,7 @@ export default function AdminMarches() {
             {match && (
               <>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                  <button disabled={occupe} onClick={() => exec({ action: 'preremplir', matchId }, j => j.ajoutees + ' offre(s) créée(s) depuis les cotes API (1X2, double chance, plus/moins 2.5).')} style={bouton('#0e7490')}>⚡ Préremplir depuis l'API</button>
+                  <button disabled={occupe} onClick={() => exec({ action: 'preremplir', matchId }, j => j.ajoutees + ' offre(s) créée(s), ' + j.misAJour + ' cote(s) mise(s) à jour depuis l\'API.')} style={bouton('#0e7490')}>⚡ Préremplir depuis l'API</button>
                 </div>
 
                 {/* Nouvelle offre */}
@@ -322,15 +327,23 @@ export default function AdminMarches() {
         {vue === 'caissiers' && (
           <section style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '16px' }}>
             <p style={{ margin: '0 0 6px', fontWeight: 800, fontSize: '14px' }}>👥 Caissiers</p>
-            <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#9ca3af', lineHeight: 1.6 }}>Le caissier crée d'abord son compte sur le site, puis tu l'ajoutes avec son email. Il devra activer la double authentification à sa première connexion à /caisse.</p>
+            <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#9ca3af', lineHeight: 1.6 }}>Saisis l'e-mail du caissier : il reçoit une invitation, choisit son mot de passe, puis active l'application Authenticator. Si l'e-mail ne part pas, utilise « Générer un lien » et envoie-le lui toi-même. Un compte déjà inscrit est simplement ajouté.</p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
               <input value={emailCaissier} onChange={e => setEmailCaissier(e.target.value)} placeholder="Email du caissier" style={{ ...inputStyle, flex: 2, minWidth: '180px' }} />
               <input value={nomCaissier} onChange={e => setNomCaissier(e.target.value)} placeholder="Nom (facultatif)" style={{ ...inputStyle, flex: 1, minWidth: '120px' }} />
-              <button disabled={occupe || !emailCaissier} onClick={ajouterCaissier} style={bouton(VIOLET)}>Ajouter</button>
+              <button disabled={occupe || !emailCaissier} onClick={() => ajouterCaissier('mail')} style={bouton(VIOLET)}>✉️ Inviter par e-mail</button>
+              <button disabled={occupe || !emailCaissier} onClick={() => ajouterCaissier('lien')} style={bouton('#0e7490')}>🔗 Générer un lien</button>
             </div>
+            {lienInvitation && (
+              <div style={{ background: '#111', border: '1px solid #0e7490', borderRadius: '10px', padding: '10px', marginBottom: '12px', fontSize: '12px' }}>
+                <div style={{ color: '#9ca3af', marginBottom: '6px' }}>Lien d'invitation (à usage unique, à ne partager qu'avec ce caissier) :</div>
+                <div style={{ wordBreak: 'break-all', color: '#67e8f9', marginBottom: '8px' }}>{lienInvitation}</div>
+                <button onClick={() => navigator.clipboard.writeText(lienInvitation).then(() => setMessage('📋 Lien copié.'))} style={bouton('#333')}>Copier</button>
+              </div>
+            )}
             {caissiers.map(c => (
               <div key={c.user_id} style={{ display: 'flex', gap: '10px', alignItems: 'center', borderTop: '1px solid #2a2a2a', padding: '8px 0', fontSize: '13px' }}>
-                <b style={{ flex: 1 }}>{c.nom || '(sans nom)'}</b><span style={{ color: '#9ca3af' }}>{c.email}</span>
+                <b style={{ flex: 1 }}>{c.nom || '(sans nom)'}</b><span style={{ color: '#9ca3af' }}>{c.email}</span>{c.en_attente && <span style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 800 }}>⏳ invitation en attente</span>}
                 <button onClick={() => { if (confirm('Retirer ' + (c.nom || c.email) + ' ?')) appeler({ action: 'caissier_retirer', userId: c.user_id }).then(() => chargerCaissiers()).catch(e => setMessage('❌ ' + e.message)); }} style={bouton('#7f1d1d')}>Retirer</button>
               </div>
             ))}

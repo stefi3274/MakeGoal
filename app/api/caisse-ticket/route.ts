@@ -1,10 +1,12 @@
 import { randomBytes } from 'crypto';
-import { supabaseAdmin, authentifier, estReponse, journal } from '../../../lib/caisseServeur';
+import { supabaseAdmin, authentifier, estReponse, journal, sansPlanter } from '../../../lib/caisseServeur';
 import { limiteCaisse, limiteVerifTicket, verifierLimite } from '../../../lib/rateLimit';
 import { MISE_MIN, MISE_MAX, GAIN_MAX, SELECTIONS_MAX, calculerTicket, codeDepuisOctets, lireNumero } from '../../../lib/caisse';
 
 // Création d'un ticket. Les cotes et libellés sont TOUJOURS relus en base : on ne fait jamais confiance au navigateur.
-export async function POST(request: Request) {
+export async function POST(request: Request) { return sansPlanter(() => traiterPost(request)); }
+
+async function traiterPost(request: Request): Promise<Response> {
   const acteur = await authentifier(request);
   if (estReponse(acteur)) return acteur;
   { const l = await verifierLimite(limiteCaisse, acteur.userId); if (l) return l; }
@@ -55,7 +57,9 @@ export async function POST(request: Request) {
 const COLONNES_PUBLIQUES = 'id, numero, code, mise, cote_totale, gain_potentiel, statut, gain_final, created_at, regle_at, paye_at';
 
 // Lecture d'un ticket : par id (impression) ou par numéro + code (vérification au guichet).
-export async function GET(request: Request) {
+export async function GET(request: Request) { return sansPlanter(() => traiterGet(request)); }
+
+async function traiterGet(request: Request): Promise<Response> {
   const acteur = await authentifier(request);
   if (estReponse(acteur)) return acteur;
   { const l = await verifierLimite(limiteVerifTicket, acteur.userId); if (l) return l; }

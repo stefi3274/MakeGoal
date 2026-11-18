@@ -1,9 +1,11 @@
-import { supabaseAdmin, authentifier, estReponse, journal } from '../../../lib/caisseServeur';
+import { supabaseAdmin, authentifier, estReponse, journal, sansPlanter } from '../../../lib/caisseServeur';
 import { VALIDITE_JOURS, PAIEMENT_CAISSIER_MAX } from '../../../lib/caisse';
 import { limiteVerifTicket, verifierLimite } from '../../../lib/rateLimit';
 
 // Paiement d'un ticket gagnant. Opération atomique : un ticket ne peut être payé qu'une seule fois.
-export async function POST(request: Request) {
+export async function POST(request: Request) { return sansPlanter(() => traiterPost(request)); }
+
+async function traiterPost(request: Request): Promise<Response> {
   const acteur = await authentifier(request);
   if (estReponse(acteur)) return acteur;
   { const l = await verifierLimite(limiteVerifTicket, acteur.userId); if (l) return l; }

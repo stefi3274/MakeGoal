@@ -1,7 +1,9 @@
-import { supabaseAdmin, authentifier, estReponse } from '../../../lib/caisseServeur';
+import { supabaseAdmin, authentifier, estReponse, sansPlanter } from '../../../lib/caisseServeur';
 
 // Offres ouvertes aux paris (matchs pas encore commencés), pour l'écran de caisse.
-export async function GET(request: Request) {
+export async function GET(request: Request) { return sansPlanter(() => traiterGet(request)); }
+
+async function traiterGet(request: Request): Promise<Response> {
   const acteur = await authentifier(request);
   if (estReponse(acteur)) return acteur;
   const { data: offres } = await supabaseAdmin.from('paris_offres').select('id, match_id, marche, choix, libelle, cote, legs').eq('actif', true).is('resultat', null);

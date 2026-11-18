@@ -1,4 +1,4 @@
-import { supabaseAdmin, authentifier, estReponse, recalculerTickets, journal } from '../../../lib/caisseServeur';
+import { supabaseAdmin, authentifier, estReponse, recalculerTickets, journal, sansPlanter } from '../../../lib/caisseServeur';
 import { parserLotCaisse, offresDuLot, matchVisibleCaisse, type Fuseau } from '../../../lib/caisseLot';
 import { limiteAdminCaisse, verifierLimite } from '../../../lib/rateLimit';
 import { parserResultats, trouverMatch } from '../../../lib/caisseResultats';
@@ -15,7 +15,7 @@ const ACTIONS_JOURNALISEES = new Set(['sauver', 'activer', 'supprimer', 'regler_
 
 export async function POST(request: Request) {
   const copie = request.clone();
-  const rep = await traiterAdmin(request);
+  const rep = await sansPlanter(() => traiterAdmin(request));
   if (rep.ok) {
     const b = await copie.json().catch(() => null) as Record<string, unknown> | null;
     if (b && typeof b.action === 'string' && ACTIONS_JOURNALISEES.has(b.action)) {
@@ -85,14 +85,26 @@ async function traiterAdmin(request: Request): Promise<Response> {
       if (n(m.cote_plus2_5)) prop.push({ marche: 'ou', choix: 'over_2.5', cote: Number(m.cote_plus2_5) });
       if (n(m.cote_moins2_5)) prop.push({ marche: 'ou', choix: 'under_2.5', cote: Number(m.cote_moins2_5) });
       if (!prop.length) return Response.json({ error: 'Aucune cote API pour ce match : saisissez-les à la main.' }, { status: 400 });
-      const { data: ex } = await supabaseAdmin.from('paris_offres').select('marche, choix').eq('match_id', m.id);
-      const deja = new Set((ex || []).map((o: { marche: string; choix: string }) => o.marche + '|' + o.choix));
+      const { data: ex } = await supabaseAdmin.from('paris_offres').select('id, marche, choix, cote, resultat').eq('match_id', m.id);
+      type OffreEx = { id: string; marche: string; choix: string; cote: number; resultat: string | null };
+      const existantes = new Map<string, OffreEx>();
+      for (const o of (ex || []) as OffreEx[]) existantes.set(o.marche + '|' + o.choix, o);
+      const deja = new Set(existantes.keys());
+      // Cotes déjà créées : mises à jour si l'API a changé (offres non réglées seulement).
+      let misAJour = 0;
+      for (const o of prop) {
+        const e = existantes.get(o.marche + '|' + o.choix);
+        if (e && e.resultat === null && Math.abs(Number(e.cote) - o.cote) >= 0.005) {
+          const { error } = await supabaseAdmin.from('paris_offres').update({ cote: o.cote } as never).eq('id', e.id);
+          if (!error) misAJour++;
+        }
+      }
       const lignes = prop.filter(o => !deja.has(o.marche + '|' + o.choix)).map(o => ({ match_id: m.id, marche: o.marche, choix: o.choix, libelle: libelleOffre(o.marche, o.choix, m.equipe1, m.equipe2), cote: o.cote, actif: true }));
       if (lignes.length) {
         const { error } = await supabaseAdmin.from('paris_offres').insert(lignes as never);
         if (error) return Response.json({ error: error.message }, { status: 500 });
       }
-      return Response.json({ ok: true, ajoutees: lignes.length });
+      return Response.json({ ok: true, ajoutees: lignes.length, misAJour });
     }
 
     case 'sauver': {
@@ -202,13 +214,18 @@ async function traiterAdmin(request: Request): Promise<Response> {
       const liste = [];
       for (const c of (data || []) as { user_id: string; nom: string | null; created_at: string }[]) {
         const { data: u } = await supabaseAdmin.auth.admin.getUserById(c.user_id);
-        liste.push({ ...c, email: u?.user?.email || '' });
+        // « en attente » : invitation envoyée mais le caissier n'a encore jamais ouvert le lien.
+        liste.push({ ...c, email: u?.user?.email || '', en_attente: !u?.user?.last_sign_in_at });
       }
       return Response.json({ caissiers: liste });
     }
+
+    // Création d'un caissier par e-mail. Compte existant : simple ajout. Sinon : invitation Supabase
+    // (mode « mail ») ou lien d'invitation à transmettre soi-même (mode « lien », ne dépend pas de l'envoi d'e-mails).
     case 'caissier_ajouter': {
       const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
       const nom = typeof b.nom === 'string' ? b.nom.trim().slice(0, 60) : '';
+      const mode = b.mode === 'lien' ? 'lien' : 'mail';
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Response.json({ error: 'Email invalide.' }, { status: 400 });
       let userId: string | null = null;
       for (let page = 1; page <= 20 && !userId; page++) {
@@ -217,10 +234,26 @@ async function traiterAdmin(request: Request): Promise<Response> {
         userId = data.users.find(u => (u.email || '').toLowerCase() === email)?.id || null;
         if (data.users.length < 200) break;
       }
-      if (!userId) return Response.json({ error: 'Aucun compte avec cet email : le caissier doit d\'abord créer son compte sur le site.' }, { status: 404 });
+      const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://makegoal.vercel.app';
+      const redirectTo = site + '/caisse/activer';
+      let lien: string | null = null;
+      let invite = false;
+      if (!userId) {
+        if (mode === 'mail') {
+          const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo, data: { nom } });
+          if (error || !data.user) return Response.json({ error: 'Envoi de l\'invitation impossible : ' + (error?.message || 'erreur inconnue') + '. Essayez « Générer un lien ».' }, { status: 502 });
+          userId = data.user.id;
+        } else {
+          const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo, data: { nom } } });
+          if (error || !data.user) return Response.json({ error: 'Création du lien impossible : ' + (error?.message || 'erreur inconnue') }, { status: 502 });
+          userId = data.user.id;
+          lien = data.properties.action_link;
+        }
+        invite = true;
+      }
       const { error } = await supabaseAdmin.from('caissiers').upsert({ user_id: userId, nom: nom || null } as never, { onConflict: 'user_id' });
       if (error) return Response.json({ error: error.message }, { status: 500 });
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, invite, mode, lien });
     }
     case 'caissier_retirer': {
       if (typeof b.userId !== 'string') return Response.json({ error: 'Caissier requis.' }, { status: 400 });
