@@ -1,16 +1,5 @@
 import type { NextConfig } from "next";
 
-// En-têtes de sécurité appliqués à toutes les pages.
-const entetes = [
-  { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  { key: 'Content-Security-Policy', value: csp },
-  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
-  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-];
-
 // Politique de contenu : scripts limités à notre site, Google Analytics et Cloudflare Turnstile ;
 // objets et iframes tiers interdits ; formulaires et <base> limités au site. Images/médias/connexions
 // ouverts en HTTPS car les vidéos et posts chargent des photos et écussons externes.
@@ -31,6 +20,17 @@ const csp = [
   "frame-ancestors 'self'",
   'upgrade-insecure-requests',
 ].join('; ');
+
+// En-têtes de sécurité appliqués à toutes les pages.
+const entetes = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'Content-Security-Policy', value: csp },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+];
 
 const nextConfig: NextConfig = {
   async headers() {
