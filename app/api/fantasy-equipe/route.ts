@@ -1,3 +1,4 @@
+import { limiteFantasy, verifierLimite } from '../../../lib/rateLimit';
 import { FANTASY_11_ACTIF } from '../../../lib/features';
 import { supabaseAdmin, utilisateurDe, tousLesJoueurs, equipeDeLigne, journeeCourante, estOuverte, budgetDe, profilsDe } from '../../../lib/fantasyServeur';
 import { couleurValide, emblemeValide } from '../../../lib/fantasyProfil';
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  { const l = await verifierLimite(limiteFantasy, u.userId); if (l) return l; }
   const body = await request.json().catch(() => ({}));
   const action = body.action as string;
 

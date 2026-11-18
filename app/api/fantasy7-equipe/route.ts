@@ -1,3 +1,4 @@
+import { limiteFantasy, verifierLimite } from '../../../lib/rateLimit';
 import { supabaseAdmin, utilisateurDe, tousLesJoueurs, journeeCourante, estOuverte, budgetDe, profilsDe } from '../../../lib/fantasyServeur';
 import { validerEquipe7, Equipe7 } from '../../../lib/fantasy7';
 
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  { const l = await verifierLimite(limiteFantasy, u.userId); if (l) return l; }
   const body = await request.json().catch(() => ({}));
   if (body.action !== 'sauver') return Response.json({ error: 'Action inconnue.' }, { status: 400 });
   const journee = await journeeCourante();

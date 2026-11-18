@@ -1,3 +1,4 @@
+import { exigerAal2 } from '../../../lib/aal';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
   if (userError || !userData.user) {
     return Response.json({ error: 'Session invalide' }, { status: 401 });
   }
+  const aalRefus = exigerAal2(token);
+  if (aalRefus) return aalRefus;
   const { data: adminData } = await supabaseAdmin
     .from('admins').select('user_id').eq('user_id', userData.user.id).single();
   if (!adminData) return Response.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 });

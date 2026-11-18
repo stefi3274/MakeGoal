@@ -1,6 +1,9 @@
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const sport = searchParams.get('sport') || 'soccer_uefa_champs_league';
+  const SPORTS_AUTORISES = ['soccer_uefa_champs_league', 'soccer_fifa_world_cup', 'soccer_france_ligue_one', 'soccer_epl', 'soccer_spain_la_liga', 'soccer_italy_serie_a', 'soccer_portugal_primeira_liga'];
+  const demande = searchParams.get('sport') || 'soccer_uefa_champs_league';
+  if (!SPORTS_AUTORISES.includes(demande)) return Response.json({ error: 'Sport non autorisé', matches: [] }, { status: 400 });
+  const sport = demande;
 
   const apiKey = process.env.ODDS_API_KEY;
   if (!apiKey) {

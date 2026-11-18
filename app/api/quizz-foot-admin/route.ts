@@ -1,3 +1,4 @@
+import { exigerAal2 } from '../../../lib/aal';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -21,6 +22,8 @@ async function verifierAdmin(request: Request): Promise<Response | null> {
   if (userError || !userData.user) {
     return Response.json({ error: 'Session invalide, reconnectez-vous.' }, { status: 401 });
   }
+  const aalRefus = exigerAal2(authHeader.replace('Bearer ', ''));
+  if (aalRefus) return aalRefus;
   const { data: adminData } = await supabaseAdmin
     .from('admins').select('user_id').eq('user_id', userData.user.id).single();
   if (!adminData) {

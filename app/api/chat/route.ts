@@ -1,3 +1,4 @@
+import { limiteChat, verifierLimite } from '../../../lib/rateLimit';
 import { supabaseAdmin, utilisateurDe, profilsDe } from '../../../lib/fantasyServeur';
 import { EMOJIS_CHAT, ID_VALIDE, MESSAGES_AFFICHES, SEUIL_MASQUAGE, contientLien, nettoyerMessage } from '../../../lib/chat';
 
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  { const l = await verifierLimite(limiteChat, u.userId); if (l) return l; }
   const brut = await request.text();
   if (brut.length > 4000) return rep({ error: 'Requête trop grande.' }, 413);
   let body: Record<string, unknown> = {};

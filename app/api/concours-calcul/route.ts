@@ -1,3 +1,4 @@
+import { exigerAal2 } from '../../../lib/aal';
 import { createClient } from '@supabase/supabase-js';
 import { traiterPrediction } from '../../../lib/points';
 
@@ -21,6 +22,8 @@ export async function POST(request: Request) {
   }
 
   // 2. Vérifier que cet utilisateur est admin
+  const aalRefus = exigerAal2(token);
+  if (aalRefus) return aalRefus;
   const { data: adminData } = await supabaseAdmin
     .from('admins')
     .select('user_id')

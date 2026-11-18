@@ -1,3 +1,4 @@
+import { exigerAal2 } from '../../../lib/aal';
 import { createClient } from '@supabase/supabase-js';
 import { limiteCotes, verifierLimite } from '../../../lib/rateLimit';
 import { enregistrerAlerte } from '../../../lib/alertes';
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Session invalide' }, { status: 401 });
   }
 
+  const aalRefus = exigerAal2(token);
+  if (aalRefus) return aalRefus;
   const { data: adminData } = await supabaseAdmin
     .from('admins').select('user_id').eq('user_id', userData.user.id).single();
   if (!adminData) {

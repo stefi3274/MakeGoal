@@ -39,6 +39,37 @@ export const limiteRetrait = new Ratelimit({
   redis, limiter: Ratelimit.slidingWindow(3, '1 m'), prefix: 'limite:retrait'
 });
 
+export const limiteCaisse = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(40, '1 m'), prefix: 'limite:caisse'
+});
+
+// Vérification d'un ticket par numéro + code et paiements : très serré pour empêcher de deviner un code.
+export const limiteVerifTicket = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'limite:caisse-verif'
+});
+
+export const limiteAdminCaisse = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(90, '1 m'), prefix: 'limite:caisse-admin'
+});
+
+export const limiteChat = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(12, '1 m'), prefix: 'limite:chat'
+});
+
+export const limiteFantasy = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'limite:fantasy'
+});
+
+export const limiteVotes = new Ratelimit({
+  redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'limite:votes'
+});
+
+// Clé de limite pour les visiteurs non connectés : IP fournie par Vercel.
+export function cleIp(request: Request): string {
+  const f = request.headers.get('x-forwarded-for');
+  return f ? f.split(',')[0].trim() : 'inconnue';
+}
+
 // Petit utilitaire commun : vérifie la limite pour une clé (généralement
 // l'id de l'utilisateur) et renvoie directement une réponse 429 si dépassée,
 // ou null si tout va bien (à appeler juste après l'authentification).

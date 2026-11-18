@@ -5,6 +5,21 @@ import Turnstile from './Turnstile';
 
 const VIOLET = '#bf00ff';
 
+// Déconnexion automatique après 15 minutes sans activité (poste partagé, caisse laissée ouverte).
+const INACTIVITE_MS = 15 * 60 * 1000;
+let inactiviteActive = false;
+function demarrerInactivite() {
+  if (inactiviteActive || typeof window === 'undefined') return;
+  inactiviteActive = true;
+  let minuteur: ReturnType<typeof setTimeout>;
+  const armer = () => {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(() => { supabase.auth.signOut().finally(() => window.location.reload()); }, INACTIVITE_MS);
+  };
+  ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach(e => window.addEventListener(e, armer, { passive: true }));
+  armer();
+}
+
 type Props = {
   titre: string;
   onAuthentifie: () => void;
@@ -25,6 +40,8 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
   const [enCours, setEnCours] = useState(false);
   const [captcha, setCaptcha] = useState<string | null>(null);
   const [captchaCle, setCaptchaCle] = useState(0);
+
+  const valider = () => { demarrerInactivite(); onAuthentifie(); };
 
   useEffect(() => { verifierSessionExistante(); }, []);
 
@@ -56,7 +73,7 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
       if (error) { setEtape('motdepasse'); return; }
 
       if (data.currentLevel === 'aal2') {
-        onAuthentifie();
+        valider();
         return;
       }
 
@@ -104,7 +121,7 @@ export default function AdminAuth({ titre, onAuthentifie }: Props) {
     });
     setEnCours(false);
     if (erreurVerif) { setErreur('Code incorrect. Réessayez.'); return; }
-    onAuthentifie();
+    valider();
   };
 
   const inputStyle = {width:'100%',padding:'12px',borderRadius:'8px',border:'1px solid #333',background:'#222',color:'#fff',fontSize:'14px',boxSizing:'border-box' as const};

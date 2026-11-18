@@ -30,6 +30,7 @@ export default function AdminHub() {
 
   const tuiles = [
     { titre: 'Tableau de bord', desc: 'Vos chiffres clés en un coup d\u2019œil', emoji: '📊', href: '/admin/dashboard', couleur: '#7c3aed', couleur2: '#a855f7' },
+    { titre: 'Paris en caisse', desc: 'Marchés, cotes, règlement et rapport de caisse', emoji: '🎲', href: '/admin/marches', couleur: '#0e7490', couleur2: '#06b6d4' },
     { titre: 'Matchs', desc: 'Programme et vote communautaire 1X2', emoji: '⚽', href: '/admin/matchs', couleur: '#10b981', couleur2: '#34d399' },
     { titre: 'Concours', desc: 'Concours multi-matchs, lots et tirages', emoji: '🏆', href: '/admin/concours', couleur: '#f59e0b', couleur2: '#fbbf24' },
     { titre: 'Articles & Média', desc: 'Posts, résultats, stats joueurs', emoji: '📰', href: '/admin/media', couleur: '#3b82f6', couleur2: '#60a5fa' },

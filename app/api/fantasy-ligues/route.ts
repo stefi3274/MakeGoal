@@ -1,3 +1,4 @@
+import { limiteFantasy, verifierLimite } from '../../../lib/rateLimit';
 import { supabaseAdmin, utilisateurDe, profilsDe } from '../../../lib/fantasyServeur';
 import { MAX_LIGUES_PAR_JOUEUR, MAX_MEMBRES_LIGUE, genererCode, normaliserCode } from '../../../lib/fantasyLigues';
 
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  { const l = await verifierLimite(limiteFantasy, u.userId); if (l) return l; }
   const body = await request.json().catch(() => ({}));
   const action = body.action as string;
   if (!(await inscrit(u.userId))) return Response.json({ error: 'Rejoins d\'abord MakeGoal Fantasy.' }, { status: 400 });

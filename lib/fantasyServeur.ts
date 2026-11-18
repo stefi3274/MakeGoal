@@ -1,3 +1,4 @@
+import { exigerAal2 } from './aal';
 // Aides SERVEUR pour MakeGoal Fantasy (routes API uniquement : clé service_role).
 import { createClient } from '@supabase/supabase-js';
 import { BUDGET_DEPART, type JoueurFantasy, type EquipeFantasy, type Poste } from './fantasy';
@@ -21,6 +22,8 @@ export async function utilisateurDe(request: Request): Promise<{ userId: string 
 export async function adminDe(request: Request): Promise<{ userId: string } | Response> {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  const aalRefus = exigerAal2((request.headers.get('authorization') || '').replace('Bearer ', ''));
+  if (aalRefus) return aalRefus;
   const { data } = await supabaseAdmin.from('admins').select('user_id').eq('user_id', u.userId).single();
   if (!data) return Response.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 });
   return u;

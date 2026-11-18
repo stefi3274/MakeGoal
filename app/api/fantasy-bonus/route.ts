@@ -1,3 +1,4 @@
+import { limiteFantasy, verifierLimite } from '../../../lib/rateLimit';
 import { supabaseAdmin, utilisateurDe, bonusDe } from '../../../lib/fantasyServeur';
 import { BUDGET_DEPART } from '../../../lib/fantasy';
 import { BONUS_MAX, JOURS_SERIE, etatSerie, jourHaiti, recompenseDuJour } from '../../../lib/bonusQuotidien';
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const u = await utilisateurDe(request);
   if (u instanceof Response) return u;
+  { const l = await verifierLimite(limiteFantasy, u.userId); if (l) return l; }
   if (!(await inscrit(u.userId))) return Response.json({ error: 'Rejoins d\'abord MakeGoal Fantasy.' }, { status: 400 });
   const aujourdhui = jourHaiti();
   const avant = await bonusDe(u.userId);

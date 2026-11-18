@@ -1,3 +1,4 @@
+import { exigerAal2 } from '../../../lib/aal';
 import { PARIS_ACTIF } from '../../../lib/features';
 import { createClient } from '@supabase/supabase-js';
 import { octroyerBonusAdmin, initialiserSoldeParis } from '../../../lib/paris';
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Session invalide' }, { status: 401 });
   }
 
+  const aalRefus = exigerAal2(token);
+  if (aalRefus) return aalRefus;
   const { data: adminData } = await supabaseAdmin
     .from('admins').select('user_id').eq('user_id', userData.user.id).single();
   if (!adminData) {
