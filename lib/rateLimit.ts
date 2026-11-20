@@ -74,7 +74,15 @@ export function cleIp(request: Request): string {
 // l'id de l'utilisateur) et renvoie directement une réponse 429 si dépassée,
 // ou null si tout va bien (à appeler juste après l'authentification).
 export async function verifierLimite(limiteur: Ratelimit, cle: string): Promise<Response | null> {
-  const { success, reset } = await limiteur.limit(cle);
+  let success = true, reset = 0;
+  try {
+    ({ success, reset } = await limiteur.limit(cle));
+  } catch (e) {
+    // Si le service Upstash est injoignable (base en pause, variables absentes), on ne bloque pas le site :
+    // l'authentification reste exigée partout, seule la limite de débit est suspendue.
+    console.error('[limite de débit] Upstash injoignable, limite ignorée', e);
+    return null;
+  }
   if (!success) {
     const secondes = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
     return Response.json(

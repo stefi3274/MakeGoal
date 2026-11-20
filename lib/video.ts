@@ -1716,7 +1716,7 @@ function chargerImgSrc(src: string, cors: boolean): Promise<HTMLImageElement | n
 // Charge une photo SANS "salir" le canvas (sinon l'enregistrement échoue). On passe par
 // fetch (avec contournement du cache : une photo déjà vue dans la page sans CORS serait
 // refusée), puis par une URL locale. Dernier recours : balise image avec paramètre anti-cache.
-async function chargerImage(url: string): Promise<HTMLImageElement | null> {
+export async function chargerImage(url: string): Promise<HTMLImageElement | null> {
   try {
     const rep = await fetch(url, { mode: 'cors', cache: 'reload' });
     if (rep.ok) {

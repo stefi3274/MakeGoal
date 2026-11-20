@@ -21,6 +21,7 @@ import { DerniersMatchsDetails, DERNIERS_VIDE, DERNIER_VIDE, DernierMatch, MAX_D
 import { ConfrontationsDetails, CONFRONTATIONS_VIDE, CONFRONTATION_VIDE, Confrontation, MAX_CONFRONTATIONS, parserConfrontations, matchsPublies, issueConf } from '../../../lib/confrontations';
 import { EliminationDetails, ELIMINATION_VIDE, Rencontre, RENCONTRE_VIDE, TOURS, parserElimination, qualifie as qualifieRencontre } from '../../../lib/elimination';
 import { genererVideos, typeVideo } from '../../../lib/video';
+import { fichePhotoPossible, genererFichePhoto } from '../../../lib/fichePhoto';
 import { FORMATIONS_LISTE, categoriesEquipeType, nbJoueursEquipe, CINQ_MAJEUR, POSTES_5_MAJEUR, OnzeJoueur, OnzeDetails, ONZE_DETAILS_VIDES, parserOnze } from '../../../lib/formations';
 import { groupesDistinctions, DISTINCTIONS, DETAILS_VIDES, DistinctionDetails, estDistinctionEquipe, parserLotDistinctions } from '../../../lib/distinctions';
 import { COLONNES_PAR_DEFAUT, MAX_COLONNES, cleColonne, cleDeBase, aValeurColonne, nomsColonnes, colonnesActives, COMPETITIONS, periodeAvecCompetition, CHAMPS_STATS_BASKET, POSTES_LABELS, PERIODES, StatsPoste, Periode, PeriodeType, champsFootball, groupesFootball, groupesPourPeriode, champsPourPeriode, periodeAvecAdversaire, periodeAvecNbMatchs, estCarriere, normaliserPoste, libellePeriode, trouverCleStat, parserLigneJoueur } from '../../../lib/statsJoueur';
@@ -858,6 +859,23 @@ export default function AdminMedia() {
       try { localStorage.removeItem('mg_video_trace'); } catch { /* ignore */ }
       if (!(err instanceof Error && err.message === 'annulé')) setVideoErreur(err instanceof Error ? err.message : 'Erreur vidéo');
     }
+  };
+
+  const [photoEnCours, setPhotoEnCours] = useState<string | null>(null);
+  const telechargerPhoto = async (a: Article) => {
+    if (photoEnCours) return;
+    setPhotoEnCours(a.id);
+    try {
+      const blob = await genererFichePhoto(a);
+      const url = URL.createObjectURL(blob);
+      const l = document.createElement('a');
+      l.href = url; l.download = 'makegoal-' + slugify(a.titre) + '-photo.png';
+      document.body.appendChild(l); l.click(); l.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      setMessage('❌ Photo : ' + (err instanceof Error ? err.message : 'erreur'));
+    }
+    setPhotoEnCours(null);
   };
 
   const fermerVideo = () => {
@@ -2796,6 +2814,7 @@ export default function AdminMedia() {
                   <button onClick={() => togglePublie(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'none',cursor:'pointer',fontWeight:700,fontSize:'11px',background:a.publie?'#10b981':'#374151',color:'#fff'}}>{a.publie ? '✓ Publié' : 'Brouillon'}</button>
                   {a.type === 'post' && a.categorie === 'Ponctuel' && <button onClick={() => relancer(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #f59e0b',background:'transparent',color:'#f59e0b',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🔄 Relancer</button>}
                   {a.type === 'post' && <button onClick={() => lancerVideo(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #10b981',background:'transparent',color:'#10b981',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🎬 Vidéo</button>}
+                  {a.type === 'post' && fichePhotoPossible(a) && <button onClick={() => telechargerPhoto(a)} disabled={photoEnCours === a.id} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #10b981',background:'transparent',color:'#10b981',cursor:'pointer',fontWeight:700,fontSize:'11px',opacity:photoEnCours === a.id ? 0.5 : 1}}>{photoEnCours === a.id ? '⏳ Photo…' : '🖼️ Photo'}</button>}
                   <button onClick={() => editerArticle(a)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid '+VIOLET,background:'transparent',color:VIOLET,cursor:'pointer',fontWeight:700,fontSize:'11px'}}>✏️</button>
                   <button onClick={() => supprimer(a.id)} style={{padding:'6px 12px',borderRadius:'999px',border:'2px solid #ef4444',background:'transparent',color:'#ef4444',cursor:'pointer',fontWeight:700,fontSize:'11px'}}>🗑️</button>
                 </div>
